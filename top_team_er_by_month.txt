@@ -22,3 +22,4 @@ baseball=# SELECT team, game_month, game_year, to_char(era, '9999.99') as team_e
  TOR  |          4 |      2002 |     6.71
  SEA  |         10 |      1985 |     6.67
 (20 rows)
+
