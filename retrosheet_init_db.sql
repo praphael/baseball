@@ -1,4 +1,4 @@
-CREATE TABLE boxscores (
+CREATE TABLE boxscore (
     game_date date,
     game_num char(1),
     game_day_of_week char(3),
@@ -176,13 +176,13 @@ CREATE TABLE boxscores (
     home_player_9_pos char(1),
     additional_info varchar(128),
     acq_info char(1), 
-    PRIMARY KEY(game_date, game_num, park)
+    PRIMARY KEY(game_date, game_num, home_team)
 );
 
-CREATE TABLE extras (
+CREATE TABLE extra (
     game_date date,
     game_num char(1),
-    park varchar(16), 
+    home_team varchar(16), 
     visiting_score_inning_10 smallint,
     visiting_score_inning_11 smallint,
     visiting_score_inning_12 smallint,
@@ -215,17 +215,17 @@ CREATE TABLE extras (
     home_score_inning_23 smallint,
     home_score_inning_24 smallint,
     home_score_inning_25 smallint,
-    PRIMARY KEY(game_date, game_num, park)
+    PRIMARY KEY(game_date, game_num, home_team)
 );
 
-CREATE TABLE completions (
+CREATE TABLE completion (
     game_date date,
     game_num char(1),
-    park varchar(16), 
+    home_team varchar(16), 
     completion_date date,
     completion_park varchar(16), 
     visitor_score_int smallint, 
     home_score_int smallint, 
     outs_int smallint, 
-    PRIMARY KEY(game_date, game_num, park)
+    PRIMARY KEY(game_date, game_num, home_team)
 );

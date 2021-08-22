@@ -251,10 +251,9 @@ for year in range(yearStart, yearEnd+1):
     with open(fPath, "r") as fIn:
         rdr = csv.reader(fIn, delimiter=',', quotechar='"')
         for row in rdr:
-            completionInfo = None   # completion information 
             ext_visit = None   # score for visitor in extra innints
             i = 0
-            ln = "INSERT INTO boxscores VALUES("
+            ln = "INSERT INTO boxscore VALUES("
             for v in row:
                 x = "NULL"
                 if i == 0:
@@ -263,23 +262,26 @@ for year in range(yearStart, yearEnd+1):
                     x = "TRUE"
                     if len(v) > 0:
                         x = "FALSE"
-                        completionInfo = v
+                        completions.append((game_date, game_num, home_team, v))
                 elif i in (19, 20):
                     (x, ext) = parseLineScore(v)
                     if(len(ext) > 0):
                         if i == 19:
                             ext_visit = ext
                         else:
-                            extras.append((game_date, game_num, park, ext_visit, ext))
+                            extras.append((game_date, game_num, home_team, ext_visit, ext))
                 elif i in posStrIdx:
-                    x = int(v)
-                    if x == 10:
-                        x = "'D'"
-                    elif x > 10:
-                        print(f"ERROR, listed position {v} > 10")
-                        exit(1)
+                    if v == '':
+                        x = "'U'"
                     else:
-                        x= f"'{str(x)}'"
+                        x = int(v)
+                        if x == 10:
+                            x = "'D'"
+                        elif x > 10:
+                            print(f"ERROR, listed position {v} > 10")
+                            exit(1)
+                        else:
+                            x= f"'{str(x)}'"
                 else:
                     x = v
                     if i in strIdx:
@@ -296,11 +298,8 @@ for year in range(yearStart, yearEnd+1):
                     game_date = x
                 elif i == 1:
                     game_num = x
-                elif i == 16:
-                    park = x
-                    # since we get compeltion info after park, need to append it here
-                    if completionInfo is not None:
-                        completions.append((game_date, game_num, park, completionInfo))
+                elif i == 6:
+                    home_team = x
 
                 ln += x
                 i += 1
@@ -313,7 +312,7 @@ for year in range(yearStart, yearEnd+1):
 s += "\n"
 # extra inning infor
 for g in extras:
-    ln = f"INSERT INTO extras VALUES({g[0]}, {g[1]}, {g[2]}"
+    ln = f"INSERT INTO extra VALUES({g[0]}, {g[1]}, {g[2]}"
     ext = g[3]  # visitor 
     for n in range(2):
         r = re.split(",", ext)
@@ -330,7 +329,7 @@ for g in extras:
 s += "\n"
 # completion info
 for g in completions:    
-    ln = f"INSERT INTO completions VALUES({g[0]}, {g[1]}, {g[2]}, "
+    ln = f"INSERT INTO completion VALUES({g[0]}, {g[1]}, {g[2]}, "
     r = re.split(",",  g[3])
     dt = r[0]
     print(f"dt= {dt}")
