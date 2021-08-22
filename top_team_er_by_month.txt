@@ -1,25 +1,27 @@
-baseball=# SELECT team, game_month, game_year, to_char(era, '9999.99') as team_era FROM total_er_by_month WHERE num_games > 5 ORDER BY era DESC limit 20;
- team | game_month | game_year | team_era 
-------+------------+-----------+----------
- FW1  |          7 |      1871 |     9.50
- SLA  |          4 |      1951 |     7.67
- KC1  |          4 |      1955 |     7.50
- SLA  |          4 |      1937 |     7.43
- PHA  |          7 |      1939 |     7.28
- PHI  |          9 |      1930 |     7.27
- NY2  |          7 |      1871 |     7.25
- MIN  |          4 |      1994 |     7.20
- PIT  |          6 |      1950 |     7.19
- DET  |          4 |      1996 |     7.15
- BAL  |         10 |      1985 |     7.00
- PHI  |          7 |      1929 |     6.97
- COL  |          5 |      1993 |     6.97
- KCA  |          7 |      1999 |     6.96
- BAL  |          9 |      2007 |     6.76
- TBA  |          7 |      2007 |     6.74
- DET  |          6 |      1996 |     6.74
- PHA  |          7 |      1936 |     6.73
- TOR  |          4 |      2002 |     6.71
- SEA  |         10 |      1985 |     6.67
-(20 rows)
+baseball=# SELECT team, game_month, game_year, num_games, to_char(era, '9999.99') as team_era FROM total_er_by_month WHERE num_games > 5 ORDER BY era DESC limit 20;
+ team | game_month | game_year | num_games | team_era 
+------+------------+-----------+-----------+----------
+ FW1  |          7 |      1871 |         6 |     9.50
+ SLA  |          4 |      1951 |        12 |     7.67
+ KC1  |          4 |      1955 |        14 |     7.50
+ SLA  |          4 |      1937 |         7 |     7.43
+ PHA  |          7 |      1939 |        29 |     7.28
+ PHI  |          9 |      1930 |        26 |     7.27
+ NY2  |          7 |      1871 |         8 |     7.25
+ MIN  |          4 |      1994 |        25 |     7.20
+ PIT  |          6 |      1950 |        26 |     7.19
+ DET  |          4 |      1996 |        27 |     7.15
+ BAL  |         10 |      1985 |         6 |     7.00
+ PHI  |          7 |      1929 |        29 |     6.97
+ COL  |          5 |      1993 |        29 |     6.97
+ KCA  |          7 |      1999 |        27 |     6.96
+ BAL  |          9 |      2007 |        29 |     6.76
+ TBA  |          7 |      2007 |        27 |     6.74
+ DET  |          6 |      1996 |        27 |     6.74
+ PHA  |          7 |      1936 |        33 |     6.73
+ TOR  |          4 |      2002 |        24 |     6.71
+ SEA  |         10 |      1985 |         6 |     6.67
+
+
+
 
