@@ -144,6 +144,21 @@ import sys
 # Missing fields will be NULL.
 # 
 
+connectPG = False
+connectSqlite = True
+useDB = connectPG or connectSqlite
+writeFiles = False
+
+if connectSqlite:
+    import sqlite3
+    conn = sqlite3.connect("baseball.db")
+    cur = conn.cursor()
+
+if connectPG:
+    import psycopg
+    # Connect to an existing database
+    conn = psycopg.connect("dbname=postgres user=postgres")
+    cur = conn.cursor()
 
 dateIdx = [0]
 strIdx = [1, 2, 3, 4, 6, 7, 12, 14, 15, 16]
@@ -153,7 +168,7 @@ posStrIdx = list(range(107, 159, 3))
 def getYear(s, isEnd=False):
     typ = 'start'
     if isEnd:
-        type = 'end'
+        typ = 'end'
     try:
         year = int(s)
         return year
@@ -163,7 +178,7 @@ def getYear(s, isEnd=False):
 
 narg = len(sys.argv)
 yearStart = 1871
-yearEnd = 2020
+yearEnd = 2022
 if narg > 3:
     print(f"Too many arguments, encountered {narg}  expected between 0 and 2")
     exit(1)
@@ -174,7 +189,7 @@ if narg > 2:
 if yearStart == None or yearEnd == None:
     exit(1)    
 
-baseDir = "boxscores"
+baseDir = "alldata\\gamelogs"
 
 def parseCompletionInfo(r): 
     s = "NULL"
@@ -253,6 +268,9 @@ for year in range(yearStart, yearEnd+1):
         for row in rdr:
             ext_visit = None   # score for visitor in extra innints
             i = 0
+            # clear string to save space if we aren't writing out query
+            if not writeFiles:
+                s = ""
             ln = "INSERT INTO boxscore VALUES("
             for v in row:
                 x = "NULL"
@@ -305,13 +323,21 @@ for year in range(yearStart, yearEnd+1):
                 i += 1
                 if i < len(row):
                     ln += ", "
-            ln += ");\n"
+            ln += ")"
+            if useDB:
+                cur.execute(ln)
+            ln += "\n"
             numFields = ln.count(",") + 1
             s += ln
+    if useDB:
+        conn.commit()
 
 s += "\n"
 # extra inning infor
 for g in extras:
+    # clear string to save space if we aren't writing out query
+    if not writeFiles:
+        s = ""
     ln = f"INSERT INTO extra VALUES({g[0]}, {g[1]}, {g[2]}"
     ext = g[3]  # visitor 
     for n in range(2):
@@ -323,12 +349,21 @@ for g in extras:
             else:
                 ln += "NULL"
         ext = g[4]  # home
-    ln += ");\n"
+    ln += ")"
+    if useDB:
+        cur.execute(ln)
+    ln += ";\n"
     s += ln
+
+if useDB:
+    conn.commit()
 
 s += "\n"
 # completion info
 for g in completions:    
+    # clear string to save space if we aren't writing out query
+    if not writeFiles:
+        s = ""
     ln = f"INSERT INTO completion VALUES({g[0]}, {g[1]}, {g[2]}, "
     r = re.split(",",  g[3])
     dt = r[0]
@@ -338,8 +373,14 @@ for g in completions:
     ln += f"{r[2]}, "
     ln += f"{r[3]}, "
     ln += f"{r[4]}"
-    ln += ");\n"
+    ln += ")"
+    if useDB:
+        cur.execute(ln)
+    ln += ";\n"
     s += ln
+
+if useDB:
+    conn.commit()
 
 #           yyyymmdd -- the date the game was completed
 #           park -- the park ID where the game was completed
@@ -349,16 +390,16 @@ for g in completions:
 
 print(f'numFields= {numFields}')        
 
-
-fPath = f"boxscores_{yearStart}_to_{yearEnd}.sql"
-fout = open(fPath, "w")
-if fout is None:
-    print(f"ERROR: cannot open '{fPath}' for writing")
-    exit(1)     
-fout.write("BEGIN;\n")           
-fout.write(s)
-fout.write("COMMIT;\n")
-fout.close()
+if writeFiles:
+    fPath = f"boxscores_{yearStart}_to_{yearEnd}.sql"
+    fout = open(fPath, "w")
+    if fout is None:
+        print(f"ERROR: cannot open '{fPath}' for writing")
+        exit(1)     
+    fout.write("BEGIN;\n")           
+    fout.write(s)
+    fout.write("COMMIT;\n")
+    fout.close()
 
 
 
