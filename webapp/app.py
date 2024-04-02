@@ -48,7 +48,19 @@ FIELD_NAME_MAP = {"R":"score",
 QUERY_PARAMS= {"team": ["team", "team", "", True],
                "year": [YEAR_FIELD + " as year", "year", 0, False],
                "month": [MONTH_FIELD + " as month", "month", 0, False],
-               "dow": ["game_day_of_week as dow", "dow", "", False]}
+               "dow": ["game_day_of_week as dow", "dow", "", False],
+               "league": ["league", "league", "", True],
+               "park": ["park", "park", "", False],
+               "inn1": ["score_by_inning_1", "inn1", 0, True],
+               "inn2": ["score_by_inning_2", "inn2", 0, True],
+               "inn3": ["score_by_inning_3", "inn3", 0, True],
+               "inn4": ["score_by_inning_4", "inn4", 0, True],
+               "inn5": ["score_by_inning_5", "inn5", 0, True],
+               "inn6": ["score_by_inning_6", "inn6", 0, True],
+               "inn7": ["score_by_inning_7", "inn7", 0, True],
+               "inn8": ["score_by_inning_8", "inn8", 0, True],
+               "inn9": ["score_by_inning_9", "inn9", 0, True]
+               }
 
 def addToWhereClause(qy, p, prms, s):
     prms += (p,)
@@ -59,97 +71,133 @@ def addToWhereClause(qy, p, prms, s):
     qy += (s + "=?")
     return qy, prms
 
+# build SQL query string from fields provided
+def buildStatQueryStr(stats, isHome, agg="sum"):
+    statQueryStr = ""
+    h = "home"
+    v = "visiting"
+    fList = []
+    for st in stats:
+        # '_' prefix denotes sum opposing teams stat
+        f = st
+        isAgainst = False
+        if st[0] == "_":
+            isAgainst = True
+            f = st[1:]
+        if f in FIELD_NAME_MAP:
+            fName = FIELD_NAME_MAP[f]
+            b = v
+            ob = h
+            if isHome:
+                b = h
+                ob = v
+            if isAgainst:
+                b = ob # switch
+            if agg == "avg":
+                fld = f", trunc(100*{agg}(" + b + "_" + fName + "))/100.00 as "
+            else:
+                fld = f", {agg}(" + b + "_" + fName + ") as "
+            if isAgainst:
+                fld += "_"
+            fld += f
+
+            statQueryStr += fld
+            fList.append((f, isAgainst))
+    return statQueryStr, fList
+
+# make common table expression base
+def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames):
+    base = " " + homeOrAway + "_t as (SELECT "
+    homeOrVisit = homeOrAway
+    if homeOrAway == "away":
+        homeOrVisit = "visiting"
+    for f in fieldNames:
+        qp = QUERY_PARAMS[f]
+        if qp[3]:
+            base += (homeOrVisit + "_")
+        base += qp[0] 
+        if qp[3]:
+            base += " as " + f
+        base += ", "
+    base += " COUNT(*) as gp"
+    base += fieldQueryStr
+    base += " FROM boxscore"
+    return base
+
+def getQueryParams(args):
+    fieldNames = []
+    fieldValues = []
+    for a in args:
+        print("a=", a)
+        if a in QUERY_PARAMS:
+            qp = QUERY_PARAMS[a]
+            fieldNames.append(a)
+            v = args.get(a)
+            # convert to integer
+            if(type(qp[2]) == type(int)):
+                v = int(v)
+            fieldValues.append(v)
+
+    return fieldNames, fieldValues
+
+def buildCTEWhereClause(isHome, fieldNames):
+    qy = " WHERE "
+    first = True
+    for f in fieldNames:
+        if not first:
+            qy += " AND "
+        first = False
+        # if "team" stat
+        qp = QUERY_PARAMS[f]
+        if qp[3]:
+            if isHome:
+                qy += " home_"
+            else:
+                qy += " visiting_"
+        qy += (qp[1] + "=? ")
+    return qy    
+    
+def renderHTMLTable(headers, result, opts):
+    tblAttr=''
+    trAttr=''
+    tdAttr=''
+    thAttr=''
+    if opts == "-bs":
+        tblAttr='class="tbl"'
+        trAttr='class="tr"'
+        tdAttr='class="td"'
+        thAttr='class="th"'
+                
+    h = f"<table {tblAttr}>"
+    h += f"<thead><tr>"
+    for hdr in headers:
+        h += (f"<th {thAttr}>" + hdr + "</th>")
+    h += f"</tr></thead><tbody>"
+    for r in result:
+        h += f"<tr {trAttr}>"
+        for d in r:
+            h += f"<td {tdAttr}>" + d + "</td>"
+        h += "</tr>"
+    h += "</tbody></table>"
+    return h
+
 @app.route("/agg")
 def get_agg_stats():
     try:
-        # build SQL query string from fields provided
-        def buildStatQueryStr(stats, isHome):
-            statQueryStr = ""
-            h = "home"
-            v = "visiting"
-            fList = []
-            for st in stats:
-                # '_' prefix denotes sum opposing teams stat
-                f = st
-                isAgainst = False
-                if st[0] == "_":
-                    isAgainst = True
-                    f = st[1:]
-                if f in FIELD_NAME_MAP:
-                    fName = FIELD_NAME_MAP[f]
-                    b = v
-                    ob = h
-                    if isHome:
-                        b = h
-                        ob = v
-                    if isAgainst:
-                        b = ob # switch
-                    fld = ", sum(" + b + "_" + fName + ") as "
-                    if isAgainst:
-                        fld += "_"
-                    fld += f
-
-                    statQueryStr += fld
-                    fList.append((f, isAgainst))
-            return statQueryStr, fList
-                
-        # make common table expression base
-        def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames):
-            base = " " + homeOrAway + "_t as (SELECT "
-            homeOrVisit = homeOrAway
-            if homeOrAway == "away":
-                homeOrVisit = "visiting"
-            for f in fieldNames:
-                qp = QUERY_PARAMS[f]
-                if qp[3]:
-                    base += (homeOrVisit + "_")
-                base += qp[0] 
-                if qp[3]:
-                    base += " as " + f
-                base += ", "
-            base += " COUNT(*) as gp"
-            base += fieldQueryStr
-            base += " FROM boxscore"
-            return base
-        
-        def getQueryParams(args):
-            fieldNames = []
-            fieldValues = []
-            for a in args:
-                print("a=", a)
-                if a in QUERY_PARAMS:
-                    qp = QUERY_PARAMS[a]
-                    fieldNames.append(a)
-                    v = args.get(a)
-                    # convert to integer
-                    if(type(qp[2]) == type(int)):
-                        v = int(v)
-                    fieldValues.append(v)
-
-            return fieldNames, fieldValues
-        
-        def buildCTEWhereClause(isHome, fieldNames):
-            qy = " WHERE "
-            first = True
-            for f in fieldNames:
-                if not first:
-                    qy += " AND "
-                first = False
-                # if "team" stat
-                qp = QUERY_PARAMS[f]
-                if qp[3]:
-                    if isHome:
-                        qy += " home_"
-                    else:
-                        qy += " visiting_"
-                qy += (qp[1] + "=? ")
-            return qy
-
-
         args = request.args
         isHome = True
         isAway = True
-        
+        if "home" in args:
+            isHome = bool(args.get("home"))
+            isAway = False
+        if "away" in args:
+            if "home" not in args:
+                isHome = False
+            isAway = bool(args.get("away"))
+        agg = "sum"
+        if "agg" in args:
+            agg = args.get("agg")
+
         fieldNames, fieldValues = getQueryParams(args)
         print("fieldNames=", fieldNames)
         print("fieldValues=", fieldValues)
@@ -159,9 +207,10 @@ def get_agg_stats():
             stats = args.get("stats")
         stats = stats.split(",")
         print("stats=", stats)
-        
-        statQueryStrH, statList = buildStatQueryStr(stats, True)
-        statQueryStrA, statList = buildStatQueryStr(stats, False)
+
+            
+        statQueryStrH, statList = buildStatQueryStr(stats, True, agg)
+        statQueryStrA, statList = buildStatQueryStr(stats, False, agg)
         qy_home = makeCTEBase("home", statQueryStrH, fieldNames)
         qy_away = makeCTEBase("away", statQueryStrA, fieldNames)
 
@@ -194,7 +243,13 @@ def get_agg_stats():
                 first = False
                 if isAgainst:
                     st = "_" + st
-                qy += " h." + st + "+" + "a." + st + " as "
+                if agg == "sum":
+                    qy += " h." + st + "+" + "a." + st 
+                elif agg == "average":
+                    # for averages need to reweight/home away based on gams played
+                    qy += " trunc(100*(h.gp*h." + st + "+" + "a.gp*a." + st 
+                    qy += "))/(100.00*(h.gp + a.gp))"
+                qy += " as "
                 if isAgainst:
                     qy += "_"
                 qy += st
@@ -235,11 +290,18 @@ def get_agg_stats():
         hdr.append("GP")
         for (st, isAgainst) in statList:
             fld = ""
-            if isAgainst:
-                fld = "_"
             fld += st
+            if isAgainst:
+                fld = "a"
             hdr.append(fld)
-        return json.dumps({"header": hdr, "result": r}), 200
+        ret = "json"
+        if "ret" in args:
+            ret = args.get("ret")
+        if ret.startswith == "html":
+            opts=ret[4:]
+            return renderHTMLTable(hdr, r, opts), 200
+        else:
+            return json.dumps({"header": hdr, "result": r}), 200
     except Exception as e:
         print_exception(e)
         return str(e), 500
