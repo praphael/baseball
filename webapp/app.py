@@ -105,11 +105,13 @@ def buildStatQueryStr(stats, isHome, agg="sum"):
 
             statQueryStr += fld
             fList.append((f, isAgainst))
+            
     return statQueryStr, fList
 
 # make common table expression base
-def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames, agg):
+def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames, agg, grp=[]):
     base = " " + homeOrAway + "_t as (SELECT "
+
     homeOrVisit = homeOrAway
     if homeOrAway == "away":
         homeOrVisit = "visiting"
@@ -121,12 +123,20 @@ def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames, agg):
         if qp[3]:
             base += " as " + f
         base += ", "
+    for g in grp:
+        if g in QUERY_PARAMS:
+            qp = QUERY_PARAMS[g]
+            base += (qp[0] + ", ")
     if agg != "no":
         base += " COUNT(*) as gp"
     else: 
         base += " game_date as date, game_num as num, home_team as home, visiting_team as away"
     base += fieldQueryStr
+    
+    
+
     base += " FROM boxscore"
+    
     return base
 
 def getQueryParams(args):
@@ -145,7 +155,7 @@ def getQueryParams(args):
 
     return fieldNames, fieldValues
 
-def buildCTEWhereClause(isHome, fieldNames):
+def buildCTEWhereClause(isHome, fieldNames, grp=None):
     qy = " WHERE "
     first = True
     for f in fieldNames:
@@ -160,6 +170,24 @@ def buildCTEWhereClause(isHome, fieldNames):
             else:
                 qy += " visiting_"
         qy += (qp[1] + "=? ")
+
+    if len(grp) > 0: 
+        qy += " GROUP BY "
+        first = True
+        for f in fieldNames:
+            qp = QUERY_PARAMS[f]
+            if not first:
+                qy += ", "
+            first = False
+            qy += qp[1]
+            
+        for g in grp:
+            if g in QUERY_PARAMS:
+                qp = QUERY_PARAMS[g]
+                if not first:
+                    qy += ", "
+                first = False
+                qy += qp[1] 
     return qy    
     
 def renderHTMLTable(headers, result, opts):
@@ -186,8 +214,8 @@ def renderHTMLTable(headers, result, opts):
     h += "</tbody></table>"
     return h
 
-@app.route("/agg")
-def get_agg_stats():
+@app.route("/box")
+def get_box_stats():
     try:
         args = request.args
         isHome = True
@@ -202,6 +230,10 @@ def get_agg_stats():
         agg = "sum"
         if "agg" in args:
             agg = args.get("agg")
+        grp = []
+        if "grp" in args:
+            grp = args.get("grp")
+            grp = grp.split(",")
 
         fieldNames, fieldValues = getQueryParams(args)
         print("fieldNames=", fieldNames)
@@ -213,28 +245,27 @@ def get_agg_stats():
         stats = stats.split(",")
         print("stats=", stats)
 
-            
         statQueryStrH, statList = buildStatQueryStr(stats, True, agg)
         statQueryStrA, statList = buildStatQueryStr(stats, False, agg)
-        qy_home = makeCTEBase("home", statQueryStrH, fieldNames, agg)
-        qy_away = makeCTEBase("away", statQueryStrA, fieldNames, agg)
+        qy_home = makeCTEBase("home", statQueryStrH, fieldNames, agg, grp)
+        qy_away = makeCTEBase("away", statQueryStrA, fieldNames, agg, grp)
 
         prmsH = tuple()
         prmsA = tuple()
         whereClauseH = ""
         whereClauseA = ""
         if isHome:
-            whereClauseH = buildCTEWhereClause(True, fieldNames)
+            whereClauseH = buildCTEWhereClause(True, fieldNames, grp)
             qy += qy_home + whereClauseH + ")"
             prmsH = tuple(fieldValues)
         if isAway:
-            whereClauseA = buildCTEWhereClause(False, fieldNames)
+            whereClauseA = buildCTEWhereClause(False, fieldNames, grp)
             if isHome:
                 qy += ", "
             qy += qy_away + whereClauseA + ")"
             prmsA = tuple(fieldValues)
 
-        # if home and away selected, must do JOIN
+        # if home and away selected, must do JOIN (unless no aggregation)
         if isHome and isAway:
             if agg == "no":
                 qy += " SELECT * from home_t UNION SELECT * from away_t"
@@ -243,6 +274,9 @@ def get_agg_stats():
                 for f in fieldNames:
                     qp = QUERY_PARAMS[f]
                     qy += ("h." + qp[1] + ", ")
+                for g in grp:
+                    qp = QUERY_PARAMS[g]
+                    qy += f"h.{qp[1]}, "
                 qy += "h.gp+a.gp as gp, "
                 first = True
                 for (st, isAgainst) in statList:
@@ -265,14 +299,16 @@ def get_agg_stats():
                 
                 qy += " FROM home_t h"
                 if agg == "no":
-                    qy += " union "
+                    qy += " UNION "
                 else:
-                    qy += " inner join "
+                    qy += " INNER JOIN "
                 qy += " (SELECT "
 
                 for f in fieldNames:
                     qp = QUERY_PARAMS[f]
                     qy += (qp[1] + ", ")
+                for g in grp:
+                    qy += (g + ", ")
                 if agg == "no":
                     qy += "date, num, home, away, "
                 else:
@@ -296,6 +332,12 @@ def get_agg_stats():
                         first = False
                         qp = QUERY_PARAMS[f]
                         qy += " h." + qp[1] + "=a." + qp[1]
+                    for g in grp:
+                        if not first:
+                            qy += " AND "
+                        first = False
+                        qp = QUERY_PARAMS[g]
+                        qy += f" h.{qp[1]}=a.{qp[1]}"
                 
                     #qy += " AND h.date=a.date AND h.num=a.num"
                     #qy += " AND h.home=a.home AND h.away=a.away"
@@ -310,6 +352,8 @@ def get_agg_stats():
         print(r)
         # make header
         hdr = fieldNames
+        if grp is not None:
+            hdr.extend(grp)
         if agg != "no":
             hdr.append("GP")
         else:
