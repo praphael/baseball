@@ -40,6 +40,15 @@ FIELD_NAME_MAP = {"R":"score",
                   "PB":"passed_balls",
                   "DP":"double_plays",
                   "TP":"triple_plays"}
+# map of query to params to 
+# first entry - SQL as used in first CTE WHERE clause, including possible renaming
+# second entry - SQL as used in second WHERE clause
+# third entry - representative value, used for type inference
+# fourth entry - true/false, whether this is a "team" stat, to be used for appending 'home/visiting" to field name
+QUERY_PARAMS= {"team": ["team", "team", "", True],
+               "year": [YEAR_FIELD + " as year", "year", 0, False],
+               "month": [MONTH_FIELD + " as month", "month", 0, False],
+               "dow": ["game_day_of_week as dow", "dow", "", False]}
 
 def addToWhereClause(qy, p, prms, s):
     prms += (p,)
@@ -50,22 +59,22 @@ def addToWhereClause(qy, p, prms, s):
     qy += (s + "=?")
     return qy, prms
 
-@app.route("/agg/<team>/<year>/<month>")
-def get_agg_stats(team=None, year=None, month=None):
+@app.route("/agg")
+def get_agg_stats():
     try:
         # build SQL query string from fields provided
-        def buildFields(args, isHome):
-            fieldQueryStr = ""
+        def buildStatQueryStr(stats, isHome):
+            statQueryStr = ""
             h = "home"
             v = "visiting"
             fList = []
-            for a in args:
+            for st in stats:
                 # '_' prefix denotes sum opposing teams stat
-                f = a
+                f = st
                 isAgainst = False
-                if a[0] == "_":
+                if st[0] == "_":
                     isAgainst = True
-                    f = a[1:]
+                    f = st[1:]
                 if f in FIELD_NAME_MAP:
                     fName = FIELD_NAME_MAP[f]
                     b = v
@@ -80,94 +89,138 @@ def get_agg_stats(team=None, year=None, month=None):
                         fld += "_"
                     fld += f
 
-                    fieldQueryStr += fld
+                    statQueryStr += fld
                     fList.append((f, isAgainst))
-            return fieldQueryStr, fList
+            return statQueryStr, fList
                 
         # make common table expression base
-        def makeCTEBase(homeOrAway, fieldQueryStr):
-            base = " " + homeOrAway + "_t as (SELECT COUNT(*) as gp"
+        def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames):
+            base = " " + homeOrAway + "_t as (SELECT "
+            homeOrVisit = homeOrAway
+            if homeOrAway == "away":
+                homeOrVisit = "visiting"
+            for f in fieldNames:
+                qp = QUERY_PARAMS[f]
+                if qp[3]:
+                    base += (homeOrVisit + "_")
+                base += qp[0] 
+                if qp[3]:
+                    base += " as " + f
+                base += ", "
+            base += " COUNT(*) as gp"
             base += fieldQueryStr
             base += " FROM boxscore"
             return base
+        
+        def getQueryParams(args):
+            fieldNames = []
+            fieldValues = []
+            for a in args:
+                print("a=", a)
+                if a in QUERY_PARAMS:
+                    qp = QUERY_PARAMS[a]
+                    fieldNames.append(a)
+                    v = args.get(a)
+                    # convert to integer
+                    if(type(qp[2]) == type(int)):
+                        v = int(v)
+                    fieldValues.append(v)
+
+            return fieldNames, fieldValues
+        
+        def buildCTEWhereClause(isHome, fieldNames):
+            qy = " WHERE "
+            first = True
+            for f in fieldNames:
+                if not first:
+                    qy += " AND "
+                first = False
+                # if "team" stat
+                qp = QUERY_PARAMS[f]
+                if qp[3]:
+                    if isHome:
+                        qy += " home_"
+                    else:
+                        qy += " visiting_"
+                qy += (qp[1] + "=? ")
+            return qy
+
 
         args = request.args
         isHome = True
         isAway = True
         
-        if team is None and "team" in args:
-            team = args["team"]
-        if year is None and "year" in args:
-            year = args["year"]
-            #substr(game_date,0,5)
-        if month is None and "month" in args:
-            month = args["month"]
-            #substr(game_date,6,2)
-        if year is not None:
-            year = int(year)
-        if month is not None:
-            month = int(month)
+        fieldNames, fieldValues = getQueryParams(args)
+        print("fieldNames=", fieldNames)
+        print("fieldValues=", fieldValues)
         qy = "WITH"
-        q="R,_R"
-        if hasattr(args, "q"):
-            q = args.q
-        qf = q.split(",")
-        fQueryStrH, fieldList = buildFields(qf, True)
-        fQueryStrA, fieldList = buildFields(qf, False)
-        qy_home = makeCTEBase("home", fQueryStrH)
-        qy_away = makeCTEBase("away", fQueryStrA)
+        stats = "R,_R"
+        if "stats" in args:
+            stats = args.get("stats")
+        stats = stats.split(",")
+        print("stats=", stats)
+        
+        statQueryStrH, statList = buildStatQueryStr(stats, True)
+        statQueryStrA, statList = buildStatQueryStr(stats, False)
+        qy_home = makeCTEBase("home", statQueryStrH, fieldNames)
+        qy_away = makeCTEBase("away", statQueryStrA, fieldNames)
 
         prmsH = tuple()
         prmsA = tuple()
         whereClauseH = ""
         whereClauseA = ""
-        if team is not None:
-            if isHome:
-                whereClauseH, prmsH = addToWhereClause(whereClauseH, team, prmsH, "home_team")
-            if isAway:
-                whereClauseA, prmsA = addToWhereClause(whereClauseA, team, prmsA, "visiting_team")
-        if month is not None:
-            if isHome:
-                whereClauseH, prmsH = addToWhereClause(whereClauseH, month, prmsH, MONTH_FIELD)
-            if isAway:
-                whereClauseA, prmsA = addToWhereClause(whereClauseA, month, prmsA, MONTH_FIELD)
-        if year is not None:
-            if isHome:
-                whereClauseH, prmsH = addToWhereClause(whereClauseH, year, prmsH, YEAR_FIELD)
-            if isAway:
-                whereClauseA, prmsA = addToWhereClause(whereClauseA, year, prmsA, YEAR_FIELD)
         if isHome:
+            whereClauseH = buildCTEWhereClause(True, fieldNames)
             qy += qy_home + whereClauseH + ")"
+            prmsH = tuple(fieldValues)
         if isAway:
+            whereClauseA = buildCTEWhereClause(False, fieldNames)
             if isHome:
                 qy += ", "
             qy += qy_away + whereClauseA + ")"
+            prmsA = tuple(fieldValues)
 
-        # if home and away selected, sum all fields
+        # if home and away selected, must do JOIN
         if isHome and isAway:
-            qy += " SELECT h.gp+a.gp as gp, "
+            qy += " SELECT " 
+            for f in fieldNames:
+                qp = QUERY_PARAMS[f]
+                qy += ("h." + qp[1] + ", ")
+            qy += "h.gp+a.gp as gp, "
             first = True
-            for (f, isAgainst) in fieldList:
+            for (st, isAgainst) in statList:
                 if not first:
                     qy += ", "
                 first = False
                 if isAgainst:
-                    f = "_" + f
-                qy += " h." + f + "+" + "a." + f + " as "
+                    st = "_" + st
+                qy += " h." + st + "+" + "a." + st + " as "
                 if isAgainst:
                     qy += "_"
-                qy += f
+                qy += st
             
-            qy += " FROM home_t h join (SELECT gp, "
+            qy += " FROM home_t h inner join (SELECT "
+            for f in fieldNames:
+                qp = QUERY_PARAMS[f]
+                qy += (qp[1] + ", ")
+            qy += "gp, "
             first = True
-            for (f, isAgainst) in fieldList:
+            for (st, isAgainst) in statList:
                 if not first:
                     qy += ", "
                 first = False
                 if isAgainst:
-                    f = "_" + f
-                qy += f
+                    st = "_" + st
+                qy += st
             qy += " FROM away_t) a"
+            qy += " ON"
+            first = True
+            for f in fieldNames:
+                if not first:
+                    qy += " AND "
+                first = False
+                qp = QUERY_PARAMS[f]
+                qy += " h." + qp[1] + "=a." + qp[1]
         elif isHome:
             qy += " SELECT * from home_t"
         elif isAway:
@@ -177,7 +230,16 @@ def get_agg_stats(team=None, year=None, month=None):
         print("prms= ", prmsH + prmsA)
         r = appdb.executeQuery(db, qy, prmsH + prmsA)
         print(r)
-        return json.dumps({"ret": r}), 200
+        # make header
+        hdr = fieldNames
+        hdr.append("GP")
+        for (st, isAgainst) in statList:
+            fld = ""
+            if isAgainst:
+                fld = "_"
+            fld += st
+            hdr.append(fld)
+        return json.dumps({"header": hdr, "result": r}), 200
     except Exception as e:
         print_exception(e)
         return str(e), 500
