@@ -95,8 +95,10 @@ def buildStatQueryStr(stats, isHome, agg="sum"):
                 b = ob # switch
             if agg == "avg":
                 fld = f", trunc(100*{agg}(" + b + "_" + fName + "))/100.00 as "
-            else:
-                fld = f", {agg}(" + b + "_" + fName + ") as "
+            elif agg == "no":   # no aggregaton
+                fld = f", " + b + "_" + fName + " as "
+            else:  # use sum as default
+                fld = f", sum(" + b + "_" + fName + ") as "
             if isAgainst:
                 fld += "_"
             fld += f
@@ -106,7 +108,7 @@ def buildStatQueryStr(stats, isHome, agg="sum"):
     return statQueryStr, fList
 
 # make common table expression base
-def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames):
+def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames, agg):
     base = " " + homeOrAway + "_t as (SELECT "
     homeOrVisit = homeOrAway
     if homeOrAway == "away":
@@ -119,7 +121,10 @@ def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames):
         if qp[3]:
             base += " as " + f
         base += ", "
-    base += " COUNT(*) as gp"
+    if agg != "no":
+        base += " COUNT(*) as gp"
+    else: 
+        base += " game_date as date, game_num as num, home_team as home, visiting_team as away"
     base += fieldQueryStr
     base += " FROM boxscore"
     return base
@@ -176,7 +181,7 @@ def renderHTMLTable(headers, result, opts):
     for r in result:
         h += f"<tr {trAttr}>"
         for d in r:
-            h += f"<td {tdAttr}>" + d + "</td>"
+            h += f"<td {tdAttr}>" + str(d) + "</td>"
         h += "</tr>"
     h += "</tbody></table>"
     return h
@@ -211,8 +216,8 @@ def get_agg_stats():
             
         statQueryStrH, statList = buildStatQueryStr(stats, True, agg)
         statQueryStrA, statList = buildStatQueryStr(stats, False, agg)
-        qy_home = makeCTEBase("home", statQueryStrH, fieldNames)
-        qy_away = makeCTEBase("away", statQueryStrA, fieldNames)
+        qy_home = makeCTEBase("home", statQueryStrH, fieldNames, agg)
+        qy_away = makeCTEBase("away", statQueryStrA, fieldNames, agg)
 
         prmsH = tuple()
         prmsA = tuple()
@@ -231,51 +236,69 @@ def get_agg_stats():
 
         # if home and away selected, must do JOIN
         if isHome and isAway:
-            qy += " SELECT " 
-            for f in fieldNames:
-                qp = QUERY_PARAMS[f]
-                qy += ("h." + qp[1] + ", ")
-            qy += "h.gp+a.gp as gp, "
-            first = True
-            for (st, isAgainst) in statList:
-                if not first:
-                    qy += ", "
-                first = False
-                if isAgainst:
-                    st = "_" + st
-                if agg == "sum":
-                    qy += " h." + st + "+" + "a." + st 
-                elif agg == "average":
-                    # for averages need to reweight/home away based on gams played
-                    qy += " trunc(100*(h.gp*h." + st + "+" + "a.gp*a." + st 
-                    qy += "))/(100.00*(h.gp + a.gp))"
-                qy += " as "
-                if isAgainst:
-                    qy += "_"
-                qy += st
-            
-            qy += " FROM home_t h inner join (SELECT "
-            for f in fieldNames:
-                qp = QUERY_PARAMS[f]
-                qy += (qp[1] + ", ")
-            qy += "gp, "
-            first = True
-            for (st, isAgainst) in statList:
-                if not first:
-                    qy += ", "
-                first = False
-                if isAgainst:
-                    st = "_" + st
-                qy += st
-            qy += " FROM away_t) a"
-            qy += " ON"
-            first = True
-            for f in fieldNames:
-                if not first:
-                    qy += " AND "
-                first = False
-                qp = QUERY_PARAMS[f]
-                qy += " h." + qp[1] + "=a." + qp[1]
+            if agg == "no":
+                qy += " SELECT * from home_t UNION SELECT * from away_t"
+            else:
+                qy += " SELECT " 
+                for f in fieldNames:
+                    qp = QUERY_PARAMS[f]
+                    qy += ("h." + qp[1] + ", ")
+                qy += "h.gp+a.gp as gp, "
+                first = True
+                for (st, isAgainst) in statList:
+                    if not first:
+                        qy += ", "
+                    first = False
+                    if isAgainst:
+                        st = "_" + st
+                    # separate out home/away    
+                    if agg == "sum":
+                        qy += " h." + st + "+" + "a." + st 
+                    elif agg == "average":
+                        # for averages need to reweight/home away based on gams played
+                        qy += " trunc(100*(h.gp*h." + st + "+" + "a.gp*a." + st 
+                        qy += "))/(100.00*(h.gp + a.gp))"
+                    qy += " as "
+                    if isAgainst:
+                        qy += "_"
+                    qy += st
+                
+                qy += " FROM home_t h"
+                if agg == "no":
+                    qy += " union "
+                else:
+                    qy += " inner join "
+                qy += " (SELECT "
+
+                for f in fieldNames:
+                    qp = QUERY_PARAMS[f]
+                    qy += (qp[1] + ", ")
+                if agg == "no":
+                    qy += "date, num, home, away, "
+                else:
+                    qy += "gp, "
+                first = True
+                for (st, isAgainst) in statList:
+                    if not first:
+                        qy += ", "
+                    first = False
+                    if isAgainst:
+                        st = "_" + st
+                    qy += st
+                qy += " FROM away_t) a"
+                # JOIN conditions
+                if agg != "no":
+                    qy += " ON"
+                    first = True
+                    for f in fieldNames:
+                        if not first:
+                            qy += " AND "
+                        first = False
+                        qp = QUERY_PARAMS[f]
+                        qy += " h." + qp[1] + "=a." + qp[1]
+                
+                    #qy += " AND h.date=a.date AND h.num=a.num"
+                    #qy += " AND h.home=a.home AND h.away=a.away"
         elif isHome:
             qy += " SELECT * from home_t"
         elif isAway:
@@ -287,17 +310,22 @@ def get_agg_stats():
         print(r)
         # make header
         hdr = fieldNames
-        hdr.append("GP")
+        if agg != "no":
+            hdr.append("GP")
+        else:
+            hdr.extend(["date", "num", "home", "away"])
         for (st, isAgainst) in statList:
             fld = ""
-            fld += st
             if isAgainst:
-                fld = "a"
+                fld = "_"
+            fld += st
+            
             hdr.append(fld)
         ret = "json"
         if "ret" in args:
             ret = args.get("ret")
-        if ret.startswith == "html":
+        print("ret=", ret)
+        if ret.startswith("html"):
             opts=ret[4:]
             return renderHTMLTable(hdr, r, opts), 200
         else:
