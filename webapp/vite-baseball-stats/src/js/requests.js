@@ -34,12 +34,13 @@ async function doRequest(route, method, body, bodyType, responseType, authToken,
             else r = await response.text();
             return r;
         } else {
-            const errorMessage = await response.text();
-            errHandler({route, status, errorMessage});
+            const error = await response.text();
+            errHandler({route, status, error});
         }
     } catch (error) {
         console.error(`'${route}' fetch error: ${error}`);
-        errHandler(route, null, error);
+        const status = null
+        errHandler({route, status, error});
     }
     return null;
 }

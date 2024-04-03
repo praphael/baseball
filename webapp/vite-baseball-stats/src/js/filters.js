@@ -1,8 +1,41 @@
-const teams = [["BAL", "Baltimore Orioles"], ["NYY", "New York Yankees"]];
+const teams = [
+    ["Arizona Diamondbacks", "ARI"],
+    ["Atlanta Braves", "ATL"],
+    ["Baltimore Orioles", "BAL"],
+    ["Boston Red Sox", "BOS"],
+    ["Chicago White Sox", "CWS"],
+    ["Chicago Cubs", "CHC"],
+    ["Cincinnati Reds", "CIN"],
+    ["Cleveland Guardians", "CLE"],
+    ["Colorado Rockies", "COL"],
+    ["Detroit Tigers", "DET"],
+    ["Houston Astros", "HOU"],
+    ["Kansas City Royals", "KC"],
+    ["Los Angeles Angels", "LAA"],
+    ["Los Angeles Dodgers", "LAD"],
+    ["Miami Marlins", "MIA"],
+    ["Milwaukee Brewers", "MIL"],
+    ["Minnesota Twins", "MIN"],
+    ["New York Yankees", "NYY"],
+    ["New York Mets", "NYM"],
+    ["Oakland Athletics", "OAK"],
+    ["Philadelphia Phillies", "PHI"],
+    ["Pittsburgh Pirates", "PIT"],
+    ["San Diego Padres", "SD"],
+    ["San Francisco Giants", "SF"],
+    ["Seattle Mariners", "SEA"],
+    ["St. Louis Cardinals", "STL"],
+    ["Tampa Bay Rays", "TB"],
+    ["Texas Rangers", "TEX"],
+    ["Toronto Blue Jays", "TOR"],
+    ["Washington Nationals", "WSH"]
+  ];
+  
 //const teamIdxMap = new Map();
 //for(let i=0; i<teams.length; i++) teamIdxMap[teams[i][0]] = i;
 
-const months = [["March", 3], ["Apr", 4], ["May", 5], ["June", 6], ["July", 7], ["August", 8],
+const months = [["March", 3], ["April", 4], ["May", 5], 
+                ["June", 6], ["July", 7], ["August", 8], 
                 ["September", 9], ["October", 10]];
 //const monthIdxMap = new Map();
 //for(let i=0; i<months.length; i++) monthIdxMap[teams[i][0]] = i;

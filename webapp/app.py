@@ -1,5 +1,6 @@
 from flask import Flask, make_response, request, render_template, redirect, url_for
 from datetime import datetime, timedelta, timezone
+import calendar
 import argparse
 import json
 import logging
@@ -109,9 +110,9 @@ def buildStatQueryStr(stats, isHome, agg="sum"):
     return statQueryStr, fList
 
 # make common table expression base
-def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames, agg, grp=[]):
+def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames, agg, grp):
     base = " " + homeOrAway + "_t as (SELECT "
-
+    print("makeCTEBase grp=", grp)
     homeOrVisit = homeOrAway
     if homeOrAway == "away":
         homeOrVisit = "visiting"
@@ -126,15 +127,17 @@ def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames, agg, grp=[]):
     for g in grp:
         if g in QUERY_PARAMS:
             qp = QUERY_PARAMS[g]
-            base += (qp[0] + ", ")
+            if qp[3]:
+                base += (homeOrVisit + "_")
+            base += qp[0] 
+            if qp[3]:
+                base += " as " + g
+            base += ", "
     if agg != "no":
         base += " COUNT(*) as gp"
     else: 
         base += " game_date as date, game_num as num, home_team as home, visiting_team as away"
     base += fieldQueryStr
-    
-    
-
     base += " FROM boxscore"
     
     return base
@@ -143,7 +146,6 @@ def getQueryParams(args):
     fieldNames = []
     fieldValues = []
     for a in args:
-        print("a=", a)
         if a in QUERY_PARAMS:
             qp = QUERY_PARAMS[a]
             fieldNames.append(a)
@@ -155,7 +157,7 @@ def getQueryParams(args):
 
     return fieldNames, fieldValues
 
-def buildCTEWhereClause(isHome, fieldNames, grp=None):
+def buildCTEWhereClause(isHome, fieldNames, grp):
     qy = " WHERE "
     first = True
     for f in fieldNames:
@@ -244,8 +246,17 @@ def get_box_stats():
             grp = grp.split(",")
 
         fieldNames, fieldValues = getQueryParams(args)
+        print("grp=", grp)
         print("fieldNames=", fieldNames)
         print("fieldValues=", fieldValues)
+        commonNames = set(grp).intersection(set(fieldNames))
+        if len(commonNames) > 0:
+            errMsg = "Error '" + "', '".join(commonNames) + "' cannot appear in both field and group"
+            print(errMsg)
+            resp = make_response(errMsg, 400)
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            return resp
+
         qy = "WITH"
         stats = "R,_R"
         if "stats" in args:
@@ -298,8 +309,7 @@ def get_box_stats():
                         qy += " h." + st + "+" + "a." + st 
                     elif agg == "average":
                         # for averages need to reweight/home away based on gams played
-                        qy += " trunc(100*(h.gp*h." + st + "+" + "a.gp*a." + st 
-                        qy += "))/(100.00*(h.gp + a.gp))"
+                        qy += f" trunc(100*(h.{st}/(1.0*(h.gp+a.gp)) + a.{st}/(1.0*(h.gp+a.gp))))/100.0"
                     qy += " as "
                     if isAgainst:
                         qy += "_"
@@ -314,7 +324,7 @@ def get_box_stats():
 
                 for f in fieldNames:
                     qp = QUERY_PARAMS[f]
-                    qy += (qp[1] + ", ")
+                    qy += (F"{qp[1]}, ")
                 for g in grp:
                     qy += (g + ", ")
                 if agg == "no":
@@ -354,9 +364,19 @@ def get_box_stats():
         elif isAway:
             qy += " SELECT * from away_t"
 
+        qy += " LIMIT 101" 
         print("query= ", qy)
         print("prms= ", prmsH + prmsA)
-        r = appdb.executeQuery(db, qy, prmsH + prmsA)
+        try: 
+            r = appdb.executeQuery(db, qy, prmsH + prmsA)
+        except Exception as e:
+            print("query failed e=", e)
+            errMsg = "Query failed exception: " + str(e) + "\n"
+            errMsg += ("query: " + qy)
+            resp = make_response(errMsg, 500)
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            return resp
+
         print(r)
         # make header
         hdr = fieldNames
@@ -373,6 +393,19 @@ def get_box_stats():
             fld += st
             
             hdr.append(fld)
+
+        # fix month from numer to string value
+        if "month" in hdr:
+            monthIdx = hdr.index("month")
+            i = 0
+            for t in r:
+                r2 = list(t)
+                month = calendar.month_name[t[monthIdx]]
+                r2[monthIdx] = month
+                r[i] = tuple(r2)
+                i += 1
+            print("r(fixed month)=", r)
+
         ret = "json"
         if "ret" in args:
             ret = args.get("ret")
@@ -385,10 +418,11 @@ def get_box_stats():
             resp = make_response(json.dumps({"header": hdr, "result": r}), 200)
         resp.headers["Access-Control-Allow-Origin"] = "*"
         return resp 
-
     except Exception as e:
         print_exception(e)
-        return str(e), 500
+        resp = make_response(str(e), 500)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp
 
 if __name__ == '__main__':
     defaultHost = '127.0.0.1'

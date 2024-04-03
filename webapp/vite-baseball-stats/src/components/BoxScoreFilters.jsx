@@ -1,5 +1,5 @@
 import React from 'react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 import { boxScoreFiltOpts, boxScoreFiltDefaults } from '../js/filters.js'
 
@@ -37,6 +37,13 @@ const BoxScoreFilters = ({filter, setFilter}) => {
     setFilter(boxScoreFilt)
   }, [])
 
+  const [aggVal, setAggVal] = useState(boxScoreFilt.agg)
+
+  const onNewAggVal=(v) => {
+    onFiltChange("agg", v);
+    setAggVal(v);
+  } 
+
   console.log("boxScoreFilt.values= ", boxScoreFilt.values);
   console.log("boxScoreFilt.group= ", boxScoreFilt.group);
 
@@ -66,6 +73,16 @@ const BoxScoreFilters = ({filter, setFilter}) => {
             labelClass={filtOptLabelClass}  
             checkClass={checkClass} groupDivClass={groupDivClass}
             groupLabelClass={groupLabelClass} />
+       { /* aggregation */ }
+        <div className={filtOptDivClass}>
+            <label className={filtOptLabelClass} htmlFor="filter_agg">Sum/Avg:</label>
+            <select className={selectClass} id="filter_agg" value={aggVal} onChange={(e)=> (
+                onNewAggVal(e.target.value))}>
+                <option value="no">(no)</option>
+                <option value="sum">sum</option>
+                <option value="average">avg</option>
+            </select>
+        </div>
         { /* day of week */ }
         <FilterOption fieldName="dow" label="DOW" options={boxScoreFiltOpts.daysOfWeek} 
             initValue={boxScoreFilt.values.get("dow")} 
@@ -75,16 +92,6 @@ const BoxScoreFilters = ({filter, setFilter}) => {
             labelClass={filtOptLabelClass}  
             checkClass={checkClass} groupDivClass={groupDivClass}
             groupLabelClass={groupLabelClass} />
-        { /* aggregation */ }
-        <div className={filtOptDivClass}>
-            <label className={filtOptLabelClass} htmlFor="filter_agg">Sum/Avg:</label>
-            <select className={selectClass}  id="filter_agg" value={boxScoreFilt.agg} onChange={()=> (
-                onFiltChange("agg", this.getSelectedIndex().value))}>
-                <option value="no">(no)</option>
-                <option value="sum">sum</option>
-                <option value="avg">avg</option>
-            </select>
-        </div>
     </div>
   )
 }

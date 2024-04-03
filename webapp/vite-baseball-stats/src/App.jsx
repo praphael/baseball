@@ -16,7 +16,8 @@ function makeBoxScoreQueryString(filter) {
   filter.group.forEach((k) => { 
     grp += `,${k}` 
   });
-  qy += ("grp=" + grp.slice(1));
+  if (grp.length > 0)
+    qy += ("grp=" + grp.slice(1));
   qy += ("&agg=" + filter.agg)
   return qy;
 }
@@ -33,8 +34,8 @@ function App() {
     const qy = makeBoxScoreQueryString(filter);
     console.log("qy=", qy);
     const url = "/box?" + qy + "&ret=html-bs";
-    const r = await doRequest(url, 'GET', null, "", null, "html", (errMsg) => {
-        alert("Update error:  ", errMsg);
+    const r = await doRequest(url, 'GET', null, "", null, "html", (e) => {
+        alert(`Get Data:  status ${e.status} error: ${e.error}`);
     });
     console.log("r=", r);
     if(r != null)

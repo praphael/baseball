@@ -18,7 +18,7 @@ const FilterOption = ({fieldName, label, options, initValue,
             <label className={labelClass} htmlFor={id}>{label}:
             <select className={selectClass} id={id} value={val} onChange={ (e)=> (onNewVal(e.target.value))}>
                 <option value="">(all)</option>
-                { options.map((opt)=> (<option key={opt[0]} value={opt[0]}>{opt[1]}</option>)) }
+                { options.map((opt)=> (<option key={opt[1]} value={opt[1]}>{opt[0]}</option>)) }
             </select>
             </label>
             <FilterGroupCheck fieldName={fieldName} initValue={initGroup} onChange={onChange}
