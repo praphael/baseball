@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, make_response, request, render_template, redirect, url_for
 from datetime import datetime, timedelta, timezone
 import argparse
 import json
@@ -214,9 +214,17 @@ def renderHTMLTable(headers, result, opts):
     h += "</tbody></table>"
     return h
 
+@app.route("/box", methods=["OPTIONS"])
+def options_box():
+    resp = make_response("OK", 200)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Headers"] = "*"
+    return resp
+
 @app.route("/box")
 def get_box_stats():
     try:
+        print(datetime.now())
         args = request.args
         isHome = True
         isAway = True
@@ -369,11 +377,15 @@ def get_box_stats():
         if "ret" in args:
             ret = args.get("ret")
         print("ret=", ret)
+        
         if ret.startswith("html"):
             opts=ret[4:]
-            return renderHTMLTable(hdr, r, opts), 200
+            resp = make_response(renderHTMLTable(hdr, r, opts), 200)
         else:
-            return json.dumps({"header": hdr, "result": r}), 200
+            resp = make_response(json.dumps({"header": hdr, "result": r}), 200)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp 
+
     except Exception as e:
         print_exception(e)
         return str(e), 500
