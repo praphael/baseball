@@ -1,4 +1,5 @@
 from enum import Enum
+from datetime import datetime
 
 class DB(Enum):
     sqlite = 1
@@ -19,9 +20,16 @@ def getConnection(db):
     return conn
 
 def executeQuery(db, qy, params):
+    t1 = datetime.now()
     conn = getConnection(db)
-
+    t2 = datetime.now()
     # Open a cursor to perform database operations
     cur = conn.cursor()
+    t3 = datetime.now()
     cur.execute(qy, params)
-    return cur.fetchall()
+    t4 = datetime.now()
+    r = cur.fetchall()
+    t5 = datetime.now()
+    times = (("total", t5-t1), ("conn", t2-t1), ("curs", t3-t2))
+    times += (("exec", t4-t3), ("fetch", t5-t4))
+    return r,  times

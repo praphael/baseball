@@ -63,6 +63,9 @@ QUERY_PARAMS= {"team": ["team", "team", "", True],
                "inn9": ["score_by_inning_9", "inn9", 0, True]
                }
 
+def make_dt_ms_str(dt):
+    return str(int(dt.microseconds / 1000))
+
 def addToWhereClause(qy, p, prms, s):
     prms += (p,)
     if len(prms) == 1:
@@ -226,6 +229,7 @@ def options_box():
 @app.route("/box")
 def get_box_stats():
     try:
+        t_preproc_start = datetime.now()
         print(datetime.now())
         args = request.args
         isHome = True
@@ -367,8 +371,12 @@ def get_box_stats():
         qy += " LIMIT 101" 
         print("query= ", qy)
         print("prms= ", prmsH + prmsA)
+        dt_preproc = datetime.now() - t_preproc_start
         try: 
-            r = appdb.executeQuery(db, qy, prmsH + prmsA)
+            r, query_times = appdb.executeQuery(db, qy, prmsH + prmsA)
+            fn = lambda t: t[0] + ": " + str(int((t[1].microseconds)/1000)) + " ms"
+            l = list(map(fn, query_times))
+            print("query successful times= ", l)
         except Exception as e:
             print("query failed e=", e)
             errMsg = "Query failed exception: " + str(e) + "\n"
@@ -376,7 +384,7 @@ def get_box_stats():
             resp = make_response(errMsg, 500)
             resp.headers["Access-Control-Allow-Origin"] = "*"
             return resp
-
+        t_postproc_start = datetime.now()
         print(r)
         # make header
         hdr = fieldNames
@@ -417,6 +425,11 @@ def get_box_stats():
         else:
             resp = make_response(json.dumps({"header": hdr, "result": r}), 200)
         resp.headers["Access-Control-Allow-Origin"] = "*"
+        dt_postproc = datetime.now() - t_postproc_start
+        dt_pre = make_dt_ms_str(dt_preproc)
+        dt_post = make_dt_ms_str(dt_postproc)
+        dt_query = make_dt_ms_str(query_times[0][1])
+        print(f"Times: Pre: {dt_pre} Query: {dt_query} Post: {dt_post}")
         return resp 
     except Exception as e:
         print_exception(e)
