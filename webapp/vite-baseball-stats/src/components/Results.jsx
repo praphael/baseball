@@ -1,12 +1,12 @@
 import React from 'react'
 
-const Results = ({resultsTable}) => {
+const Results = ({resultsTable, divClassName}) => {
   const renderHTML = (r) => {
     return {__html: r};
   };
 
   return (
-    <div dangerouslySetInnerHTML={renderHTML(resultsTable)}>
+    <div className={divClassName} dangerouslySetInnerHTML={renderHTML(resultsTable)}>
     </div>
   )
 }

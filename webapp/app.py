@@ -196,10 +196,10 @@ def renderHTMLTable(headers, result, opts):
     tdAttr=''
     thAttr=''
     if opts == "-bs":
-        tblAttr='class="tbl"'
+        tblAttr='class="table table-striped"'
         trAttr='class="tr"'
         tdAttr='class="td"'
-        thAttr='class="th"'
+        thAttr='scope="row"'
                 
     h = f"<table {tblAttr}>"
     h += f"<thead><tr>"

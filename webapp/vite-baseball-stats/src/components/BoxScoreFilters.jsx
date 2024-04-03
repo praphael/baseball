@@ -8,6 +8,16 @@ import FilterOption from './FilterOption.jsx'
 
 const boxScoreFilt = { ...boxScoreFiltDefaults };
 
+const filtOptDivClass = "border border-secondary row mb-1 mt-1";
+const filtInputDivClass = "border border-secondary row mb-1 mt-1";
+const selectClass = "col-4 form-select";
+const inputClass = "col-8 form-input";
+const filtOptLabelClass = "form-label"
+const filtInputLabelClass = "form-label"
+const groupDivClass = "col-1 form-check mb-2";
+const checkClass = "col-2 form-check-input";
+const groupLabelClass= "form-check-label"
+
 const BoxScoreFilters = ({filter, setFilter}) => {
   const onFiltChange = (field, value, isGroup) => {
     console.log("onFiltChange field=", field, "value=", value);
@@ -31,29 +41,44 @@ const BoxScoreFilters = ({filter, setFilter}) => {
   console.log("boxScoreFilt.group= ", boxScoreFilt.group);
 
   return (
-    <div>
-        <h3>Filters:</h3>
+    <div className="container">
         <FilterOption fieldName="team" label="Team" options={boxScoreFiltOpts.teams} 
             initValue={boxScoreFilt.values.get("team")} 
             initGroup={boxScoreFilt.group.has("team")}  
-            onChange={onFiltChange} />
+            onChange={onFiltChange} 
+            divClass={filtOptDivClass} selectClass={selectClass}
+            labelClass={filtOptLabelClass} checkClass={checkClass}
+            groupDivClass={groupDivClass}
+            groupLabelClass={groupLabelClass}/>
         <FilterNumberInput fieldName="year" label="Year" 
             initValue={boxScoreFilt.values.get("year")}
             initGroup={boxScoreFilt.group.has("year")}   
-            onChange={onFiltChange} />
+            onChange={onFiltChange}
+            divClass={filtInputDivClass} inputClass={inputClass}
+            labelClass={filtInputLabelClass} 
+            checkClass={checkClass} groupDivClass={groupDivClass} 
+            groupLabelClass={groupLabelClass} />
         <FilterOption fieldName="month" label="Month" options={boxScoreFiltOpts.months} 
             initValue={boxScoreFilt.values.get("month")}
             initGroup={boxScoreFilt.group.has("month")}
-            onChange={onFiltChange} />
+            onChange={onFiltChange} 
+            divClass={filtOptDivClass} selectClass={selectClass}
+            labelClass={filtOptLabelClass}  
+            checkClass={checkClass} groupDivClass={groupDivClass}
+            groupLabelClass={groupLabelClass} />
         { /* day of week */ }
         <FilterOption fieldName="dow" label="DOW" options={boxScoreFiltOpts.daysOfWeek} 
             initValue={boxScoreFilt.values.get("dow")} 
             initGroup={boxScoreFilt.group.has("dow")}
-            onChange={onFiltChange} />
+            onChange={onFiltChange} 
+            divClass={filtOptDivClass} selectClass={selectClass}
+            labelClass={filtOptLabelClass}  
+            checkClass={checkClass} groupDivClass={groupDivClass}
+            groupLabelClass={groupLabelClass} />
         { /* aggregation */ }
-        <div>
-            <label htmlFor="filter_agg">Sum/Avg:</label>
-            <select id="filter_agg" value={boxScoreFilt.agg} onChange={()=> (
+        <div className={filtOptDivClass}>
+            <label className={filtOptLabelClass} htmlFor="filter_agg">Sum/Avg:</label>
+            <select className={selectClass}  id="filter_agg" value={boxScoreFilt.agg} onChange={()=> (
                 onFiltChange("agg", this.getSelectedIndex().value))}>
                 <option value="no">(no)</option>
                 <option value="sum">sum</option>

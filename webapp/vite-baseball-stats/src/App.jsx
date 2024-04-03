@@ -21,6 +21,9 @@ function makeBoxScoreQueryString(filter) {
   return qy;
 }
 
+const resultsClass="container";
+const updateButtonClass="btn btn-primary col-4";
+
 function App() {
   const [results, setResults] = useState("");
   const [filter, setFilter] = useState({});
@@ -29,7 +32,7 @@ function App() {
     console.log("updateData");
     const qy = makeBoxScoreQueryString(filter);
     console.log("qy=", qy);
-    const url = "/box?" + qy + "&ret=html";
+    const url = "/box?" + qy + "&ret=html-bs";
     const r = await doRequest(url, 'GET', null, "", null, "html", (errMsg) => {
         alert("Update error:  ", errMsg);
     });
@@ -40,9 +43,22 @@ function App() {
   
   return (
     <>
-      <BoxScoreFilters filter={filter} setFilter={setFilter} />
-      <button onClick={()=>(updateData())}>Update</button>
-      <Results resultsTable={results}/>
+      <div className="container">
+        <div className="row">
+        <div className="col-4">
+      { /* <form className="form"> */ }
+          <div className="container"><h3 className="col-2">Filters:</h3>
+          <span className="col-2"></span>
+          <button className={updateButtonClass} onClick={()=>(updateData())}>Get Data</button>
+          </div>
+          <BoxScoreFilters filter={filter} setFilter={setFilter} />
+      { /* </form> */ }
+        </div>
+        <div className="col-8 mt-3">
+        <Results resultsTable={results} divClassName={resultsClass}/>
+        </div>
+        </div>
+      </div>
     </>
   )
 }
