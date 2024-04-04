@@ -197,11 +197,13 @@ def buildCTEWhereClause(isHome, fieldNames, grp):
     
 def renderHTMLTable(headers, result, opts):
     tblAttr=''
+    tbAttr=''
     trAttr=''
     tdAttr=''
     thAttr=''
     if opts == "-bs":
-        tblAttr='class="table table-striped"'
+        tblAttr='class="table table-hover table-striped"'
+        tbAttr='table-group-divider'
         trAttr='class="tr"'
         tdAttr='class="td"'
         thAttr='scope="row"'
@@ -210,7 +212,7 @@ def renderHTMLTable(headers, result, opts):
     h += f"<thead><tr>"
     for hdr in headers:
         h += (f"<th {thAttr}>" + hdr + "</th>")
-    h += f"</tr></thead><tbody>"
+    h += f"</tr></thead><tbody{tbAttr}>"
     for r in result:
         h += f"<tr {trAttr}>"
         for d in r:

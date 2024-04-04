@@ -5,9 +5,11 @@ import StatTypeCheck from './StatTypeCheck'
 
 import { statTypesArr, statSetDefault } from '../js/stats.js'
 
-const groupDivClass = "col-1 form-check mb-2";
-const checkClass = "col-2 form-check-input";
-const groupLabelClass= "form-check-label"
+const groupDivClass = "mb-2 mr-sm-2"; // form-check 
+const checkClass = "btn btn-check" // "form-check-input";
+const groupLabelClass= "btn btn-outline-info" // "form-check-label"
+// sr-only" for="inlineFormInputName">Name</label>
+// <input type="text" class="form-control mb-2 mr-sm-2
 
 const statSet = statSetDefault;
 
@@ -27,14 +29,32 @@ const StatTypes = ({statTypes, setStatTypes, divClassName}) => {
     console.log("statSet=", statSet);
     return (
       <>
-        <h4>Stats</h4>
+        <h4>Stats:</h4>
         <div className={divClassName}>
-          
-        { 
-        statTypesArr.map((st)=> ( <StatTypeCheck key={st+"_k"} fieldName={st}
-        initValue={statSet.has(st)} onChange={onStatTypeChange} checkClass={checkClass} 
-        divClass={groupDivClass} labelClass={groupLabelClass} />)) 
-       }
+          <div className="container">
+            <div className="row">
+              <h5 className="text-justify-right">For:</h5>
+              <div className="overflow-scroll hstack text-nowrap">
+              { 
+                statTypesArr.map((st)=> ( <StatTypeCheck key={st[1]+"_k"} fieldName={st[1]}
+                fieldLabel={st[0]} initValue={statSet.has(st[1])} isAgainst={true} onChange={onStatTypeChange}
+                checkClass={checkClass} divClass={groupDivClass} labelClass={groupLabelClass} />)) 
+              }
+              </div>
+            </div>
+            
+            {/* Against */ }
+            <div className="row">
+              <h5 className="text-justify-right">Opp:</h5>
+              <div className="overflow-scroll hstack text-nowrap">
+              { 
+                statTypesArr.map((st)=> ( <StatTypeCheck key={st[1]+"_k"} fieldName={"_"+st[1]}
+                fieldLabel={st[0]} initValue={statSet.has(st[1])} isAgainst={true} onChange={onStatTypeChange}
+                checkClass={checkClass} divClass={groupDivClass} labelClass={groupLabelClass} />)) 
+              }  
+              </div>
+            </div>
+          </div>
         </div>
       </>
     )

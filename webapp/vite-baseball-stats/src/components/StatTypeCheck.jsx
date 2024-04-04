@@ -2,8 +2,8 @@ import React from 'react'
 
 import { useState } from 'react'
 
-const StatTypeCheck = ({fieldName, initValue, onChange, 
-    checkClass, divClass, labelClass}) => {
+const StatTypeCheck = ({fieldName, fieldLabel, initValue, isAgainst,
+    onChange, checkClass, divClass, labelClass}) => {
     const [val, setVal] = useState(initValue);
 
     const onNewVal = (v) => {
@@ -11,13 +11,13 @@ const StatTypeCheck = ({fieldName, initValue, onChange,
         setVal(v);
     }
 
-    console.log("StatTypeCheck ", fieldName, " initValue=", initValue)
+    // console.log("StatTypeCheck ", fieldName, " initValue=", initValue)
     const id = `"stat_${fieldName}"`;
     return (
       <div className={divClass}>
         <input className={checkClass} type="checkbox" id={id} checked={val} onChange={
             (e)=>(onNewVal(e.target.checked))} />
-        <label className={labelClass} htmlFor={id}>{fieldName}</label>
+        <label className={labelClass} htmlFor={id}>{fieldLabel}</label>
       </div>
     )
 }

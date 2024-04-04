@@ -15,7 +15,7 @@ const inputClass = "col-8 form-input";
 const filtOptLabelClass = "form-label"
 const filtInputLabelClass = "form-label"
 const groupDivClass = "col-1 form-check mb-2";
-const checkClass = "col-2 form-check-input";
+const checkClass = "col-2 ms-1 form-check-input";
 const groupLabelClass= "form-check-label"
 
 const BoxScoreFilters = ({filter, setFilter}) => {
