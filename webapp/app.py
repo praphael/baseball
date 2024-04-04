@@ -14,22 +14,22 @@ MONTH_FIELD = "CAST(substr(game_date,6,2) AS INTEGER)"
 YEAR_FIELD = "CAST(substr(game_date,0,5) AS INTEGER)"
 
 FIELD_NAME_MAP = {"R":"score",
-                  "AB":"at_bats", 
+                  "AB":"at_bats",
                   "H":"hits",
                   "2B":"doubles",
                   "3B":"triples",
                   "HR":"home_runs",
-                  "RBI":"rbi", 
+                  "RBI":"rbi",
                   "SH":"sac_hit",
                   "SF":"sac_fly",
                   "HBP":"hit_by_pitch",
                   "BB":"walks",
                   "IBB":"int_walks",
-                  "K":"strikeouts", 
+                  "K":"strikeouts",
                   "SB":"stolen_bases",
-                  "CS":"caught_stealing", 
+                  "CS":"caught_stealing",
                   "GIDP":"gidp",
-                  "CI":"catcher_interference", 
+                  "CI":"catcher_interference",
                   "LOB":"left_on_base",
                   "ERI":"indiv_earned_runs",
                   "ERT":"team_earned_runs",
@@ -40,7 +40,17 @@ FIELD_NAME_MAP = {"R":"score",
                   "E":"errors",
                   "PB":"passed_balls",
                   "DP":"double_plays",
-                  "TP":"triple_plays"}
+                  "TP":"triple_plays",
+                  "I1":"score_by_inning_1",
+                  "I2":"score_by_inning_2",
+                  "I3":"score_by_inning_3",
+                  "I4":"score_by_inning_4",
+                  "I5":"score_by_inning_5",
+                  "I6":"score_by_inning_6",
+                  "I7":"score_by_inning_7",
+                  "I8":"score_by_inning_8",
+                  "I9":"score_by_inning_9"}
+                  
 # map of query to params to 
 # first entry - SQL as used in first CTE WHERE clause, including possible renaming
 # second entry - SQL as used in second WHERE clause
@@ -227,6 +237,39 @@ def options_box():
     resp.headers["Access-Control-Allow-Origin"] = "*"
     resp.headers["Access-Control-Allow-Headers"] = "*"
     return resp
+
+@app.route("/parks", methods=["OPTIONS"])
+def options_parks():
+    resp = make_response("OK", 200)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Headers"] = "*"
+    return resp
+
+@app.route("/parks")
+def get_parks():
+    try: 
+        args = request.args
+        since = 1950
+        if "since" in args:
+            since = int(args.get("since"))
+        qy = "SELECT * from parks WHERE CAST(substr(park_open, 7) AS INTEGER) > ?"
+        r, query_times = appdb.executeQuery(db, qy, (since,))
+        fn = lambda t: t[0] + ": " + str(int((t[1].microseconds)/1000)) + " ms"
+        l = list(map(fn, query_times))
+        print("query successful times= ", l)
+        hdr = ("park_id","park_name","park_aka", "park_city",
+                "park_state", "park_open", "park_close",
+                "park_league", "notes")
+        resp = make_response(json.dumps({"header": hdr, "result": r}), 200)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp
+    except Exception as e:
+        print("query failed e=", e)
+        errMsg = "Query failed exception: " + str(e) + "\n"
+        errMsg += ("query: " + qy)
+        resp = make_response(errMsg, 500)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp
 
 @app.route("/box")
 def get_box_stats():

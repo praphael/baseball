@@ -5,6 +5,7 @@ import { boxScoreFiltOpts, boxScoreFiltDefaults } from '../js/filters.js'
 
 import FilterNumberInput from './FilterNumberInput.jsx'
 import FilterOption from './FilterOption.jsx'
+import FilterRadio from './FilterRadio.jsx'
 
 const boxScoreFilt = { ...boxScoreFiltDefaults };
 
@@ -19,23 +20,26 @@ const checkClass = "col-2 ms-1 form-check-input";
 const groupLabelClass= "form-check-label"
 
 const BoxScoreFilters = ({filter, setFilter}) => {
-  const onFiltChange = (field, value, isGroup) => {
-    console.log("onFiltChange field=", field, "value=", value);
-    if(isGroup) {
-        if(value)
-           filter.group.add(field);
-        else
-           filter.group.delete(field);
-    }
-    else if (field === "agg") filter.agg = value;
-    else filter.values.set(field, value);
-    setFilter(filter);
-  }
-
   useEffect(() => {
     // initial value for filter
     setFilter(boxScoreFilt)
   }, [])
+
+  const onFiltChange = (field, value, isGroup) => {
+    console.log("onFiltChange field=", field, "value=", value);
+    console.log("onFiltChange filter=", filter);
+    try {
+      if(isGroup) {
+          if(value)
+            filter.group.add(field);
+          else
+            filter.group.delete(field);
+      }
+      else if (field === "agg") filter.agg = value;
+      else filter.values.set(field, value);
+      setFilter(filter);
+    } catch(e) { console.log("Could not set filter ", e)}
+  }
 
   const [aggVal, setAggVal] = useState(boxScoreFilt.agg)
 
@@ -44,8 +48,8 @@ const BoxScoreFilters = ({filter, setFilter}) => {
     setAggVal(v);
   } 
 
-  console.log("boxScoreFilt.values= ", boxScoreFilt.values);
-  console.log("boxScoreFilt.group= ", boxScoreFilt.group);
+//  console.log("boxScoreFilt.values= ", boxScoreFilt.values);
+//  console.log("boxScoreFilt.group= ", boxScoreFilt.group);
 
   return (
     <div className="container">
@@ -73,6 +77,25 @@ const BoxScoreFilters = ({filter, setFilter}) => {
             labelClass={filtOptLabelClass}  
             checkClass={checkClass} groupDivClass={groupDivClass}
             groupLabelClass={groupLabelClass} />
+        { /* home/away */ }
+        <FilterOption fieldName="homeaway" label="Home/Away" 
+          options={boxScoreFiltOpts.homeAway} 
+          initValue={boxScoreFilt.values.get("homeaway")}
+          initGroup={boxScoreFilt.group.has("homeaway")}
+          onChange={onFiltChange} 
+          divClass={filtOptDivClass} selectClass={selectClass} 
+          labelClass={filtOptLabelClass} groupDivClass={groupDivClass}
+          groupLabelClass={groupLabelClass} />
+        { /* AL/NL */ }
+        <FilterOption fieldName="league" label="League" 
+          options={boxScoreFiltOpts.league} 
+          initValue={boxScoreFilt.values.get("league")}
+          initGroup={boxScoreFilt.group.has("league")}
+          onChange={onFiltChange}
+          divClass={filtOptDivClass} selectClass={selectClass}
+          labelClass={filtOptLabelClass} groupDivClass={groupDivClass}
+          groupLabelClass={groupLabelClass} />
+
        { /* aggregation */ }
         <div className={filtOptDivClass}>
             <label className={filtOptLabelClass} htmlFor="filter_agg">Sum/Avg:</label>
@@ -83,10 +106,21 @@ const BoxScoreFilters = ({filter, setFilter}) => {
                 <option value="average">avg</option>
             </select>
         </div>
+
+        
         { /* day of week */ }
         <FilterOption fieldName="dow" label="DOW" options={boxScoreFiltOpts.daysOfWeek} 
             initValue={boxScoreFilt.values.get("dow")} 
             initGroup={boxScoreFilt.group.has("dow")}
+            onChange={onFiltChange} 
+            divClass={filtOptDivClass} selectClass={selectClass}
+            labelClass={filtOptLabelClass}  
+            checkClass={checkClass} groupDivClass={groupDivClass}
+            groupLabelClass={groupLabelClass} />
+        { /* park */ }
+        <FilterOption fieldName="park" label="Park" options={boxScoreFiltOpts.parks} 
+            initValue={boxScoreFilt.values.get("park")} 
+            initGroup={boxScoreFilt.group.has("park")}
             onChange={onFiltChange} 
             divClass={filtOptDivClass} selectClass={selectClass}
             labelClass={filtOptLabelClass}  

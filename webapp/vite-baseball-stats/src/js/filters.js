@@ -1,3 +1,5 @@
+import { doRequest } from "./requests.js";
+
 const teams = [
     ["Arizona Diamondbacks", "ARI"],
     ["Atlanta Braves", "ATL"],
@@ -44,8 +46,20 @@ const daysOfWeek = [["Sun", "Sun"], ["Mon", "Mon"], ["Tue", "Tue"], ["Wed", "Wed
                     ["Thu", "Thu"], ["Fri", "Fri"], ["Sat", "Sat"]];
 //const dayOfWeekIdxMap = new Map();
 //for(let i=0; i<daysOfWeek.length; i++) dayOfWeekIdxMap[daysOfWeek[i][0]] = i;
+const league = [["American", "AL"], ["National", "NL"]]
+const homeAway = [["Home", "home"], ["Away", "away"]]
 
-const boxScoreFiltOpts = { teams, months, daysOfWeek };
+// get park info
+const r = await doRequest("/parks?since=1920", "GET", null, null, "json", "", (err)=>{
+    console.log("could not fetch park data status=", err.status, " error=", err.error);
+});
+const parks=[]
+if(r != null) {
+    console.log("r=", r)
+    r.result.map((v) => { parks.push([v[1], v[0]])})
+}
+
+const boxScoreFiltOpts = { teams, months, daysOfWeek, homeAway, league, parks };
 //const boxScoreIdxMaps = { teamIdxMap, monthIdxMap, dayOfWeekIdxMap }
 
 const boxScoreFiltDefaults = {
@@ -55,6 +69,8 @@ const boxScoreFiltDefaults = {
 }
 boxScoreFiltDefaults.values.set("team", "BAL");
 boxScoreFiltDefaults.values.set("year", "2021");
+boxScoreFiltDefaults.values.set("homeaway", "(all)");
+boxScoreFiltDefaults.values.set("league", "(all)");
 boxScoreFiltDefaults.group.add("month");
 
 export {boxScoreFiltOpts, boxScoreFiltDefaults}; //}, boxScoreIdxMaps};

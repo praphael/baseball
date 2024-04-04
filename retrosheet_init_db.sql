@@ -229,3 +229,18 @@ CREATE TABLE completion (
     outs_int smallint, 
     PRIMARY KEY(game_date, game_num, home_team)
 );
+
+CREATE TABLE parks (
+    park_id char(5) PRIMARY KEY,
+    park_name varchar(64),
+    park_aka varchar(64),
+    park_city varchar(64),
+    park_state varchar(4),
+    park_open date, 
+    park_close date,
+    park_league varchar(64),
+    notes varchar(128)
+)
+
+
+)

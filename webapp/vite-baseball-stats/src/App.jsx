@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect} from 'react'
 
 import BoxScoreFilters from './components/BoxScoreFilters.jsx'
 import Results from './components/Results.jsx'
@@ -48,7 +48,7 @@ function App() {
   const [results, setResults] = useState("");
   const [filter, setFilter] = useState({});
   const [statTypes, setStatTypes] = useState(new Set());
-  
+    
   const updateData = async () => {
     console.log("updateData");
     const qy = makeBoxScoreQueryString(filter, statTypes);

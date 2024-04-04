@@ -26,7 +26,7 @@ const StatTypes = ({statTypes, setStatTypes, divClassName}) => {
         setStatTypes(statTypes);
     }
 
-    console.log("statSet=", statSet);
+    // console.log("statSet=", statSet);
     return (
       <>
         <h4>Stats:</h4>
