@@ -5,7 +5,7 @@ import os
 import re
 import sys
 
-# parse boxscores from Retrosheet
+# parse boxscores from Retrosheet data
 
 # Field(s)  Meaning
 #     1     Date in the form "yyyymmdd"
@@ -144,26 +144,12 @@ import sys
 # Missing fields will be NULL.
 # 
 
-connectPG = False
-connectSqlite = True
-useDB = connectPG or connectSqlite
-writeFiles = False
-
-if connectSqlite:
-    import sqlite3
-    conn = sqlite3.connect("baseball.db")
-    cur = conn.cursor()
-
-if connectPG:
-    import psycopg
-    # Connect to an existing database
-    conn = psycopg.connect("dbname=postgres user=postgres")
-    cur = conn.cursor()
 
 dateIdx = [0]
 strIdx = [1, 2, 3, 4, 6, 7, 12, 14, 15, 16]
 strIdx.extend(list(range(77, 161)))
 posStrIdx = list(range(107, 159, 3))
+baseDir = "alldata\\gamelogs"
 
 def getYear(s, isEnd=False):
     typ = 'start'
@@ -175,21 +161,6 @@ def getYear(s, isEnd=False):
     except:
         print(f"could not parse {typ} year '{s}'")
     return None    
-
-narg = len(sys.argv)
-yearStart = 1871
-yearEnd = 2022
-if narg > 3:
-    print(f"Too many arguments, encountered {narg}  expected between 0 and 2")
-    exit(1)
-if narg > 1:
-    yearStart = getYear(sys.argv[1])
-if narg > 2:
-    yearEnd = getYear(sys.argv[2], True)    
-if yearStart == None or yearEnd == None:
-    exit(1)    
-
-baseDir = "alldata\\gamelogs"
 
 def parseCompletionInfo(r): 
     s = "NULL"
@@ -252,154 +223,188 @@ def parseLineScore(r):
         firstNine = s
     return (firstNine, extras)
 
-s = ""
-numFields = 0
-# games which went to extra innings
-extras = []
-# completions for games scheduled at a later date
-completions = []
+def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
+    s = ""
+    numFields = 0
+    # games which went to extra innings
+    extras = []
+    # completions for games scheduled at a later date
+    completions = []
+    useDB = conn is not None
 
-for year in range(yearStart, yearEnd+1):
-    fName = f"GL{year}.TXT"
-    fPath = os.path.join(baseDir, fName)
-    print(f"processing file {fPath}")
-    with open(fPath, "r") as fIn:
-        rdr = csv.reader(fIn, delimiter=',', quotechar='"')
-        for row in rdr:
-            ext_visit = None   # score for visitor in extra innints
-            i = 0
-            # clear string to save space if we aren't writing out query
-            if not writeFiles:
-                s = ""
-            ln = "INSERT INTO boxscore VALUES("
-            for v in row:
-                x = "NULL"
-                if i == 0:
-                    x = f"DATE('{v[0:4]}-{v[4:6]}-{v[6:]}')"
-                elif i == 13:
-                    x = "TRUE"
-                    if len(v) > 0:
-                        x = "FALSE"
-                        completions.append((game_date, game_num, home_team, v))
-                elif i in (19, 20):
-                    (x, ext) = parseLineScore(v)
-                    if(len(ext) > 0):
-                        if i == 19:
-                            ext_visit = ext
-                        else:
-                            extras.append((game_date, game_num, home_team, ext_visit, ext))
-                elif i in posStrIdx:
-                    if v == '':
-                        x = "'U'"
-                    else:
-                        x = int(v)
-                        if x == 10:
-                            x = "'D'"
-                        elif x > 10:
-                            print(f"ERROR, listed position {v} > 10")
-                            exit(1)
-                        else:
-                            x= f"'{str(x)}'"
-                else:
-                    x = v
-                    if i in strIdx:
-                        if "'" in v:
-                            v = v.replace("'", "''")
-                        x = f"'{v}'"
-                        
-                if len(x) == 0:
+    for year in range(yearStart, yearEnd+1):
+        fName = f"GL{year}.TXT"
+        fPath = os.path.join(baseDir, fName)
+        print(f"processing file {fPath}")
+        with open(fPath, "r") as fIn:
+            rdr = csv.reader(fIn, delimiter=',', quotechar='"')
+            for row in rdr:
+                ext_visit = None   # score for visitor in extra innints
+                i = 0
+                # clear string to save space if we aren't writing out query
+                if not writeFiles:
+                    s = ""
+                ln = "INSERT INTO boxscore VALUES("
+                for v in row:
                     x = "NULL"
+                    if i == 0:
+                        x = f"DATE('{v[0:4]}-{v[4:6]}-{v[6:]}')"
+                    elif i == 13:
+                        x = "TRUE"
+                        if len(v) > 0:
+                            x = "FALSE"
+                            completions.append((game_date, game_num, home_team, v))
+                    elif i in (19, 20):
+                        (x, ext) = parseLineScore(v)
+                        if(len(ext) > 0):
+                            if i == 19:
+                                ext_visit = ext
+                            else:
+                                extras.append((game_date, game_num, home_team, ext_visit, ext))
+                    elif i in posStrIdx:
+                        if v == '':
+                            x = "'U'"
+                        else:
+                            x = int(v)
+                            if x == 10:
+                                x = "'D'"
+                            elif x > 10:
+                                print(f"ERROR, listed position {v} > 10")
+                                exit(1)
+                            else:
+                                x= f"'{str(x)}'"
+                    else:
+                        x = v
+                        if i in strIdx:
+                            if "'" in v:
+                                v = v.replace("'", "''")
+                            x = f"'{v}'"
+                            
+                    if len(x) == 0:
+                        x = "NULL"
 
-                # need to remember these as they consit of the key
-                # used fro completion info an extra innings
-                if i == 0:
-                    game_date = x
-                elif i == 1:
-                    game_num = x
-                elif i == 6:
-                    home_team = x
+                    # need to remember these as they consit of the key
+                    # used fro completion info an extra innings
+                    if i == 0:
+                        game_date = x
+                    elif i == 1:
+                        game_num = x
+                    elif i == 6:
+                        home_team = x
 
-                ln += x
-                i += 1
-                if i < len(row):
-                    ln += ", "
-            ln += ")"
-            if useDB:
-                cur.execute(ln)
-            ln += "\n"
-            numFields = ln.count(",") + 1
-            s += ln
+                    ln += x
+                    i += 1
+                    if i < len(row):
+                        ln += ", "
+                ln += ")"
+                if useDB:
+                    cur.execute(ln)
+                ln += "\n"
+                numFields = ln.count(",") + 1
+                s += ln
+        if useDB:
+            conn.commit()
+
+    s += "\n"
+    # extra inning infor
+    for g in extras:
+        # clear string to save space if we aren't writing out query
+        if not writeFiles:
+            s = ""
+        ln = f"INSERT INTO extra VALUES({g[0]}, {g[1]}, {g[2]}"
+        ext = g[3]  # visitor 
+        for n in range(2):
+            r = re.split(",", ext)
+            for i in range(10, 26):
+                ln += ", "
+                if i-10 < len(r):
+                    ln += r[i-10]
+                else:
+                    ln += "NULL"
+            ext = g[4]  # home
+        ln += ")"
+        if useDB:
+            cur.execute(ln)
+        ln += ";\n"
+        s += ln
+
     if useDB:
         conn.commit()
 
-s += "\n"
-# extra inning infor
-for g in extras:
-    # clear string to save space if we aren't writing out query
-    if not writeFiles:
-        s = ""
-    ln = f"INSERT INTO extra VALUES({g[0]}, {g[1]}, {g[2]}"
-    ext = g[3]  # visitor 
-    for n in range(2):
-        r = re.split(",", ext)
-        for i in range(10, 26):
-            ln += ", "
-            if i-10 < len(r):
-                ln += r[i-10]
-            else:
-                ln += "NULL"
-        ext = g[4]  # home
-    ln += ")"
+    s += "\n"
+    # completion info
+    for g in completions:    
+        # clear string to save space if we aren't writing out query
+        if not writeFiles:
+            s = ""
+        ln = f"INSERT INTO completion VALUES({g[0]}, {g[1]}, {g[2]}, "
+        r = re.split(",",  g[3])
+        dt = r[0]
+        print(f"dt= {dt}")
+        ln += f"DATE('{dt[0:4]}-{dt[4:6]}-{dt[6:8]}'), "
+        ln += f"'{r[1]}', "
+        ln += f"{r[2]}, "
+        ln += f"{r[3]}, "
+        ln += f"{r[4]}"
+        ln += ")"
+        if useDB:
+            cur.execute(ln)
+        ln += ";\n"
+        s += ln
+
     if useDB:
-        cur.execute(ln)
-    ln += ";\n"
-    s += ln
+        conn.commit()
 
-if useDB:
-    conn.commit()
+    #           yyyymmdd -- the date the game was completed
+    #           park -- the park ID where the game was completed
+    #           vs -- the visitor score at the time of interruption
+    #           hs -- the home score at the time of interruption
+    #           len -- the length of the game in outs at time of interruption
 
-s += "\n"
-# completion info
-for g in completions:    
-    # clear string to save space if we aren't writing out query
-    if not writeFiles:
-        s = ""
-    ln = f"INSERT INTO completion VALUES({g[0]}, {g[1]}, {g[2]}, "
-    r = re.split(",",  g[3])
-    dt = r[0]
-    print(f"dt= {dt}")
-    ln += f"DATE('{dt[0:4]}-{dt[4:6]}-{dt[6:8]}'), "
-    ln += f"'{r[1]}', "
-    ln += f"{r[2]}, "
-    ln += f"{r[3]}, "
-    ln += f"{r[4]}"
-    ln += ")"
-    if useDB:
-        cur.execute(ln)
-    ln += ";\n"
-    s += ln
+    print(f'numFields= {numFields}')        
 
-if useDB:
-    conn.commit()
+    if writeFiles:
+        fPath = f"boxscores_{yearStart}_to_{yearEnd}.sql"
+        fout = open(fPath, "w")
+        if fout is None:
+            print(f"ERROR: cannot open '{fPath}' for writing")
+            exit(1)     
+        fout.write("BEGIN;\n")           
+        fout.write(s)
+        fout.write("COMMIT;\n")
+        fout.close()
 
-#           yyyymmdd -- the date the game was completed
-#           park -- the park ID where the game was completed
-#           vs -- the visitor score at the time of interruption
-#           hs -- the home score at the time of interruption
-#           len -- the length of the game in outs at time of interruption
+if __name__=="__main__":
+    connectPG = False
+    connectSqlite = True
+    useDB = connectPG or connectSqlite
+    writeFiles = False
 
-print(f'numFields= {numFields}')        
+    conn = None
+    cur = None
+    if connectSqlite:
+        import sqlite3
+        conn = sqlite3.connect("baseball.db")
+        cur = conn.cursor()
 
-if writeFiles:
-    fPath = f"boxscores_{yearStart}_to_{yearEnd}.sql"
-    fout = open(fPath, "w")
-    if fout is None:
-        print(f"ERROR: cannot open '{fPath}' for writing")
-        exit(1)     
-    fout.write("BEGIN;\n")           
-    fout.write(s)
-    fout.write("COMMIT;\n")
-    fout.close()
+    if connectPG:
+        import psycopg
+        # Connect to an existing database
+        conn = psycopg.connect("dbname=postgres user=postgres")
+        cur = conn.cursor()
 
-
+    narg = len(sys.argv)
+    yearStart = 1871
+    yearEnd = 2022
+    if narg > 3:
+        print(f"Too many arguments, encountered {narg}  expected between 0 and 2")
+        exit(1)
+    if narg > 1:
+        yearStart = getYear(sys.argv[1])
+    if narg > 2:
+        yearEnd = getYear(sys.argv[2], True)    
+    if yearStart == None or yearEnd == None:
+        print("bad years")
+        exit(1)
+    getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur)
 

@@ -1,10 +1,6 @@
-DROP TABLE boxscore;
-DROP TABLE parks;
-DROP TABLE teams;
-DROP TABLE completion;
-DROP TABLE extra;
+#!/usr/bin/python3
 
-CREATE TABLE boxscore (
+boxscoreCreate="""CREATE TABLE boxscore (
     game_date date,
     game_num char(1),
     game_day_of_week char(3),
@@ -183,9 +179,9 @@ CREATE TABLE boxscore (
     additional_info varchar(128),
     acq_info char(1), 
     PRIMARY KEY(game_date, game_num, home_team)
-);
+)"""
 
-CREATE TABLE extra (
+extraCreate="""CREATE TABLE extra (
     game_date date,
     game_num char(1),
     home_team varchar(16), 
@@ -222,9 +218,9 @@ CREATE TABLE extra (
     home_score_inning_24 smallint,
     home_score_inning_25 smallint,
     PRIMARY KEY(game_date, game_num, home_team)
-);
+)"""
 
-CREATE TABLE completion (
+completionCreate="""CREATE TABLE completion (
     game_date date,
     game_num char(1),
     home_team varchar(16), 
@@ -234,9 +230,9 @@ CREATE TABLE completion (
     home_score_int smallint, 
     outs_int smallint, 
     PRIMARY KEY(game_date, game_num, home_team)
-);
+)"""
 
-CREATE TABLE parks (
+parksCreate="""CREATE TABLE parks (
     park_id char(5) PRIMARY KEY,
     park_name varchar(64),
     park_aka varchar(64),
@@ -246,13 +242,72 @@ CREATE TABLE parks (
     park_close date,
     park_league varchar(64),
     notes varchar(128)
-);
+)"""
 
-CREATE TABLE teams(
+teamsCreate="""CREATE TABLE teams(
     team_id varchar(8),
     team_league varchar(64),
     team_city varchar(64),
     team_nickname varchar(64),
     team_first smallint,
     team_last smallint
-);
+)"""
+
+def createBoxscore(cur):
+    try:
+        cur.execute("DROP TABLE boxscore")
+    except Exception as e:
+        pass
+    cur.execute(boxscoreCreate)
+
+def createParks(cur):
+    try:
+        cur.execute("DROP TABLE parks")
+    except Exception as e:
+        pass
+    cur.execute(parksCreate)
+
+def createTeams(cur):
+    try:
+        cur.execute("DROP TABLE teams")
+    except Exception as e:
+        pass
+    cur.execute(teamsCreate)
+
+def createCompletion(cur):
+    try:
+        cur.execute("DROP TABLE completion")
+    except Exception as e:
+        pass
+    cur.exectute(completionCreate)
+
+def createExtra(cur):
+    try:
+        cur.execute("DROP TABLE extra")
+    except Exception as e:
+        pass
+    cur.execute(extraCreate)
+
+if __name__ == "__main__":
+    connectPG = False
+    connectSqlite = True
+    useDB = connectPG or connectSqlite
+
+    if connectSqlite:
+        import sqlite3
+        conn = sqlite3.connect("baseball.db")
+        cur = conn.cursor()
+
+    if connectPG:
+        import psycopg
+        # Connect to an existing database
+        conn = psycopg.connect("dbname=postgres user=postgres")
+        cur = conn.cursor()
+
+    createParks(cur)
+    createTeams(cur)
+    #createBoxscore(cur)    
+    #createCompletion(cur)
+    #createExtra(cur)
+    conn.commit()
+

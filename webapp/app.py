@@ -258,18 +258,61 @@ def options_parks():
     resp.headers["Access-Control-Allow-Headers"] = "*"
     return resp
 
+@app.route("/teams", methods=["OPTIONS"])
+def options_teams():
+    resp = make_response("OK", 200)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Headers"] = "*"
+    return resp
+
+@app.route("/teams")
+def get_teams():
+    try: 
+        args = request.args
+        since = 1900
+        if "since" in args:
+            since = int(args.get("since"))
+        qy = """SELECT DISTINCT t.team_id, t.team_league, t.team_city, 
+                team_nickname, team_first, team_last  
+                FROM teams t 
+                INNER JOIN boxscore b 
+                ON t.team_id=b.home_team WHERE team_last > ?
+                """
+        r, query_times = appdb.executeQuery(db, qy, (since,))
+        fn = lambda t: t[0] + ": " + str(int((t[1].microseconds)/1000)) + " ms"
+        l = list(map(fn, query_times))
+        print("/teams query successful times= ", l)
+        hdr = ("team_id", "team_league", "team_city",
+               "team_nickname", "team_first", "team_last")
+        resp = make_response(json.dumps({"header": hdr, "result": r}), 200)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp
+    except Exception as e:
+        print("query failed e=", e)
+        errMsg = "Query failed exception: " + str(e) + "\n"
+        errMsg += ("query: " + qy)
+        resp = make_response(errMsg, 500)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp
+
 @app.route("/parks")
 def get_parks():
     try: 
         args = request.args
-        since = 1950
+        since = 1900
         if "since" in args:
             since = int(args.get("since"))
-        qy = "SELECT * from parks WHERE CAST(substr(park_open, 7) AS INTEGER) > ?"
+        qy = """SELECT DISTINCT p.park_id, p.park_name, 
+            p.park_aka, p.park_city, p.park_state,
+            p.park_open, p.park_close, p.park_league, p.notes
+             FROM parks p
+             INNER JOIN boxscore b 
+             ON p.park_id=b.park
+            WHERE CAST(substr(p.park_open, 7) AS INTEGER) > ?"""
         r, query_times = appdb.executeQuery(db, qy, (since,))
         fn = lambda t: t[0] + ": " + str(int((t[1].microseconds)/1000)) + " ms"
         l = list(map(fn, query_times))
-        print("query successful times= ", l)
+        print("/parks query successful times= ", l)
         hdr = ("park_id","park_name","park_aka", "park_city",
                 "park_state", "park_open", "park_close",
                 "park_league", "notes")
@@ -368,16 +411,16 @@ def get_box_stats():
                 else:
                     qy += f" SELECT * from home_t UNION SELECT * from away_t"
             else:
-                tbl = "h"
                 fields = ",".join(selectFieldsH)
                 def makeFieldH(x):
                     if x == "gp":
-                        return f"h.gp+a.gp as gp, "
+                        return f"h.gp+a.gp as gp"
                     if x == "park":
                         return f"p.park_name as park"
-                    return f"h.{x}, "
+                    return f"h.{x}"
                 
-                qy += " SELECT " + "".join(list(map(makeFieldH, selectFieldsH)))
+                qy += " SELECT " + ", ".join(list(map(makeFieldH, selectFieldsH)))
+                qy += ", "
                 #for f in fieldNames:
                 #    qp = QUERY_PARAMS[f]
                 #    qy += ("h." + qp[1] + ", ")
@@ -412,9 +455,9 @@ def get_box_stats():
                 qy += " (SELECT "
 
                 def makeFieldA(x):
-                    return f"{x}, "
-                qy += "".join(list(map(makeFieldA, selectFieldsA)))
-                
+                    return f"{x}"
+                qy += ", ".join(list(map(makeFieldA, selectFieldsA)))
+                qy += ", "
                 first = True
                 for (st, isAgainst) in statList:
                     if not first:
@@ -457,7 +500,7 @@ def get_box_stats():
                 qy += f" SELECT * from away_t"
 
         if isPark:
-            qy += f" INNER JOIN ON parks p WHERE h.park=p.park_id"
+            qy += f" INNER JOIN (SELECT * FROM parks) p ON h.park=p.park_id"
 
         qy += " LIMIT 101" 
         print("query= ", qy)
