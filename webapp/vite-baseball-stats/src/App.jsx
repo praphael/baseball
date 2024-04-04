@@ -24,7 +24,9 @@ function makeBoxScoreQueryString(filter, statTypes) {
   qy += "&stats=";
   let stqy = ""
   let stArr = [];
-  statTypes.forEach((st) => { stArr.push(st); });
+  statTypes.forEach((st) => { 
+    stArr.push(st); 
+  });
   stArr.sort((a, b) => { 
     const isAgA = (a[0] == "_");
     const isAgB = (b[0] == "_");
@@ -57,7 +59,7 @@ function App() {
     const r = await doRequest(url, 'GET', null, "", null, "html", (e) => {
         alert(`Get Data:  status ${e.status} error: ${e.error}`);
     });
-    // console.log("r=", r);
+    console.log("updateData r=", r);
     if(r != null)
       setResults(r);
   }

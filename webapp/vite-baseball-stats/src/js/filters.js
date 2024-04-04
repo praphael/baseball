@@ -56,7 +56,9 @@ const r = await doRequest("/parks?since=1920", "GET", null, null, "json", "", (e
 const parks=[]
 if(r != null) {
     console.log("r=", r)
-    r.result.map((v) => { parks.push([v[1], v[0]])})
+    r.result.map((v) => { 
+        parks.push([v[1], v[0]])
+    })
 }
 
 const boxScoreFiltOpts = { teams, months, daysOfWeek, homeAway, league, parks };
@@ -69,8 +71,6 @@ const boxScoreFiltDefaults = {
 }
 boxScoreFiltDefaults.values.set("team", "BAL");
 boxScoreFiltDefaults.values.set("year", "2021");
-boxScoreFiltDefaults.values.set("homeaway", "(all)");
-boxScoreFiltDefaults.values.set("league", "(all)");
 boxScoreFiltDefaults.group.add("month");
 
 export {boxScoreFiltOpts, boxScoreFiltDefaults}; //}, boxScoreIdxMaps};

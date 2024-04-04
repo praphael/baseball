@@ -127,9 +127,12 @@ def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames, agg, grp):
     base = " " + homeOrAway + "_t as (SELECT "
     print("makeCTEBase grp=", grp)
     homeOrVisit = homeOrAway
+    selectFields = []
+    
     if homeOrAway == "away":
         homeOrVisit = "visiting"
     for f in fieldNames:
+        selectFields.append(f)
         qp = QUERY_PARAMS[f]
         if qp[3]:
             base += (homeOrVisit + "_")
@@ -137,8 +140,14 @@ def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames, agg, grp):
         if qp[3]:
             base += " as " + f
         base += ", "
+    nGroup = 0
     for g in grp:
-        if g in QUERY_PARAMS:
+        if g == "homeaway":
+            base += f"'{homeOrAway}' as homeoraway, "
+            selectFields.append("homeoraway")
+            nGroup += 1
+        elif g in QUERY_PARAMS:
+            selectFields.append(g)
             qp = QUERY_PARAMS[g]
             if qp[3]:
                 base += (homeOrVisit + "_")
@@ -146,14 +155,18 @@ def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames, agg, grp):
             if qp[3]:
                 base += " as " + g
             base += ", "
-    if agg != "no":
+            nGroup += 1
+    if agg != "no" or nGroup > 0:
         base += " COUNT(*) as gp"
+        selectFields.append("gp")
     else: 
         base += " game_date as date, game_num as num, home_team as home, visiting_team as away"
+        selectFields.extend(["date", "num", "home", "away"])
+
     base += fieldQueryStr
     base += " FROM boxscore"
     
-    return base
+    return base, selectFields
 
 def getQueryParams(args):
     fieldNames = []
@@ -277,15 +290,17 @@ def get_box_stats():
         t_preproc_start = datetime.now()
         print(datetime.now())
         args = request.args
+        print("args=", args)
         isHome = True
         isAway = True
-        if "home" in args:
-            isHome = bool(args.get("home"))
-            isAway = False
-        if "away" in args:
-            if "home" not in args:
+        if "homeaway" in args:
+            homeaway = args.get("homeaway")
+            if homeaway == "home":
+                isHome = True
+                isAway = False
+            elif homeaway == "away":
                 isHome = False
-            isAway = bool(args.get("away"))
+                isAway = True            
         agg = "sum"
         if "agg" in args:
             agg = args.get("agg")
@@ -315,8 +330,8 @@ def get_box_stats():
 
         statQueryStrH, statList = buildStatQueryStr(stats, True, agg)
         statQueryStrA, statList = buildStatQueryStr(stats, False, agg)
-        qy_home = makeCTEBase("home", statQueryStrH, fieldNames, agg, grp)
-        qy_away = makeCTEBase("away", statQueryStrA, fieldNames, agg, grp)
+        qy_home, selectFieldsH = makeCTEBase("home", statQueryStrH, fieldNames, agg, grp)
+        qy_away, selectFieldsA = makeCTEBase("away", statQueryStrA, fieldNames, agg, grp)
 
         prmsH = tuple()
         prmsA = tuple()
@@ -333,19 +348,44 @@ def get_box_stats():
             qy += qy_away + whereClauseA + ")"
             prmsA = tuple(fieldValues)
 
+        # if park is part of query, JOIN with park names
+        isPark = False
+        if "park" in selectFieldsH:
+            isPark = True
+
+        def makeFieldPark(x):
+            if x == "park":
+                return f"p.park_name as park"
+            return f"h.{x}"
+
         # if home and away selected, must do JOIN (unless no aggregation)
         if isHome and isAway:
-            if agg == "no":
-                qy += " SELECT * from home_t UNION SELECT * from away_t"
+            if agg == "no" or "homeaway" in grp:
+                # rewrite fields for join on park
+                if isPark:
+                    fields = ", ".join(list(map(makeFieldPark, selectFieldsH)))
+                    qy += f" SELECT {fields} from home_t h UNION SELECT * from away_t"
+                else:
+                    qy += f" SELECT * from home_t UNION SELECT * from away_t"
             else:
-                qy += " SELECT " 
-                for f in fieldNames:
-                    qp = QUERY_PARAMS[f]
-                    qy += ("h." + qp[1] + ", ")
-                for g in grp:
-                    qp = QUERY_PARAMS[g]
-                    qy += f"h.{qp[1]}, "
-                qy += "h.gp+a.gp as gp, "
+                tbl = "h"
+                fields = ",".join(selectFieldsH)
+                def makeFieldH(x):
+                    if x == "gp":
+                        return f"h.gp+a.gp as gp, "
+                    if x == "park":
+                        return f"p.park_name as park"
+                    return f"h.{x}, "
+                
+                qy += " SELECT " + "".join(list(map(makeFieldH, selectFieldsH)))
+                #for f in fieldNames:
+                #    qp = QUERY_PARAMS[f]
+                #    qy += ("h." + qp[1] + ", ")
+                #for g in grp:
+                #    qp = QUERY_PARAMS[g]
+                #    qy += f"h.{qp[1]}, "
+                #qy += "h.gp+a.gp as gp, "
+                
                 first = True
                 for (st, isAgainst) in statList:
                     if not first:
@@ -371,15 +411,10 @@ def get_box_stats():
                     qy += " INNER JOIN "
                 qy += " (SELECT "
 
-                for f in fieldNames:
-                    qp = QUERY_PARAMS[f]
-                    qy += (F"{qp[1]}, ")
-                for g in grp:
-                    qy += (g + ", ")
-                if agg == "no":
-                    qy += "date, num, home, away, "
-                else:
-                    qy += "gp, "
+                def makeFieldA(x):
+                    return f"{x}, "
+                qy += "".join(list(map(makeFieldA, selectFieldsA)))
+                
                 first = True
                 for (st, isAgainst) in statList:
                     if not first:
@@ -409,9 +444,20 @@ def get_box_stats():
                     #qy += " AND h.date=a.date AND h.num=a.num"
                     #qy += " AND h.home=a.home AND h.away=a.away"
         elif isHome:
-            qy += " SELECT * from home_t"
+            if isPark:
+                fields = ", ".join(list(map(makeFieldPark, selectFieldsH)))
+                qy += f" SELECT {fields} from home_t h"
+            else:
+                qy += f" SELECT * from home_t"
         elif isAway:
-            qy += " SELECT * from away_t"
+            if isPark:
+                fields = ", ".join(list(map(makeFieldPark, selectFieldsA)))
+                qy += f" SELECT {fields} from home_t h"
+            else:
+                qy += f" SELECT * from away_t"
+
+        if isPark:
+            qy += f" INNER JOIN ON parks p WHERE h.park=p.park_id"
 
         qy += " LIMIT 101" 
         print("query= ", qy)
@@ -431,14 +477,9 @@ def get_box_stats():
             return resp
         t_postproc_start = datetime.now()
         print(r)
-        # make header
-        hdr = fieldNames
-        if grp is not None:
-            hdr.extend(grp)
-        if agg != "no":
-            hdr.append("GP")
-        else:
-            hdr.extend(["date", "num", "home", "away"])
+        # make header for table
+        hdr = selectFieldsH
+
         for (st, isAgainst) in statList:
             fld = ""
             if isAgainst:
