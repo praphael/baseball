@@ -427,7 +427,7 @@ def get_box_stats():
         print(f"selectFieldsH=", selectFieldsH)
         # if home and away selected, must do JOIN (unless no aggregation)
         if isHome and isAway:
-            if agg == "no" or "homeaway" in grp:
+            if (agg == "no" and len(grp) == 0) or "homeaway" in grp:
                 # rewrite fields for join on park
                 if isPark or isTeam:
                     fields = ", ".join(list(map(makeFieldParkTeam, selectFieldsH)))
@@ -467,8 +467,8 @@ def get_box_stats():
                         st = "_" + st
                     elif isNumberChar(st[0]):
                         st = "n" + st
-                    # separate out home/away    
-                    if agg == "sum":
+                    # join home/away
+                    if agg == 'no' or agg == "sum":
                         qy += " h." + st + "+" + "a." + st 
                     elif agg == "average":
                         # for averages need to reweight/home away based on gams played
@@ -476,10 +476,10 @@ def get_box_stats():
                     qy += " as " + st
                 
                 qy += " FROM home_t h"
-                if agg == "no":
-                    qy += " UNION "
-                else:
-                    qy += " INNER JOIN "
+                #if agg == "no":
+                #    qy += " UNION "
+                #else:
+                qy += " INNER JOIN "
                 qy += " (SELECT "
 
                 def makeFieldA(x):
@@ -498,7 +498,8 @@ def get_box_stats():
                     qy += st
                 qy += " FROM away_t) a"
                 # JOIN conditions
-                if agg != "no":
+                #if agg != "no":
+                if True:  # always join
                     qy += " ON"
                     first = True
                     for f in fieldNames:
