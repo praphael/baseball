@@ -12,6 +12,7 @@ const OptionWithCheck = ({fieldName, label, options, initValue,
         onChange(fieldName, v);
         setVal(v);
     }
+    // console.log("OptionWithCheck initValue=", initValue)
     const id = `"filter_${fieldName}"`;
     return (
         <div className={optionClasses.divClass}>

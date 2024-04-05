@@ -1,6 +1,10 @@
 import { doRequest } from "./requests.js";
 
-  
+const filterFields=[["Year", "year"], ["Month", "month"],
+                    ["Team", "team"], ["Home/Away", "homeaway"],
+                    ["Day", "dow"], ["League", "league"],
+                    ["Park", "park"], ["Date", "date"],
+                    ["Games played", "gp"]]
 //const teamIdxMap = new Map();
 //for(let i=0; i<teams.length; i++) teamIdxMap[teams[i][0]] = i;
 
@@ -66,4 +70,6 @@ boxScoreFiltDefaults.values.set("team", "BAL");
 boxScoreFiltDefaults.values.set("year", "2021");
 boxScoreFiltDefaults.group.add("month");
 
-export {boxScoreFiltOpts, boxScoreFiltDefaults}; //}, boxScoreIdxMaps};
+const orderDefaults = [["team", true], ["year", true], ["date", true]]
+
+export {boxScoreFiltOpts, boxScoreFiltDefaults, filterFields, orderDefaults}; //}, boxScoreIdxMaps};

@@ -7,39 +7,45 @@ import { doRequest } from './js/requests.js'
 import StatTypes from './components/StatTypes.jsx';
 import { statSortOrder } from './js/stats.js';
 
-function makeBoxScoreQueryString(filter, statTypes) {
-  let qy = "";
-  filter.values.forEach((v, k) => { 
-    if(v.length > 0) {
-      qy += `${k}=${v}&`; 
-    }
-  });
-  let grp = "";
-  filter.group.forEach((k) => { 
-    grp += `,${k}` 
-  });
-  if (grp.length > 0)
-    qy += ("grp=" + grp.slice(1));
-  qy += ("&agg=" + filter.agg);
-  qy += "&stats=";
-  let stqy = ""
-  let stArr = [];
-  statTypes.forEach((st) => { 
-    stArr.push(st); 
-  });
-  stArr.sort((a, b) => { 
-    const isAgA = (a[0] == "_");
-    const isAgB = (b[0] == "_");
+function makeBoxScoreQueryString(filter, statTypes, order) {
+    let qy = "";
+    filter.values.forEach((v, k) => {
+        if(v.length > 0) {
+            qy += `${k}=${v}&`;
+        }
+    });
+    let grp = "";
+    filter.group.forEach((k) => {
+        grp += `,${k}`
+    });
+    if (grp.length > 0)
+        qy += ("grp=" + grp.slice(1));
+    qy += ("&agg=" + filter.agg);
+    qy += "&stats=";
+    let stqy = ""
+    let stArr = [];
+    statTypes.forEach((st) => { 
+        stArr.push(st); 
+    });
+    stArr.sort((a, b) => { 
+        const isAgA = (a[0] == "_");
+        const isAgB = (b[0] == "_");
 
-    if ( isAgA && !isAgB) return 1;
-    else if (!isAgA && isAgB) return -1;
-    else if (isAgA && isAgB) 
-      return statSortOrder[a.slice(1)] - statSortOrder[b.slice(1)]
-    return statSortOrder[a] - statSortOrder[b]
-  });
-  stArr.forEach((st) => { stqy += "," + st });
-  qy += stqy.slice(1)
-  return qy;
+        if ( isAgA && !isAgB) return 1;
+        else if (!isAgA && isAgB) return -1;
+        else if (isAgA && isAgB) 
+          return statSortOrder[a.slice(1)] - statSortOrder[b.slice(1)]
+        return statSortOrder[a] - statSortOrder[b]
+    });
+    stArr.forEach((st) => { stqy += "," + st });
+    qy += stqy.slice(1)
+    let ordStr = ""
+    order.forEach((ord) => { 
+      ordStr += "," + ord[0];
+      ordStr += (ord[1]? ">" : "<");
+    });
+    qy += "&order=" + ordStr.slice(1)
+    return qy;
 }
 
 const resultsClass="row";
@@ -50,16 +56,17 @@ function App() {
   const [results, setResults] = useState("");
   const [filter, setFilter] = useState({});
   const [statTypes, setStatTypes] = useState(new Set());
-    
+  const [order, setOrder] = useState([]);
+
   const updateData = async () => {
     console.log("updateData");
-    const qy = makeBoxScoreQueryString(filter, statTypes);
+    const qy = makeBoxScoreQueryString(filter, statTypes, order);
     console.log("qy=", qy);
     const url = "/box?" + qy + "&ret=html-bs";
     const r = await doRequest(url, 'GET', null, "", null, "html", (e) => {
         alert(`Get Data:  status ${e.status} error: ${e.error}`);
     });
-    console.log("updateData r=", r);
+    // console.log("updateData r=", r);
     if(r != null)
       setResults(r);
   }
@@ -71,7 +78,8 @@ function App() {
           <div className="col-2">
             <h4>Filters:</h4>
             <button className={updateButtonClass} onClick={()=>(updateData())}>Get Data</button>
-            <BoxScoreFilters filter={filter} setFilter={setFilter} />
+            <BoxScoreFilters filter={filter} setFilter={setFilter}
+                             order={order} setOrder={setOrder} />
           </div>
           <div className="col-auto">
             <div className="container">

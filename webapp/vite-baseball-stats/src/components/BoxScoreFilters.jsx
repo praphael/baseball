@@ -1,8 +1,9 @@
 import React from 'react'
 import { useEffect, useState } from 'react'
 
-import { boxScoreFiltOpts, boxScoreFiltDefaults } from '../js/filters.js'
-
+import { boxScoreFiltOpts, boxScoreFiltDefaults,
+         filterFields, orderDefaults } from '../js/filters.js'
+import { statTypesArr } from '../js/stats.js'
 import NumberInputWithCheck from './NumberInputWithCheck.jsx'
 import OptionWithCheck from './OptionWithCheck.jsx'
 import AccordionHeader from './AccordionHeader.jsx'
@@ -18,18 +19,21 @@ const numberInputClasses = { divClass:optionInputDivClass, inputClass, labelClas
 const checkDivClass = "col-1 form-check mb-2";
 const checkClass = "col-2 ms-1 form-check-input";
 const checkLabelClass= "form-check-label"
-const checkClasses = { divClass:checkDivClass, checkClass, labelClass:checkLabelClass }
+const checkClasses = { divClass:checkDivClass, checkClass, labelClass:checkLabelClass, label:"Group" }
+const checkClassesOrder = { divClass:checkDivClass, checkClass, labelClass:checkLabelClass, label:"Ascending" }
 
-const BoxScoreFilters = ({filter, setFilter}) => {
+const BoxScoreFilters = ({filter, setFilter, order, setOrder}) => {
   useEffect(() => {
     // initial value for filter
-    setFilter(boxScoreFilt)
+    setFilter(boxScoreFilt);
+    setOrder(orderDefaults);
   }, [])
 
   const onFiltChange = (field, value, isGroup) => {
     console.log("onFiltChange field=", field, "value=", value);
     console.log("onFiltChange filter=", filter);
     try {
+      // true if called from group check, else undefined
       if(isGroup) {
           if(value)
             filter.group.add(field);
@@ -42,12 +46,32 @@ const BoxScoreFilters = ({filter, setFilter}) => {
     } catch(e) { console.log("Could not set filter ", e)}
   }
 
+  const onOrderChange = (field, value, isAsc) => {
+    console.log("onOrderChange  field=", field, " value=", value);
+    try {
+      const ord = parseInt(field[5])
+      console.log("onOrderChange ord=", ord);
+      // true if called from ascending check, else undefined
+      if(isAsc) {
+        order[ord][1] = value;
+      } else {
+        order[ord][0] = value;
+      }
+      setOrder(order);
+    } catch(e) { console.log("Could not set order ", e)}
+  }
+
   const [aggVal, setAggVal] = useState(boxScoreFilt.agg)
 
   const onNewAggVal=(v) => {
     onFiltChange("agg", v);
     setAggVal(v);
   } 
+  
+  const orderFields = new Array()
+  orderFields.push(...filterFields)
+  orderFields.push(...statTypesArr)
+  
 
 //  console.log("boxScoreFilt.values= ", boxScoreFilt.values);
 //  console.log("boxScoreFilt.group= ", boxScoreFilt.group);
@@ -75,19 +99,19 @@ const BoxScoreFilters = ({filter, setFilter}) => {
               <div className="accordion-body">
         <OptionWithCheck fieldName="team" label="Team" options={boxScoreFiltOpts.teams} 
             initValue={boxScoreFilt.values.get("team")} 
-            initGroup={boxScoreFilt.group.has("team")}  
+            initCheck={boxScoreFilt.group.has("team")}  
             onChange={onFiltChange} 
             optionClasses={optionClasses}
             checkClasses={checkClasses}/>
         <NumberInputWithCheck fieldName="year" label="Year" 
             initValue={boxScoreFilt.values.get("year")}
-            initGroup={boxScoreFilt.group.has("year")}   
+            initCheck={boxScoreFilt.group.has("year")}   
             onChange={onFiltChange}
             numberInputClasses={numberInputClasses}
             checkClasses={checkClasses} />
         <OptionWithCheck fieldName="month" label="Month" options={boxScoreFiltOpts.months} 
             initValue={boxScoreFilt.values.get("month")}
-            initGroup={boxScoreFilt.group.has("month")}
+            initCheck={boxScoreFilt.group.has("month")}
             onChange={onFiltChange} 
             optionClasses={optionClasses}
             checkClasses={checkClasses} />
@@ -95,7 +119,7 @@ const BoxScoreFilters = ({filter, setFilter}) => {
         <OptionWithCheck fieldName="homeaway" label="Home/Away" 
           options={boxScoreFiltOpts.homeAway} 
           initValue={boxScoreFilt.values.get("homeaway")}
-          initGroup={boxScoreFilt.group.has("homeaway")}
+          initCheck={boxScoreFilt.group.has("homeaway")}
           onChange={onFiltChange} 
           optionClasses={optionClasses}
           checkClasses={checkClasses} />
@@ -112,25 +136,59 @@ const BoxScoreFilters = ({filter, setFilter}) => {
         <OptionWithCheck fieldName="league" label="League" 
           options={boxScoreFiltOpts.league} 
           initValue={boxScoreFilt.values.get("league")}
-          initGroup={boxScoreFilt.group.has("league")}
+          initCheck={boxScoreFilt.group.has("league")}
           onChange={onFiltChange}
           optionClasses={optionClasses}
           checkClasses={checkClasses} />
         { /* day of week */ }
         <OptionWithCheck fieldName="dow" label="Day" options={boxScoreFiltOpts.daysOfWeek} 
             initValue={boxScoreFilt.values.get("dow")} 
-            initGroup={boxScoreFilt.group.has("dow")}
+            initCheck={boxScoreFilt.group.has("dow")}
             onChange={onFiltChange} 
             optionClasses={optionClasses}
             checkClasses={checkClasses} />
         { /* park */ }
         <OptionWithCheck fieldName="park" label="Park" options={boxScoreFiltOpts.parks} 
             initValue={boxScoreFilt.values.get("park")} 
-            initGroup={boxScoreFilt.group.has("park")}
+            initCheck={boxScoreFilt.group.has("park")}
             onChange={onFiltChange} 
             optionClasses={optionClasses}
             checkClasses={checkClasses} />
           </div>
+          </div>
+        </div>
+        <div className="accordion-item">
+          <AccordionHeader dataBsTarget="#collapseThree"
+              ariaControls="collapseThree" label="Ordering"/>
+          <div id="collapseThree" className="accordion-collapse collapse show" 
+            aria-labelledby="headingOne" data-bs-parent="#filtersAccordion">
+            <div className="accordion-body">
+            { /* First Order  */ }
+        <OptionWithCheck fieldName="order0" label="First" 
+          options={orderFields} 
+          initValue={orderFields[0][1]}
+          initCheck={false}
+          onChange={onOrderChange}
+          optionClasses={optionClasses}
+          checkClasses={checkClassesOrder} />
+        { /* Second order */ }
+        <OptionWithCheck fieldName="order1" label="Second" 
+            options={orderFields} 
+            initValue={orderFields[1][1]} 
+            initCheck={true}
+            onChange={onOrderChange} 
+            optionClasses={optionClasses}
+            checkClasses={checkClassesOrder} />
+        { /* Third order */ }
+        <OptionWithCheck fieldName="order2" label="Third" 
+            options={orderFields} 
+            initValue={orderFields[2][1]} 
+            initCheck={false}
+            onChange={onOrderChange} 
+            optionClasses={optionClasses}
+            checkClasses={checkClassesOrder} />
+
+            </div>
           </div>
         </div>
       </div>

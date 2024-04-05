@@ -385,6 +385,11 @@ def get_box_stats():
         if "stats" in args:
             stats = args.get("stats")
         stats = stats.split(",")
+        order="year,team,date"
+        if "order" in args:
+            order = args.get("order")
+        order = order.split(",")
+
         print("stats=", stats)
 
         statQueryStrH, statList = buildStatQueryStr(stats, True, agg)
@@ -425,6 +430,9 @@ def get_box_stats():
                 #return f"t.team_city||' '||t.team_nickname AS team"
             
         print(f"selectFieldsH=", selectFieldsH)
+        # fields which have perfomed h.f + a.f
+        # for use in ordering
+        fieldsSummed = set()
         # if home and away selected, must do JOIN (unless no aggregation)
         if isHome and isAway:
             if (agg == "no" and len(grp) == 0) or "homeaway" in grp:
@@ -439,6 +447,7 @@ def get_box_stats():
                 fields = ",".join(selectFieldsH)
                 def makeFieldH(x):
                     if x == "gp":
+                        fieldsSummed.add("gp")
                         return f"h.gp+a.gp as gp"
                     elif x == "park":
                         return f"p.park_name as park"
@@ -469,8 +478,10 @@ def get_box_stats():
                         st = "n" + st
                     # join home/away
                     if agg == 'no' or agg == "sum":
+                        fieldsSummed.add(st)
                         qy += " h." + st + "+" + "a." + st 
                     elif agg == "average":
+                        fieldsSummed.add(st)
                         # for averages need to reweight/home away based on gams played
                         qy += f" trunc(100*(h.{st}/(1.0*(h.gp+a.gp)) + a.{st}/(1.0*(h.gp+a.gp))))/100.0"
                     qy += " as " + st
@@ -536,7 +547,24 @@ def get_box_stats():
             qy += f" INNER JOIN (SELECT * FROM parks) p ON h.park=p.park_id"
         #if isTeam:
         #    qy += f" INNER JOIN (SELECT * FROM teams) t ON team=t.team_id"
-
+        ordFilt = []
+        print("order=", order)
+        print("stats=", stats)
+        print("selectFieldsH=", selectFieldsH)
+        for o in order:
+            o1 = o[:-1]
+            print("o1=", o1)
+            if o1 in selectFieldsH or o1 in stats:
+                ordstr = o1
+                if o1 in fieldsSummed:
+                    ordstr += "+a." + o1
+                if o[-1] == "<":
+                    ordstr += " ASC"
+                else:
+                    ordstr += " DESC"
+                ordFilt.append(ordstr)
+        if len(ordFilt) > 0:
+            qy += " ORDER BY h." + ", h.".join(ordFilt)
         qy += " LIMIT 101" 
         print("query= ", qy)
         print("prms= ", prmsH + prmsA)
