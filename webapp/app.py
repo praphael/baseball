@@ -579,9 +579,13 @@ def get_box_stats():
 
         # fix month from number to string value
         if "Month" in hdr or "Team" in hdr:
-            monthIdx = hdr.index("Month")
-            teamIdx = hdr.index("Team")
-            if teamIdx >= 0:
+            monthIdx = -1
+            teamIdx = -1
+            if "Month" in hdr:
+                monthIdx = hdr.index("Month")
+            if "Team" in hdr:
+                teamIdx = hdr.index("Team")
+            if teamIdx >= 0 and not hasattr(app, 'team_name'):
                 get_teams()
             i = 0
             for t in r:
