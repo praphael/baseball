@@ -76,6 +76,14 @@ QUERY_PARAMS= {"team": ["team", "team", "", True],
 def make_dt_ms_str(dt):
     return str(int(dt.microseconds / 1000))
 
+def isNumberChar(c):
+    return ord(c) in range(ord('0'), ord('9')+1)
+
+def toUpper(c):
+    if ord(c) in range(ord('a'), ord('z')+1):
+        return chr(ord('A') + ord(c) - ord('a'))
+    return c
+
 def addToWhereClause(qy, p, prms, s):
     prms += (p,)
     if len(prms) == 1:
@@ -115,6 +123,8 @@ def buildStatQueryStr(stats, isHome, agg="sum"):
                 fld = f", sum(" + b + "_" + fName + ") as "
             if isAgainst:
                 fld += "_"
+            elif isNumberChar(f[0]):
+                fld += "n"
             fld += f
 
             statQueryStr += fld
@@ -123,9 +133,11 @@ def buildStatQueryStr(stats, isHome, agg="sum"):
     return statQueryStr, fList
 
 # make common table expression base
+# fieldNames are names that appear in SELECT
 def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames, agg, grp):
     base = " " + homeOrAway + "_t as (SELECT "
     print("makeCTEBase grp=", grp)
+    print("makeCTEBase fieldNames=", fieldNames)
     homeOrVisit = homeOrAway
     selectFields = []
     
@@ -143,7 +155,8 @@ def makeCTEBase(homeOrAway, fieldQueryStr, fieldNames, agg, grp):
     nGroup = 0
     for g in grp:
         if g == "homeaway":
-            base += f"'{homeOrAway}' as homeoraway, "
+            hOrA = toUpper(homeOrAway[0]) + homeOrAway[1:]
+            base += f"'{hOrA}' as homeoraway, "
             selectFields.append("homeoraway")
             nGroup += 1
         elif g in QUERY_PARAMS:
@@ -284,6 +297,9 @@ def get_teams():
         print("/teams query successful times= ", l)
         hdr = ("team_id", "team_league", "team_city",
                "team_nickname", "team_first", "team_last")
+        app.team_names = dict()
+        for row in r:
+            app.team_names[row[0]] = row[2] + " " + row[3]
         resp = make_response(json.dumps({"header": hdr, "result": r}), 200)
         resp.headers["Access-Control-Allow-Origin"] = "*"
         return resp
@@ -373,9 +389,10 @@ def get_box_stats():
 
         statQueryStrH, statList = buildStatQueryStr(stats, True, agg)
         statQueryStrA, statList = buildStatQueryStr(stats, False, agg)
+        print(f"statList=", statList)
         qy_home, selectFieldsH = makeCTEBase("home", statQueryStrH, fieldNames, agg, grp)
         qy_away, selectFieldsA = makeCTEBase("away", statQueryStrA, fieldNames, agg, grp)
-
+        print(f"selectFieldsH=", selectFieldsH)        
         prmsH = tuple()
         prmsA = tuple()
         whereClauseH = ""
@@ -395,29 +412,41 @@ def get_box_stats():
         isPark = False
         if "park" in selectFieldsH:
             isPark = True
+        isTeam = False
+        if "team" in selectFieldsH:
+            isTeam = True
 
-        def makeFieldPark(x):
+        def makeFieldParkTeam(x):
             if x == "park":
-                return f"p.park_name as park"
+                return f"p.park_name AS park"
             return f"h.{x}"
-
+            #elif x == "team":
+                #return f"team"
+                #return f"t.team_city||' '||t.team_nickname AS team"
+            
+        print(f"selectFieldsH=", selectFieldsH)
         # if home and away selected, must do JOIN (unless no aggregation)
         if isHome and isAway:
             if agg == "no" or "homeaway" in grp:
                 # rewrite fields for join on park
-                if isPark:
-                    fields = ", ".join(list(map(makeFieldPark, selectFieldsH)))
-                    qy += f" SELECT {fields} from home_t h UNION SELECT * from away_t"
+                if isPark or isTeam:
+                    fields = ", ".join(list(map(makeFieldParkTeam, selectFieldsH)))
+                    fields += ", " + ", ".join(stats)
+                    qy += f" SELECT {fields} FROM home_t h UNION SELECT * FROM away_t"
                 else:
-                    qy += f" SELECT * from home_t UNION SELECT * from away_t"
+                    qy += f" SELECT * FROM home_t UNION SELECT * FROM away_t"
             else:
                 fields = ",".join(selectFieldsH)
                 def makeFieldH(x):
                     if x == "gp":
                         return f"h.gp+a.gp as gp"
-                    if x == "park":
+                    elif x == "park":
                         return f"p.park_name as park"
+                    elif x == "team":
+                        return f"h.team"
                     return f"h.{x}"
+                        #return f"t.team_city||' '||t.team_nickname as team"
+                    
                 
                 qy += " SELECT " + ", ".join(list(map(makeFieldH, selectFieldsH)))
                 qy += ", "
@@ -436,16 +465,15 @@ def get_box_stats():
                     first = False
                     if isAgainst:
                         st = "_" + st
+                    elif isNumberChar(st[0]):
+                        st = "n" + st
                     # separate out home/away    
                     if agg == "sum":
                         qy += " h." + st + "+" + "a." + st 
                     elif agg == "average":
                         # for averages need to reweight/home away based on gams played
                         qy += f" trunc(100*(h.{st}/(1.0*(h.gp+a.gp)) + a.{st}/(1.0*(h.gp+a.gp))))/100.0"
-                    qy += " as "
-                    if isAgainst:
-                        qy += "_"
-                    qy += st
+                    qy += " as " + st
                 
                 qy += " FROM home_t h"
                 if agg == "no":
@@ -465,6 +493,8 @@ def get_box_stats():
                     first = False
                     if isAgainst:
                         st = "_" + st
+                    elif isNumberChar(st[0]):
+                        st = "n" + st
                     qy += st
                 qy += " FROM away_t) a"
                 # JOIN conditions
@@ -487,20 +517,24 @@ def get_box_stats():
                     #qy += " AND h.date=a.date AND h.num=a.num"
                     #qy += " AND h.home=a.home AND h.away=a.away"
         elif isHome:
-            if isPark:
-                fields = ", ".join(list(map(makeFieldPark, selectFieldsH)))
+            if isPark or isTeam:
+                fields = ", ".join(list(map(makeFieldParkTeam, selectFieldsH)))
+                fields += ", " + ", ".join(stats)
                 qy += f" SELECT {fields} from home_t h"
             else:
                 qy += f" SELECT * from home_t"
         elif isAway:
-            if isPark:
-                fields = ", ".join(list(map(makeFieldPark, selectFieldsA)))
+            if isPark or isTeam:
+                fields = ", ".join(list(map(makeFieldParkTeam, selectFieldsA)))
+                fields += ", " + ", ".join(stats)
                 qy += f" SELECT {fields} from home_t h"
             else:
                 qy += f" SELECT * from away_t"
 
         if isPark:
             qy += f" INNER JOIN (SELECT * FROM parks) p ON h.park=p.park_id"
+        #if isTeam:
+        #    qy += f" INNER JOIN (SELECT * FROM teams) t ON team=t.team_id"
 
         qy += " LIMIT 101" 
         print("query= ", qy)
@@ -520,25 +554,43 @@ def get_box_stats():
             return resp
         t_postproc_start = datetime.now()
         print(r)
+        
         # make header for table
         hdr = selectFieldsH
-
         for (st, isAgainst) in statList:
             fld = ""
             if isAgainst:
                 fld = "_"
             fld += st
-            
             hdr.append(fld)
 
-        # fix month from numer to string value
-        if "month" in hdr:
-            monthIdx = hdr.index("month")
+        # rename fields which started with '_' or number
+        for i in range(len(hdr)):
+            if hdr[i] == "homeoraway":
+                hdr[i] = "Home/Away"
+            elif hdr[i][0] == "n" and isNumberChar(hdr[i][1]):
+                hdr[i] = hdr[i][1:]
+            elif hdr[i][0] == "_":
+                hdr[i] = "opp" + hdr[i][1:]
+            else:
+                h = hdr[i][1:]
+                hdr[i] = toUpper(hdr[i][0]) + h
+
+        # fix month from number to string value
+        if "Month" in hdr or "Team" in hdr:
+            monthIdx = hdr.index("Month")
+            teamIdx = hdr.index("Team")
+            if teamIdx >= 0:
+                get_teams()
             i = 0
             for t in r:
                 r2 = list(t)
-                month = calendar.month_name[t[monthIdx]]
-                r2[monthIdx] = month
+                if monthIdx >= 0:
+                    month = calendar.month_name[t[monthIdx]]
+                    r2[monthIdx] = month
+                if teamIdx >= 0:
+                    team = app.team_names[t[teamIdx]]
+                    r2[teamIdx] = team                
                 r[i] = tuple(r2)
                 i += 1
             print("r(fixed month)=", r)
@@ -582,7 +634,7 @@ if __name__ == '__main__':
     db = appdb.supportedDBs[args.database]
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
-    app.secret_key = args.key
+    app.secret_key = args.key    
 
     app.run(host=args.host, port=args.port, debug=args.debug)
 

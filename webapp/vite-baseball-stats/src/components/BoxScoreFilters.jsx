@@ -53,6 +53,29 @@ const BoxScoreFilters = ({filter, setFilter}) => {
 
   return (
     <div className="container">
+       { /* aggregation */ }
+        <div className={filtOptDivClass}>
+        { /* <label className={filtOptLabelClass} htmlFor="filter_agg">Total/Avg:</label> */ }
+            <h5>Total/Average</h5>
+            <select className={selectClass} id="filter_agg" value={aggVal} onChange={(e)=> (
+                onNewAggVal(e.target.value))}>
+                <option value="no">(no)</option>
+                <option value="sum">Total</option>
+                <option value="average">Average</option>
+            </select>
+        </div>
+        <div className="accordion" id="filtersAccordion">
+          <div className="accordion-item">
+            <h3 className="accordion-header" id="headingOne">
+              <button className="accordion-button" type="button" 
+              data-bs-toggle="collapse" data-bs-target="#collapseOne" 
+              aria-expanded="true" aria-controls="collapseOne">
+                Basic Filters
+              </button>
+            </h3>
+            <div id="collapseOne" className="accordion-collapse collapse show" 
+              aria-labelledby="headingOne" data-bs-parent="#filtersAccordion">
+              <div className="accordion-body">
         <FilterOption fieldName="team" label="Team" options={boxScoreFiltOpts.teams} 
             initValue={boxScoreFilt.values.get("team")} 
             initGroup={boxScoreFilt.group.has("team")}  
@@ -84,8 +107,23 @@ const BoxScoreFilters = ({filter, setFilter}) => {
           initGroup={boxScoreFilt.group.has("homeaway")}
           onChange={onFiltChange} 
           divClass={filtOptDivClass} selectClass={selectClass} 
-          labelClass={filtOptLabelClass} groupDivClass={groupDivClass}
+          labelClass={filtOptLabelClass} 
+          checkClass={checkClass} groupDivClass={groupDivClass}
           groupLabelClass={groupLabelClass} />
+            </div>
+          </div>
+        </div>
+        <div className="accordion-item">
+          <h3 className="accordion-header" id="headingOne">
+            <button className="accordion-button" type="button" 
+            data-bs-toggle="collapse" data-bs-target="#collapseTwo" 
+            aria-expanded="true" aria-controls="collapseTwo">
+              Secondary Filters
+            </button>
+          </h3>
+          <div id="collapseTwo" className="accordion-collapse collapse show" 
+            aria-labelledby="headingOne" data-bs-parent="#filtersAccordion">
+            <div className="accordion-body">
         { /* AL/NL */ }
         <FilterOption fieldName="league" label="League" 
           options={boxScoreFiltOpts.league} 
@@ -93,21 +131,9 @@ const BoxScoreFilters = ({filter, setFilter}) => {
           initGroup={boxScoreFilt.group.has("league")}
           onChange={onFiltChange}
           divClass={filtOptDivClass} selectClass={selectClass}
-          labelClass={filtOptLabelClass} groupDivClass={groupDivClass}
+          labelClass={filtOptLabelClass} 
+          checkClass={checkClass} groupDivClass={groupDivClass}
           groupLabelClass={groupLabelClass} />
-
-       { /* aggregation */ }
-        <div className={filtOptDivClass}>
-            <label className={filtOptLabelClass} htmlFor="filter_agg">Sum/Avg:</label>
-            <select className={selectClass} id="filter_agg" value={aggVal} onChange={(e)=> (
-                onNewAggVal(e.target.value))}>
-                <option value="no">(no)</option>
-                <option value="sum">sum</option>
-                <option value="average">avg</option>
-            </select>
-        </div>
-
-        
         { /* day of week */ }
         <FilterOption fieldName="dow" label="DOW" options={boxScoreFiltOpts.daysOfWeek} 
             initValue={boxScoreFilt.values.get("dow")} 
@@ -126,7 +152,12 @@ const BoxScoreFilters = ({filter, setFilter}) => {
             labelClass={filtOptLabelClass}  
             checkClass={checkClass} groupDivClass={groupDivClass}
             groupLabelClass={groupLabelClass} />
+          </div>
+          </div>
+        </div>
+        </div>
     </div>
+
   )
 }
 

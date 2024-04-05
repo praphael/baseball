@@ -66,7 +66,7 @@ function App() {
   
   return (
     <>
-      <div className="container-fluid mt-3">
+      <div className="container-fluid mt-4 ml-3">
         <div className="row">
           <div className="col-2">
             <h4>Filters:</h4>

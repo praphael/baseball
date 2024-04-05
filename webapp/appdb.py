@@ -11,6 +11,12 @@ def getConnection(db):
     if db == DB.sqlite:
         import sqlite3
         conn = sqlite3.connect("..\\baseball.db")
+        #print("getting old DB")
+        #query = "".join(line for line in old_db.iterdump())
+        # Dump old database in the new one. 
+        #print("copying DB to memory")
+        #conn = sqlite3.connect(':memory:') # create a memory database
+        #conn.executescript(query)
     elif db == DB.postgres:
         import psycopg
         conn = psycopg.connect("host=127.0.0.1 port=5432 dbname=postgres user=postgres")
@@ -21,8 +27,8 @@ def getConnection(db):
 
 def executeQuery(db, qy, params):
     t1 = datetime.now()
-    conn = getConnection(db)
     t2 = datetime.now()
+    conn = getConnection(db)
     # Open a cursor to perform database operations
     cur = conn.cursor()
     t3 = datetime.now()
