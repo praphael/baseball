@@ -12,15 +12,15 @@ const groupLabelClass= "btn btn-outline-info" // "form-check-label"
 // sr-only" for="inlineFormInputName">Name</label>
 // <input type="text" class="form-control mb-2 mr-sm-2
 
-// const statSet = statSetDefault;
+const statSetsCur = statSetsDefault;
 // const statSet = statSetDefault;
 
-const StatTypes = ({statTypes, setStatTypes, divClassName}) => {
+const StatTypes = ({statTypes, setStatTypes, updateData, divClassName}) => {
     // const [statSet, setStatSet] = useState({})
 
     useEffect(() => {
       // initial value for filter
-      setStatTypes(statSetsDefault)
+      setStatTypes(statSetsCur.get("Offense 1"))
     }, [])
 
     /*
@@ -32,11 +32,12 @@ const StatTypes = ({statTypes, setStatTypes, divClassName}) => {
     } */
 
     const onStatSetChange= (statSet_str) => {
-        const stSet = statSetsDefault.get(statSet_str);
+        const stSet = statSetsCur.get(statSet_str);
         // setStatSet(stSet);
-        console.log("onStatSetChange statSet_str= ", statSet_str, 
-                    " stSet=", stSet);        
+        console.log("onStatSetChange statSet_str= ", statSet_str,
+                    " stSet=", stSet);
         setStatTypes(stSet);
+        // updateData();
     }
 
     // console.log("statSet=", statSet);
@@ -46,9 +47,8 @@ const StatTypes = ({statTypes, setStatTypes, divClassName}) => {
         <div className={divClassName}>
           <StatTypesRadio fieldName="statType" label=""
              options={["Game Box", "Offense 1", "Offense 2", "Pitching 1", "Pitching 2", "Fielding"]}
-             initValue="Offense 1" initGroup={false} onChange={onStatSetChange}
-             selectClass="" divClass="container" labelClass="" 
-             checkClass="" groupDivClass="" groupLabelClass=""/>
+             initValue="Offense 1" onStatRadioChange={onStatSetChange}
+             radioClasses={{divClass:"", labelClass:""}} />
           {/* Against 
           <div className="container">
             <div className="row">

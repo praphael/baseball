@@ -22,7 +22,7 @@ const checkLabelClass= "form-check-label"
 const checkClasses = { divClass:checkDivClass, checkClass, labelClass:checkLabelClass, label:"Group" }
 const checkClassesOrder = { divClass:checkDivClass, checkClass, labelClass:checkLabelClass, label:"Ascending" }
 
-const BoxScoreFilters = ({filter, setFilter, order, setOrder}) => {
+const BoxScoreFilters = ({filter, setFilter, order, setOrder, updateData}) => {
   useEffect(() => {
     // initial value for filter
     setFilter(boxScoreFilt);
@@ -40,9 +40,9 @@ const BoxScoreFilters = ({filter, setFilter, order, setOrder}) => {
           else
             filter.group.delete(field);
       }
-      else if (field === "agg") filter.agg = value;
       else filter.values.set(field, value);
       setFilter(filter);
+      // updateData();
     } catch(e) { console.log("Could not set filter ", e)}
   }
 
@@ -50,24 +50,19 @@ const BoxScoreFilters = ({filter, setFilter, order, setOrder}) => {
     console.log("onOrderChange  field=", field, " value=", value);
     try {
       const ord = parseInt(field[5])
-      console.log("onOrderChange ord=", ord);
+      console.log("onOrderChange ord=", ord, " isAsc=", isAsc);
       // true if called from ascending check, else undefined
       if(isAsc) {
+        console.log("setting ord[1] to", value);
         order[ord][1] = value;
       } else {
         order[ord][0] = value;
       }
       setOrder(order);
+      // updateData();
     } catch(e) { console.log("Could not set order ", e)}
   }
 
-  const [aggVal, setAggVal] = useState(boxScoreFilt.agg)
-
-  const onNewAggVal=(v) => {
-    onFiltChange("agg", v);
-    setAggVal(v);
-  } 
-  
   const orderFields = new Array()
   orderFields.push(...filterFields)
   orderFields.push(...statTypesArr)
@@ -78,17 +73,6 @@ const BoxScoreFilters = ({filter, setFilter, order, setOrder}) => {
 
   return (
     <div className="container">
-       { /* aggregation */ }
-        <div className={optionClasses.divClass}>
-        { /* <label className={filtOptLabelClass} htmlFor="filter_agg">Total/Avg:</label> */ }
-            <h5>Total/Average</h5>
-            <select className={selectClass} id="filter_agg" value={aggVal} onChange={(e)=> (
-                onNewAggVal(e.target.value))}>
-                <option value="no">(no)</option>
-                <option value="sum">Total</option>
-                <option value="average">Average</option>
-            </select>
-        </div>
         <div className="accordion" id="filtersAccordion">
           <div className="accordion-item">
             <AccordionHeader dataBsTarget="#collapseOne"

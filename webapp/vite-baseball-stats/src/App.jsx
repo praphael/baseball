@@ -4,63 +4,33 @@ import BoxScoreFilters from './components/BoxScoreFilters.jsx'
 import Results from './components/Results.jsx'
 
 import { doRequest } from './js/requests.js'
+import { makeBoxScoreQueryString } from './js/queries.js'
 import StatTypes from './components/StatTypes.jsx';
 import { statSortOrder } from './js/stats.js';
 
-function makeBoxScoreQueryString(filter, statTypes, order) {
-    let qy = "";
-    filter.values.forEach((v, k) => {
-        if(v.length > 0) {
-            qy += `${k}=${v}&`;
-        }
-    });
-    let grp = "";
-    filter.group.forEach((k) => {
-        grp += `,${k}`
-    });
-    if (grp.length > 0)
-        qy += ("grp=" + grp.slice(1));
-    qy += ("&agg=" + filter.agg);
-    qy += "&stats=";
-    let stqy = ""
-    let stArr = [];
-    statTypes.forEach((st) => { 
-        stArr.push(st); 
-    });
-    stArr.sort((a, b) => { 
-        const isAgA = (a[0] == "_");
-        const isAgB = (b[0] == "_");
-
-        if ( isAgA && !isAgB) return 1;
-        else if (!isAgA && isAgB) return -1;
-        else if (isAgA && isAgB) 
-          return statSortOrder[a.slice(1)] - statSortOrder[b.slice(1)]
-        return statSortOrder[a] - statSortOrder[b]
-    });
-    stArr.forEach((st) => { stqy += "," + st });
-    qy += stqy.slice(1)
-    let ordStr = ""
-    order.forEach((ord) => { 
-      ordStr += "," + ord[0];
-      ordStr += (ord[1]? ">" : "<");
-    });
-    qy += "&order=" + ordStr.slice(1)
-    return qy;
-}
 
 const resultsClass="row";
-const statTypesClassName="row";
+const statTypesClassName="col-auto";
+const aggregateDivClass = "col-auto" ; // border border-secondary
+const aggregateSelectClass = "col-auto form-select";
+
 const updateButtonClass="btn btn-primary text-no-wrap";
+
 
 function App() {
   const [results, setResults] = useState("");
   const [filter, setFilter] = useState({});
-  const [statTypes, setStatTypes] = useState(new Set());
+  const [statTypes, setStatTypes] = useState({});
   const [order, setOrder] = useState([]);
+  const [aggregate, setAggregate] = useState("");
+  
+  useEffect(() => {
+    setAggregate("no");
+  }, [])
 
   const updateData = async () => {
     console.log("updateData");
-    const qy = makeBoxScoreQueryString(filter, statTypes, order);
+    const qy = makeBoxScoreQueryString(filter, aggregate, statTypes, order);
     console.log("qy=", qy);
     const url = "/box?" + qy + "&ret=html-bs";
     const r = await doRequest(url, 'GET', null, "", null, "html", (e) => {
@@ -70,21 +40,47 @@ function App() {
     if(r != null)
       setResults(r);
   }
+
+  const onNewAggVal=(v) => {
+    setAggregate(v);
+    updateData();
+  } 
   
   return (
     <>
       <div className="container-fluid mt-4 ml-3">
         <div className="row">
           <div className="col-2">
-            <h4>Filters:</h4>
-            <button className={updateButtonClass} onClick={()=>(updateData())}>Get Data</button>
+            <h4>Filters/Order:</h4>
             <BoxScoreFilters filter={filter} setFilter={setFilter}
-                             order={order} setOrder={setOrder} />
+                             order={order} setOrder={setOrder} updateData={updateData}/>
           </div>
           <div className="col-auto">
             <div className="container">
-              <StatTypes statTypes={statTypes} setStatTypes={setStatTypes} divClassName={statTypesClassName}/>
-              <Results resultsTable={results} divClassName={resultsClass}/>
+              <div className="row">
+            <StatTypes statTypes={statTypes} setStatTypes={setStatTypes} 
+                         updateData={updateData}
+                         divClassName={statTypesClassName}/>
+              </div>
+              <div className="row mt-4">
+              { /* aggregation */ }
+                <div className={aggregateDivClass}>
+                { /* <label className={filtOptLabelClass} htmlFor="filter_agg">Total/Avg:</label> */ }
+                    <label>Total/Average</label>
+                    <select className={aggregateSelectClass} id="filter_agg" value={aggregate} onChange={(e)=> (
+                        onNewAggVal(e.target.value))}>
+                        <option value="no">(no)</option>
+                        <option value="sum">Total</option>
+                        <option value="average">Average</option>
+                    </select>
+                </div>
+                <div className="col-4 align-items-end">
+                  <button className={updateButtonClass} onClick={()=>(updateData())}>Get Data</button>
+                </div>
+              </div>
+              <div className="row">
+                  <Results resultsTable={results} divClassName={resultsClass}/>
+              </div>
             </div>
           </div>
         </div>

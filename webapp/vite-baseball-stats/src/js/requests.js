@@ -50,5 +50,5 @@ function handleRequestError({route, status, errMsg}) {
     //alert(route, " failed status ", status, " \nerror message:\n", errMsg);
 }
 
-export {doRequest, handleRequestError, makeRequestObj};
+export {doRequest, handleRequestError, makeRequestObj };
 
