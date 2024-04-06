@@ -233,7 +233,7 @@ def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
     useDB = conn is not None
 
     for year in range(yearStart, yearEnd+1):
-        fName = f"gl{year}.TXT"
+        fName = f"gl{year}.txt"
         fPath = os.path.join(baseDir, fName)
         print(f"processing file {fPath}")
         with open(fPath, "r") as fIn:

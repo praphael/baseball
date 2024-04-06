@@ -23,39 +23,46 @@ const homeAway = [["Home", "home"], ["Away", "away"]]
 
 // get park info
 const lastYear = 1903
-const r = await doRequest(`/parks?since=${lastYear}`, "GET", null, null, "json", "", (err)=>{
-    console.log("could not fetch park data status=", err.status, " error=", err.error);
-});
 const parks=[];
-if(r != null) {
-    console.log("r=", r);
-    r.result.map((v) => { 
-        const parkId = v[0]; 
-        const openYear = v[5].slice(6);
-        let closeYear=""
-        if (v[6] != null)
-            closeYear = v[6].slice(6);
-        const parkName = `${v[1]} (${v[3]}, ${v[4]} ${openYear}-${closeYear})`;
-        parks.push([parkName, parkId]);
-    })
-    parks.sort();
+const teams = [];
+
+async function getParksTeams() {
+    const r = await doRequest(`/parks?since=${lastYear}`, "GET", null, null, "json", "", (err)=>{
+        console.log("could not fetch park data status=", err.status, " error=", err.error);
+    });
+
+    if(r != null) {
+        console.log("r=", r);
+        r.result.map((v) => { 
+            const parkId = v[0]; 
+            const openYear = v[5].slice(6);
+            let closeYear=""
+            if (v[6] != null)
+                closeYear = v[6].slice(6);
+            const parkName = `${v[1]} (${v[3]}, ${v[4]} ${openYear}-${closeYear})`;
+            parks.push([parkName, parkId]);
+        })
+        parks.sort();
+    }
+
+    // get team info
+    const r2 = await doRequest(`/teams?since=${lastYear}`, "GET", null, null, "json", "", (err)=>{
+        console.log("could not fetch park data status=", err.status, " error=", err.error);
+    });
+
+    if(r2 != null) {
+        console.log("r2=", r2);
+        r2.result.map((v) => { 
+            const tmId = v[0];
+            const tmName= `${v[2]} ${v[3]} (${v[1]} ${v[4]}-${v[5]})`
+            console.log(tmId, " ", tmName);
+            teams.push([tmName, tmId]);
+        })
+        teams.sort();
+    }
 }
 
-// get team info
-const r2 = await doRequest(`/teams?since=${lastYear}`, "GET", null, null, "json", "", (err)=>{
-    console.log("could not fetch park data status=", err.status, " error=", err.error);
-});
-const teams = [];
-if(r2 != null) {
-    console.log("r2=", r2);
-    r2.result.map((v) => { 
-        const tmId = v[0];
-        const tmName= `${v[2]} ${v[3]} (${v[1]} ${v[4]}-${v[5]})`
-        console.log(tmId, " ", tmName);
-        teams.push([tmName, tmId]);
-    })
-    teams.sort();
-}
+getParksTeams();
 
 
 const boxScoreFiltOpts = { teams, months, daysOfWeek, homeAway, league, parks };
