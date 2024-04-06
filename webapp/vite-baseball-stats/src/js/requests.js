@@ -1,5 +1,5 @@
-const apiHost="127.0.0.1:5000"
-const baseURL="http://"+apiHost
+const serverIP="127.0.0.1"
+const baseURL="http://"+serverIP+"/baseball/api"
 
 function makeRequestObj(method, body, bodyType="json", authToken="") {
     let contentType = "json"
@@ -10,7 +10,7 @@ function makeRequestObj(method, body, bodyType="json", authToken="") {
                 headers: { 'Content-Type': contentType, 
                            'Authorization' : authToken
                          },
-                mode: 'cors' };
+                mode: 'no-cors' };
     if (method == 'POST') {
         req.body = "";
         if (body != null && body != undefined)

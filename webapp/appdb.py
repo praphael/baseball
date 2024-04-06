@@ -10,7 +10,7 @@ supportedDBs = { "sqlite" : DB.sqlite, "postgres" : DB.postgres }
 def getConnection(db):
     if db == DB.sqlite:
         import sqlite3
-        conn = sqlite3.connect("..\\baseball.db")
+        conn = sqlite3.connect("baseball.db")
         #print("getting old DB")
         #query = "".join(line for line in old_db.iterdump())
         # Dump old database in the new one. 

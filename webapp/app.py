@@ -9,6 +9,7 @@ from traceback import print_exception
 
 app = Flask(__name__)
 db = appdb.DB.sqlite
+API_ROOT = "/api"
 
 MONTH_FIELD = "CAST(substr(game_date,6,2) AS INTEGER)"
 YEAR_FIELD = "CAST(substr(game_date,0,5) AS INTEGER)"
@@ -260,28 +261,28 @@ def renderHTMLTable(headers, result, opts):
     h += "</tbody></table>"
     return h
 
-@app.route("/box", methods=["OPTIONS"])
+@app.route(API_ROOT+"/box", methods=["OPTIONS"])
 def options_box():
     resp = make_response("OK", 200)
     resp.headers["Access-Control-Allow-Origin"] = "*"
     resp.headers["Access-Control-Allow-Headers"] = "*"
     return resp
 
-@app.route("/parks", methods=["OPTIONS"])
+@app.route(API_ROOT+"/parks", methods=["OPTIONS"])
 def options_parks():
     resp = make_response("OK", 200)
     resp.headers["Access-Control-Allow-Origin"] = "*"
     resp.headers["Access-Control-Allow-Headers"] = "*"
     return resp
 
-@app.route("/teams", methods=["OPTIONS"])
+@app.route(API_ROOT+"/teams", methods=["OPTIONS"])
 def options_teams():
     resp = make_response("OK", 200)
     resp.headers["Access-Control-Allow-Origin"] = "*"
     resp.headers["Access-Control-Allow-Headers"] = "*"
     return resp
 
-@app.route("/teams")
+@app.route(API_ROOT+"/teams")
 def get_teams():
     try: 
         args = request.args
@@ -314,7 +315,7 @@ def get_teams():
         resp.headers["Access-Control-Allow-Origin"] = "*"
         return resp
 
-@app.route("/parks")
+@app.route(API_ROOT+"/parks")
 def get_parks():
     try: 
         args = request.args
@@ -346,7 +347,7 @@ def get_parks():
         resp.headers["Access-Control-Allow-Origin"] = "*"
         return resp
 
-@app.route("/box")
+@app.route(API_ROOT+"/box")
 def get_box_stats():
     try:
         t_preproc_start = datetime.now()
@@ -624,7 +625,7 @@ def get_box_stats():
                     r2[monthIdx] = month
                 if t[teamIdx] in app.team_names:
                     team = app.team_names[t[teamIdx]]
-                    r2[teamIdx] = team                
+                    r2[teamIdx] = team
 
                 r[i] = tuple(r2)
                 i += 1
@@ -646,7 +647,7 @@ def get_box_stats():
         dt_post = make_dt_ms_str(dt_postproc)
         dt_query = make_dt_ms_str(query_times[0][1])
         print(f"Times: Pre: {dt_pre} Query: {dt_query} Post: {dt_post}")
-        return resp 
+        return resp
     except Exception as e:
         print_exception(e)
         resp = make_response(str(e), 500)
@@ -661,15 +662,15 @@ if __name__ == '__main__':
                     description='Baseball stats server in Flask',
                     epilog='T')
     parser.add_argument('-o', '--host', default=defaultHost) 
-    parser.add_argument('-p', '--port', default=defaultPort) 
-    parser.add_argument('-d', '--debug', default=False, action='store_true') 
-    parser.add_argument('-b', '--database', default='sqlite') 
-    parser.add_argument('-k', '--key', required=True) 
+    parser.add_argument('-p', '--port', default=defaultPort)
+    parser.add_argument('-d', '--debug', default=False, action='store_true')
+    parser.add_argument('-b', '--database', default='sqlite')
+    parser.add_argument('-k', '--key', required=True)
     args = parser.parse_args()
     db = appdb.supportedDBs[args.database]
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
-    app.secret_key = args.key    
+    app.secret_key = args.key
 
     app.run(host=args.host, port=args.port, debug=args.debug)
 
