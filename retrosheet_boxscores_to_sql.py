@@ -149,7 +149,7 @@ dateIdx = [0]
 strIdx = [1, 2, 3, 4, 6, 7, 12, 14, 15, 16]
 strIdx.extend(list(range(77, 161)))
 posStrIdx = list(range(107, 159, 3))
-baseDir = "alldata\\gamelogs"
+baseDir = os.path.join("alldata", "gamelogs")
 
 def getYear(s, isEnd=False):
     typ = 'start'
@@ -233,7 +233,7 @@ def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
     useDB = conn is not None
 
     for year in range(yearStart, yearEnd+1):
-        fName = f"GL{year}.TXT"
+        fName = f"gl{year}.TXT"
         fPath = os.path.join(baseDir, fName)
         print(f"processing file {fPath}")
         with open(fPath, "r") as fIn:

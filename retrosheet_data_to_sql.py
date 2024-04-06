@@ -76,7 +76,9 @@ if __name__ == "__main__":
         cur = conn.cursor()
     teams(writeFiles, conn, cur)
     parks(writeFiles, conn, cur)
-    #getBoxScoreData(1871, 2022, writeFiles, conn, cur)
+    getBoxScoreData(1871, 2022, writeFiles, conn, cur)
+    conn.commit()
+    conn.close()
 
 
 

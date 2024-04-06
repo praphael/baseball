@@ -279,7 +279,7 @@ def createCompletion(cur):
         cur.execute("DROP TABLE completion")
     except Exception as e:
         pass
-    cur.exectute(completionCreate)
+    cur.execute(completionCreate)
 
 def createExtra(cur):
     try:
@@ -306,8 +306,9 @@ if __name__ == "__main__":
 
     createParks(cur)
     createTeams(cur)
-    #createBoxscore(cur)    
-    #createCompletion(cur)
-    #createExtra(cur)
+    createBoxscore(cur)    
+    createCompletion(cur)
+    createExtra(cur)
     conn.commit()
+    conn.close()
 

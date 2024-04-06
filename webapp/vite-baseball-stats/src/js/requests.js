@@ -1,4 +1,4 @@
-const apiHost="localhost:5000"
+const apiHost="127.0.0.1:5000"
 const baseURL="http://"+apiHost
 
 function makeRequestObj(method, body, bodyType="json", authToken="") {
