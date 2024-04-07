@@ -10,7 +10,7 @@ function makeRequestObj(method, body, bodyType="json", authToken="") {
                 headers: { 'Content-Type': contentType, 
                            'Authorization' : authToken
                          },
-                mode: 'no-cors' };
+                mode: 'cors' };
     if (method == 'POST') {
         req.body = "";
         if (body != null && body != undefined)
@@ -23,7 +23,7 @@ function makeRequestObj(method, body, bodyType="json", authToken="") {
 async function doRequest(route, method, body, bodyType, responseType, authToken, errHandler) {
     try {
         const requrl = baseURL + route;
-        // console.log("doRequest(): fetching '", requrl, "'", " body='", body, "'");
+        console.log("doRequest(): fetching '", requrl, "'", " body='", body, "'");
         const response = await fetch(requrl, makeRequestObj(method, body, bodyType, authToken));
         const status = response.status;
         // console.log(`doRequest(${route}): status= `, status);

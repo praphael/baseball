@@ -1,15 +1,13 @@
 import React from 'react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
-const Check = ({fieldName, initValue, onChange, 
+const Check = ({fieldName, val, onChange, 
                 checkClasses}) => {
-  const [val, setVal] = useState(initValue);
-
   const onNewVal = (v) => {
+    console.log("Check onNewVal", fieldName, " v=", v);
     onChange(fieldName, v, true);
-    setVal(v);
   }
-  // console.log("FilterGroupCheck ", fieldName, " initValue=", initValue)
+  //console.log("Check ", fieldName, " initValue=", initValue)
   const id = `"filter_${fieldName}_group"`;
   return (
     <div className={checkClasses.divClass}>

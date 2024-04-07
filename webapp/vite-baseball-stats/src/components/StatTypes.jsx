@@ -1,9 +1,7 @@
 import React from 'react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react';
 
-import StatTypeCheck from './StatTypeCheck'
-
-import { statTypesArr, statSetsDefault } from '../js/stats.js'
+import { statSetsDefault } from '../js/stats.js'
 import StatTypesRadio from './StatTypesRadio.jsx';
 
 const groupDivClass = "mb-2 mr-sm-2"; // form-check 
@@ -15,14 +13,12 @@ const groupLabelClass= "btn btn-outline-info" // "form-check-label"
 const statSetsCur = statSetsDefault;
 // const statSet = statSetDefault;
 
-const StatTypes = ({statTypes, setStatTypes, updateData, divClassName}) => {
+const statSetOptions=["Game Box", "Offense 1", "Offense 2", "Pitching 1", "Pitching 2", "Fielding"];
+const initValArr = ['off', 'on', false, false, false, false]
+
+const StatTypes = ({statSet, setStatSet, updateData, divClassName}) => {
     // const [statSet, setStatSet] = useState({})
-
-    useEffect(() => {
-      // initial value for filter
-      setStatTypes(statSetsCur.get("Offense 1"))
-    }, [])
-
+    const [valArr, setValArr] = useState(initValArr);
     /*
     const onStatTypeChange = (stat, value) => {
         console.log("onStatTypeChange stat=", stat, "value=", value);
@@ -32,12 +28,13 @@ const StatTypes = ({statTypes, setStatTypes, updateData, divClassName}) => {
     } */
 
     const onStatSetChange= (statSet_str) => {
-        const stSet = statSetsCur.get(statSet_str);
-        // setStatSet(stSet);
-        console.log("onStatSetChange statSet_str= ", statSet_str,
-                    " stSet=", stSet);
-        setStatTypes(stSet);
-        // updateData();
+        setStatSet(statSet_str);
+        const newArr = [...valArr];
+        for(let i=0; i<newArr.length; i++) {
+            newArr[i] = (statSet_str === statSetOptions[i]) ? 'off' : 'on';
+        }
+        setValArr(newArr);
+        console.log("onStatSetChange statSet_str= ", statSet_str);
     }
 
     // console.log("statSet=", statSet);
@@ -46,8 +43,8 @@ const StatTypes = ({statTypes, setStatTypes, updateData, divClassName}) => {
         <h4>Stats:</h4>
         <div className={divClassName}>
           <StatTypesRadio fieldName="statType" label=""
-             options={["Game Box", "Offense 1", "Offense 2", "Pitching 1", "Pitching 2", "Fielding"]}
-             initValue="Offense 1" onStatRadioChange={onStatSetChange}
+             options={statSetOptions}
+             val={valArr} onStatRadioChange={onStatSetChange}
              radioClasses={{divClass:"", labelClass:""}} />
           {/* Against 
           <div className="container">

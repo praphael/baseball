@@ -9,7 +9,7 @@ from traceback import print_exception
 
 app = Flask(__name__)
 db = appdb.DB.sqlite
-API_ROOT = "/api"
+API_ROOT = "/baseball/api"
 
 MONTH_FIELD = "CAST(substr(game_date,6,2) AS INTEGER)"
 YEAR_FIELD = "CAST(substr(game_date,0,5) AS INTEGER)"
@@ -85,6 +85,12 @@ def toUpper(c):
         return chr(ord('A') + ord(c) - ord('a'))
     return c
 
+def makeHomeAwayAvgQuery(st):
+    h = f"h.{st}/(1.0*(h.gp+a.gp))"
+    a = f"a.{st}/(1.0*(h.gp+a.gp))"
+    avg = f"trunc(100*({h} + {a}))/100.0"
+    return avg
+
 def addToWhereClause(qy, p, prms, s):
     prms += (p,)
     if len(prms) == 1:
@@ -95,11 +101,12 @@ def addToWhereClause(qy, p, prms, s):
     return qy, prms
 
 # build SQL query string from fields provided
-def buildStatQueryStr(stats, isHome, agg="sum"):
+def buildStatQueryStr(stats, isHome, agg):
     statQueryStr = ""
     h = "home"
     v = "visiting"
     statList = []
+    print("buildStatQueryStr agg=", agg)
     for st in stats:
         # '_' prefix denotes sum opposing teams stat
         f = st
@@ -116,7 +123,7 @@ def buildStatQueryStr(stats, isHome, agg="sum"):
                 ob = v
             if isAgainst:
                 b = ob # switch
-            if agg == "average":
+            if agg == "avg":
                 fld = f", trunc(100*{agg}(" + b + "_" + fName + "))/100.00 as "
             elif agg == "no":   # no aggregaton
                 fld = f", " + b + "_" + fName + " as "
@@ -198,9 +205,13 @@ def getQueryParams(args):
 
     return fieldNames, fieldValues
 
-def buildCTEWhereClause(isHome, fieldNames, grp):
+def buildCTEWhereClause(isHome, fieldNames, grp, isOldTime):
     first = True
     qy = ""
+    if not isOldTime:
+        qy = f" WHERE {YEAR_FIELD} > 1902 "
+        first = False
+
     for f in fieldNames:
         if not first:
             qy += " AND "
@@ -368,13 +379,17 @@ def get_box_stats():
         if "agg" in args:
             if args.get("agg") in ('no', 'sum', 'avg'):
                 agg = args.get("agg")
-        if agg == "avg":
-            agg = "average"
             
         grp = []
         if "grp" in args:
             grp = args.get("grp")
             grp = grp.split(",")
+
+        isOldTime = False
+        if "oldtime" in args:
+            isOldTime = args.get("premod")
+            isOldTime = bool(int(isOldTime))
+            
 
         fieldNames, fieldValues = getQueryParams(args)
         print("grp=", grp)
@@ -404,11 +419,11 @@ def get_box_stats():
         whereClauseH = ""
         whereClauseA = ""
         if isHome:
-            whereClauseH = buildCTEWhereClause(True, fieldNames, grp)
+            whereClauseH = buildCTEWhereClause(True, fieldNames, grp, isOldTime)
             qy += qy_home + whereClauseH + ")"
             prmsH = tuple(fieldValues)
         if isAway:
-            whereClauseA = buildCTEWhereClause(False, fieldNames, grp)
+            whereClauseA = buildCTEWhereClause(False, fieldNames, grp, isOldTime)
             if isHome:
                 qy += ", "
             qy += qy_away + whereClauseA + ")"
@@ -426,14 +441,12 @@ def get_box_stats():
             if x == "park":
                 return f"p.park_name AS park"
             return f"h.{x}"
-            #elif x == "team":
-                #return f"team"
-                #return f"t.team_city||' '||t.team_nickname AS team"
             
         print(f"selectFieldsH=", selectFieldsH)
         # fields which have perfomed h.f + a.f
         # for use in ordering
         fieldsSummed = set()
+        fieldsAveraged = set()
         # if home and away selected, must do JOIN (unless no aggregation)
         if isHome and isAway:
             if (agg == "no" and len(grp) == 0) or "homeaway" in grp:
@@ -455,19 +468,9 @@ def get_box_stats():
                     elif x == "team":
                         return f"h.team"
                     return f"h.{x}"
-                        #return f"t.team_city||' '||t.team_nickname as team"
-                    
                 
                 qy += " SELECT " + ", ".join(list(map(makeFieldH, selectFieldsH)))
-                #qy += ", "
-                #for f in fieldNames:
-                #    qp = QUERY_PARAMS[f]
-                #    qy += ("h." + qp[1] + ", ")
-                #for g in grp:
-                #    qp = QUERY_PARAMS[g]
-                #    qy += f"h.{qp[1]}, "
-                #qy += "h.gp+a.gp as gp, "
-                
+                  
                 #first = True
                 for st in statList:
                     #if not first:
@@ -477,10 +480,10 @@ def get_box_stats():
                     if agg == 'no' or agg == "sum":
                         fieldsSummed.add(st)
                         qy += " h." + st + "+" + "a." + st 
-                    elif agg == "average":
-                        fieldsSummed.add(st)
+                    elif agg == "avg":
+                        fieldsAveraged.add(st)
                         # for averages need to reweight/home away based on gams played
-                        qy += f" trunc(100*(h.{st}/(1.0*(h.gp+a.gp)) + a.{st}/(1.0*(h.gp+a.gp))))/100.0"
+                        qy += makeHomeAwayAvgQuery(st)
                     qy += " as " + st
                 
                 qy += " FROM home_t h"
@@ -493,35 +496,23 @@ def get_box_stats():
                 def makeFieldA(x):
                     return f"{x}"
                 qy += ", ".join(list(map(makeFieldA, selectFieldsA)))
-                #first = True
-                #for (st, isAgainst) in statList:
                 for st in statList:
-                    #if not first:
                     qy += ", " + st
-                    #first = False
-                    #if isAgainst:
-                    #    st = "_" + st
-                    #elif isNumberChar(st[0]):
-                    #    st = "n" + st
-                    #qy += st
                 qy += " FROM away_t) a"
-                # JOIN conditions
-                #if agg != "no":
-                if True:  # always join
-                    qy += " ON"
-                    first = True
-                    for f in fieldNames:
-                        if not first:
-                            qy += " AND "
-                        first = False
-                        qp = QUERY_PARAMS[f]
-                        qy += " h." + qp[1] + "=a." + qp[1]
-                    for g in grp:
-                        if not first:
-                            qy += " AND "
-                        first = False
-                        qp = QUERY_PARAMS[g]
-                        qy += f" h.{qp[1]}=a.{qp[1]}"
+                qy += " ON"
+                first = True
+                for f in fieldNames:
+                    if not first:
+                        qy += " AND "
+                    first = False
+                    qp = QUERY_PARAMS[f]
+                    qy += " h." + qp[1] + "=a." + qp[1]
+                for g in grp:
+                    if not first:
+                        qy += " AND "
+                    first = False
+                    qp = QUERY_PARAMS[g]
+                    qy += f" h.{qp[1]}=a.{qp[1]}"
                 
                     #qy += " AND h.date=a.date AND h.num=a.num"
                     #qy += " AND h.home=a.home AND h.away=a.away"
@@ -552,16 +543,19 @@ def get_box_stats():
             o1 = o[:-1]
             print("o1=", o1)
             if o1 in selectFieldsH or o1 in stats:
-                ordstr = o1
-                if o1 in fieldsSummed:
-                    ordstr += "+a." + o1
+                if o1 in fieldsAveraged:
+                    ordstr = makeHomeAwayAvgQuery(o1)
+                else:
+                    ordstr = "h." + o1
+                    if o1 in fieldsSummed:
+                        ordstr += "+a." + o1
                 if o[-1] == "<":
                     ordstr += " ASC"
                 else:
                     ordstr += " DESC"
                 ordFilt.append(ordstr)
         if len(ordFilt) > 0:
-            qy += " ORDER BY h." + ", h.".join(ordFilt)
+            qy += " ORDER BY " + ", ".join(ordFilt)
         qy += " LIMIT 101" 
 
         print("query= ", qy)
@@ -588,7 +582,7 @@ def get_box_stats():
             resp.headers["Access-Control-Allow-Origin"] = "*"
             return resp
         t_postproc_start = datetime.now()
-        print(r)
+        #print(r)
         
         # make header for table
         hdr = selectFieldsH
@@ -629,7 +623,7 @@ def get_box_stats():
 
                 r[i] = tuple(r2)
                 i += 1
-            print("r(fixed month)=", r)
+            #print("r(fixed month)=", r)
 
         ret = "json"
         if "ret" in args:

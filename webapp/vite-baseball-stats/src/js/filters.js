@@ -32,7 +32,7 @@ async function getParksTeams() {
     });
 
     if(r != null) {
-        console.log("r=", r);
+        console.log("r.result (0..5)=", r.result.slice(0, 5));
         r.result.map((v) => { 
             const parkId = v[0]; 
             const openYear = v[5].slice(6);
@@ -51,11 +51,11 @@ async function getParksTeams() {
     });
 
     if(r2 != null) {
-        console.log("r2=", r2);
+        console.log("r2.result (0..5)=", r2.result.slice(0, 5));
         r2.result.map((v) => { 
             const tmId = v[0];
             const tmName= `${v[2]} ${v[3]} (${v[1]} ${v[4]}-${v[5]})`
-            console.log(tmId, " ", tmName);
+            //console.log(tmId, " ", tmName);
             teams.push([tmName, tmId]);
         })
         teams.sort();
@@ -74,9 +74,14 @@ const boxScoreFiltDefaults = {
     agg: "sum"  // aggregation ("sum", "avg", "no")
 }
 boxScoreFiltDefaults.values.set("team", "BAL");
-boxScoreFiltDefaults.values.set("year", "2021");
+boxScoreFiltDefaults.values.set("year", "2019");
+boxScoreFiltDefaults.values.set("month", "");
+boxScoreFiltDefaults.values.set("park", "");
+boxScoreFiltDefaults.values.set("dow", "");
+boxScoreFiltDefaults.values.set("homeaway", "");
+boxScoreFiltDefaults.values.set("league", "");
 boxScoreFiltDefaults.group.add("month");
 
-const orderDefaults = [["team", true], ["year", true], ["date", true]]
+const orderDefaults = [["team", true], ["year", false], ["date", false]]
 
 export {boxScoreFiltOpts, boxScoreFiltDefaults, filterFields, orderDefaults}; //}, boxScoreIdxMaps};

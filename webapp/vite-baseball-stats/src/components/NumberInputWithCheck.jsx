@@ -2,16 +2,13 @@ import React from 'react'
 import { useState } from 'react'
 import Check from './Check';
 
-const NumberInputWithCheck = ({fieldName, label, initValue, initGroup, 
+const NumberInputWithCheck = ({fieldName, label, val, checkVal, 
                             onChange, numberInputClasses, checkClasses}) => {
     const id = `"filter_${fieldName}"`;
-
-    const [val, setVal] = useState(initValue);
 
     const onNewVal = (v) => {
         console.log("NumberInputWithCheck onNewVal() v=", v);
         onChange(fieldName, v);
-        setVal(v);
     }
 
     return (
@@ -21,8 +18,9 @@ const NumberInputWithCheck = ({fieldName, label, initValue, initGroup,
             <input className={numberInputClasses.inputClass} 
                    type="text" id={id} value={val}
                    onChange={(e)=>(onNewVal(e.target.value))} />
-            </h5>                
-            <Check fieldName={fieldName} initValue={initGroup} 
+            </h5> 
+
+            <Check fieldName={fieldName} val={checkVal} 
                 onChange={onChange} checkClasses={checkClasses}/>
         </div>
     )

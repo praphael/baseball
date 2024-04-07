@@ -1,44 +1,16 @@
 import React from 'react'
 
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 
-const StatTypesRadio = ({fieldName, label, options, initValue, 
+const StatTypesRadio = ({fieldName, label, options, val, 
     onStatRadioChange, radioClasses}) => {
-    
-    const [val0, setVal0] = useState(false);
-    const [val1, setVal1] = useState(false);
-    const [val2, setVal2] = useState(false);
-    const [val3, setVal3] = useState(false);
-    const [val4, setVal4] = useState(false);
-    const [val5, setVal5] = useState(false);
     
     const onNewVal = (v, which) => {
         console.log("StatTypesRadio onNewVal: v=", v, " which=", which);
-        if(v == 'on') {
-            /*
-            setVal0(false);
-            setVal1(false);
-            setVal2(false);
-            setVal3(false);
-            setVal4(false);
-            setVal5(false); */
-            if(which == options[0]) setVal0(true);
-            else if(which == options[1]) setVal1(true);
-            else if(which == options[2]) setVal2(true);
-            else if(which == options[3]) setVal3(true);
-            else if(which == options[4]) setVal4(true);
-            else if(which == options[5]) setVal5(true);
-            onStatRadioChange(which);
-        }
-        // onChange(which);
+        onStatRadioChange(which);
     }
 
-    useEffect(() => {
-        // initial value for filter
-        onNewVal(true, initValue);
-      }, [])
-
-    // console.log("options=", options)
+    console.log("val=", val)
     const id = "filter_"+{fieldName}
     const opt0_lbl = options[0];
     const opt1_lbl = options[1];
@@ -58,32 +30,32 @@ const StatTypesRadio = ({fieldName, label, options, initValue,
             <label className={radioClasses.labelClass}>{label}</label>
             <div className="btn-group" role="group" aria-label={`"${fieldName} button group"`}
                   id={id+"_radio"}>
-                <input type="radio" className="btn-check" name={btnname} id={id0} 
+                <input type="radio" className="btn-check" name={btnname} id={id0} value={val[0]}
                      onChange={(e)=>(onNewVal(e.target.value, options[0]))} autoComplete="off"
                      />
                 <label className="btn btn-outline-primary" htmlFor={id0}>{opt0_lbl}</label>
 
-                <input type="radio" className="btn-check" name={btnname} id={id1} 
+                <input type="radio" className="btn-check" name={btnname} id={id1} value={val[1]}
                      onChange={(e)=>(onNewVal(e.target.value, options[1]))} autoComplete="off" 
                     />
                 <label className="btn btn-outline-primary" htmlFor={id1}>{opt1_lbl}</label>
 
-                <input type="radio" className="btn-check" name={btnname} id={id2} 
+                <input type="radio" className="btn-check" name={btnname} id={id2} value={val[2]}
                     onChange={(e)=>(onNewVal(e.target.value, options[2]))} autoComplete="off"
                     />
                 <label className="btn btn-outline-primary" htmlFor={id2}>{opt2_lbl}</label>
 
-                <input type="radio" className="btn-check" name={btnname} id={id3} 
+                <input type="radio" className="btn-check" name={btnname} id={id3} value={val[3]}
                      onChange={(e)=>(onNewVal(e.target.value, options[3]))} autoComplete="off" 
                     />
                 <label className="btn btn-outline-primary" htmlFor={id3}>{opt3_lbl}</label>
 
-                <input type="radio" className="btn-check" name={btnname} id={id4} 
+                <input type="radio" className="btn-check" name={btnname} id={id4} value={val[4]}
                     onChange={(e)=>(onNewVal(e.target.value, options[4]))} autoComplete="off"
                     />
                 <label className="btn btn-outline-primary" htmlFor={id4}>{opt4_lbl}</label>
 
-                <input type="radio" className="btn-check" name={btnname} id={id5} 
+                <input type="radio" className="btn-check" name={btnname} id={id5} value={val[5]}
                     onChange={(e)=>(onNewVal(e.target.value, options[5]))} autoComplete="off"
                     />
                 <label className="btn btn-outline-primary" htmlFor={id5}>{opt5_lbl}</label>
