@@ -15,7 +15,7 @@ const resultsClass = "row";
 const statTypesClassName="col-auto";
 const aggregateDivClass = "col-auto" ; // border border-secondary
 const aggregateSelectClass = "col-auto form-select";
-const updateButtonClass = "btn btn-primary text-no-wrap";
+const updateButtonClass = "btn btn-success text-no-wrap";
 
 function App() {
   const [results, setResults] = useState("");
@@ -87,6 +87,17 @@ function App() {
   return (
     <>
       <div className="container-fluid mt-4 ml-3">
+        <div className="row">
+          <h2>Baseball stats</h2>
+          <p>This is a tool for certain baseball statistics. If you are interested in queries like 
+             "what are the worst performances for earned runs in a month by team", 
+             or "how many home runs were hit in each stadium in 1932" you may have come to the right place.
+             Currently only team data derived from individual game boxscores is available, going back to 1903.
+             All data was sourced from <a href="https://www.retrosheet.org/gamelogs/index.html#">Retrosheet</a>. 
+             Please direct comments/bug reports/etc. to <a href="praphael@gmail.com">praphael@gmail.com</a>.  
+             Keep in this is a side/learning project, using a combo of ReactJS, Python Flask and sqlite3. Some combinations of parameters may not make sense.  Source available <a href="https://github.com/praphael/baseball">here</a>. 
+             </p>
+            </div>
         <div className="row">
           <div className="col-3">
             <h4>Filters/Order:</h4>
