@@ -3,7 +3,8 @@ import { statSortOrder } from "./stats";
 function makeBoxScoreQueryString(filter, agg, statTypes, order) {
     let qy = "";
     filter.values.forEach((v, k) => {
-        if(v.length > 0) {
+        if (k == "year") v = v.trim();
+        if(v.length > 0) {            
             qy += `${k}=${v}&`;
         }
     });

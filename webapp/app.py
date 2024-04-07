@@ -582,7 +582,7 @@ def get_box_stats():
             resp.headers["Access-Control-Allow-Origin"] = "*"
             return resp
         t_postproc_start = datetime.now()
-        #print(r)
+        print(r[0:5])
         
         # make header for table
         hdr = selectFieldsH
