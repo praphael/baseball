@@ -648,7 +648,8 @@ def get_box_stats():
         resp.headers["Access-Control-Allow-Origin"] = "*"
         return resp
 
-if __name__ == '__main__':
+# for gunicorn
+def start(args):
     defaultHost = '127.0.0.1'
     defaultPort = 5000
     parser = argparse.ArgumentParser(
@@ -661,10 +662,15 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--database', default='sqlite')
     parser.add_argument('-k', '--key', required=True)
     args = parser.parse_args()
+    app.secret_key = args.key
     db = appdb.supportedDBs[args.database]
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
     app.secret_key = args.key
 
     app.run(host=args.host, port=args.port, debug=args.debug)
+
+if __name__ == '__main__':
+    app.start(args)
+    
 
