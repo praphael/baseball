@@ -24,11 +24,12 @@ def fromCSV(fPath, tableName, writeFiles, conn, cur):
             ln = f"INSERT INTO {tableName} VALUES("
             vals = ""
             for v in row:
+                vr = v
                 if len(v) == 0:
                     vals += "NULL, "
                 else:
-                    v = v.replace("'", "''")
-                    vals += "'" + v + "', "
+                    vr = v.replace("'", "''")
+                    vals += "'" + vr + "', "
             vals = vals[:-2] # drop last comma
             ln += vals + ")"
             s += ln + ";\n"

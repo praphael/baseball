@@ -249,7 +249,7 @@ CREATE TABLE parks (
 );
 
 CREATE TABLE teams(
-    team_id varchar(8),
+    team_id varchar(8) PRIMARY KEY,
     team_league varchar(64),
     team_city varchar(64),
     team_nickname varchar(64),
