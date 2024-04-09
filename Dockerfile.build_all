@@ -1,0 +1,58 @@
+FROM amazonlinux:2023
+
+RUN yum update -y && \
+    yum upgrade -y && \
+    yum install -y \
+        clang \
+        cmake \
+        libcurl-devel \
+        bzip2 \
+        python3 \
+        npm \
+        tar \
+        less \
+        wget \
+        which
+
+# download boost 1.84
+RUN wget https://boostorg.jfrog.io/artifactory/main/release/1.84.0/source/boost_1_84_0.tar.bz2
+
+# build boost
+RUN tar xjvf boost_1_84_0.tar.bz2 && \
+    cd boost_1_84_0 && \
+    ./bootstrap.sh --with-toolset=clang && \
+    ./b2
+
+# download retrosheet files
+RUN wget https://www.retrosheet.org/gamelogs/gl1871_2023.zip && \
+    wget https://www.retrosheet.org/ballparks.zip && \
+    wget https://www.retrosheet.org/teams.zip
+
+# run scripts to extract data from retrosheet files into Sqlite3 DB
+RUN mkdir alldata && \
+    mkdir alldata/gamelogs && \
+    unzip -d alldata/gamelogs gl1871_2023.zip && \
+    unzip -d alldata ballparks.zip && \
+    unzip -d alldata teams.zip && \
+    rm *.zip
+
+COPY webapp /webapp
+RUN mv /baseball.db /webapp
+
+# build backend
+RUN cd /webapp && \
+    cmake -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang && \
+    make
+
+# build frontend
+RUN cd /webapp/vite-baseball-stats && \
+    npm install && \
+    npm run build
+
+# bundle front and backend into tar archive
+RUN cd /webapp && \
+    tar cf dist.tar httpd vite-baseball-stats/dist && \
+    bzip2 dist.tar
+    
+
+

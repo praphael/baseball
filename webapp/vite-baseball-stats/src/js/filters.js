@@ -4,7 +4,8 @@ const filterFields=[["Year", "year"], ["Month", "month"],
                     ["Team", "team"], ["Home/Away", "homeaway"],
                     ["Day", "dow"], ["League", "league"],
                     ["Park", "park"], ["Date", "date"],
-                    ["Games played", "gp"]]
+                    ["Games played", "gp"], ["Won", "won"],
+                    ["Lost", "lost"], ["Record", "rec"]];
 //const teamIdxMap = new Map();
 //for(let i=0; i<teams.length; i++) teamIdxMap[teams[i][0]] = i;
 
