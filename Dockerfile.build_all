@@ -6,6 +6,7 @@ RUN yum update -y && \
         clang \
         cmake \
         libcurl-devel \
+        git \ 
         bzip2 \
         python3 \
         npm \
@@ -36,11 +37,17 @@ RUN mkdir alldata && \
     unzip -d alldata teams.zip && \
     rm *.zip
 
-COPY webapp /webapp
-RUN mv /baseball.db /webapp
+RUN git clone https://github.com/praphael/baseball
+
+RUN /baseball/retrosheet_init_db.py && \
+    /baseball/retrosheet_data_to_sql.py && \
+    rm -r alldata retrosheet*
+
+RUN mkdir webapp && \
+    mv /baseball.db /webapp
 
 # build backend
-RUN cd /webapp && \
+RUN cd /baseball/webapp && \
     cmake -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang && \
     make
 
