@@ -13,7 +13,8 @@ RUN yum update -y && \
         tar \
         less \
         wget \
-        which
+        which && \
+        yum clean all
 
 # download boost 1.84
 RUN wget https://boostorg.jfrog.io/artifactory/main/release/1.84.0/source/boost_1_84_0.tar.bz2
@@ -21,8 +22,10 @@ RUN wget https://boostorg.jfrog.io/artifactory/main/release/1.84.0/source/boost_
 # build boost
 RUN tar xjvf boost_1_84_0.tar.bz2 && \
     cd boost_1_84_0 && \
-    ./bootstrap.sh --with-toolset=clang && \
-    ./b2
+    ./bootstrap.sh --with-toolset=clang --prefix=/usr/local && \
+    ./b2 --with-system -j$(nproc) install  && \
+    cd / && \
+    rm -rf boost*
 
 # download retrosheet files
 RUN wget https://www.retrosheet.org/gamelogs/gl1871_2023.zip && \
@@ -39,26 +42,20 @@ RUN mkdir alldata && \
 
 RUN git clone https://github.com/praphael/baseball
 
-RUN /baseball/retrosheet_init_db.py && \
-    /baseball/retrosheet_data_to_sql.py && \
-    rm -r alldata retrosheet*
+RUN mv alldata baseball && \
+    cd baseball && \
+    ./retrosheet_init_db.py && \
+    ./retrosheet_data_to_sql.py && \
+    mv baseball.db webapp && \
+    rm -r alldata 
 
-RUN mkdir webapp && \
-    mv /baseball.db /webapp
-
-# build backend
+# build backend and front end
 RUN cd /baseball/webapp && \
-    cmake -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang && \
-    make
+    ./build.sh
 
-# build frontend
-RUN cd /webapp/vite-baseball-stats && \
-    npm install && \
-    npm run build
-
-# bundle front and backend into tar archive
-RUN cd /webapp && \
-    tar cf dist.tar httpd vite-baseball-stats/dist && \
+# # bundle front and backend into tar archive
+RUN cd /baseball/webapp && \
+    tar cf dist.tar httpd baseball.db vite-baseball-stats/dist && \
     bzip2 dist.tar
     
 

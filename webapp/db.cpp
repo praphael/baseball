@@ -184,7 +184,7 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
     /* bind parametes */
     int c = 1;
     for (auto p : prms) {
-        if (p.valType() == valType::INT) {
+        if (p.getValType() == valType::INT) {
             err = sqlite3_bind_int(pstmt, c, p.asInt());
             if (err != SQLITE_OK) {
                 errMsg = "doQuery(" + to_string(__LINE__) + "): sqlite3_bind_int failed err="s;
@@ -193,7 +193,7 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
                 return 1;
             }
         }
-        else if (p.valType() == valType::STR) {
+        else if (p.getValType() == valType::STR) {
             auto sp = p.asStr();
             // wrap in single quotes
             // auto s = "\'" + sp + "\'";
@@ -206,7 +206,7 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
                 return 2;
             }
         } else {
-            errMsg = "doQuery(" + to_string(__LINE__) + "): unknown type "s + to_string(p.valType());
+            errMsg = "doQuery(" + to_string(__LINE__) + "): unknown type "s + to_string(p.getValType());
             cerr << endl << errMsg;
             return 3;  // unknown type
         }

@@ -95,7 +95,7 @@ char toUpper(char c) {
     return c;
 }
 
-int field_val_t::valType() { 
+valType field_val_t::getValType() { 
     return vType;
 }
 

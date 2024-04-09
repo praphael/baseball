@@ -7,6 +7,8 @@
 # Official repository: https://github.com/boostorg/beast
 #
 
+cmake_minimum_required(VERSION 3.22)
+
 project(httpd)
 #GroupSources(include/boost/beast beast)
 #GroupSources(example/http/server/async "/")
@@ -15,10 +17,10 @@ project(httpd)
 
 find_package(CURL REQUIRED)
 
-set(Boost_INCLUDE_DIRS "/boost_1_84_0")
-set(Boost_LIBRARY_DIRS "/boost_1_84_0/stage/lib")
+set(Boost_INCLUDE_DIRS "/usr/local/include")
+#set(Boost_LIBRARY_DIRS "/boost_1_84_0/stage/lib")
 include_directories(${Boost_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS})
-link_directories(${Boost_LIBRARY_DIRS})
+#link_directories(${Boost_LIBRARY_DIRS})
 
 
 add_executable (httpd

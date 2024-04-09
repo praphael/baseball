@@ -26,7 +26,7 @@ private:
     } v;
 
 public:
-    int valType();
+    valType getValType();
     int asInt();
     std::string asStr();
     const char* asCharPtr();

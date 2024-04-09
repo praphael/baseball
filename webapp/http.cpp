@@ -198,14 +198,11 @@ handle_request(
     cout << endl << "handle_request: paths.size()= " << paths.size();
     cout << endl << "handle_request: paths= ";
     printVec(paths);
-    if(paths.size() != 4) 
-        return not_found(req.target());
-
-    else if (paths[1] != "baseball" || paths[2] != "api")
+    if(paths.size() != 2) 
         return not_found(req.target());
 
     // split into route/query string
-    auto rt_qy = splitStr(paths[3], '?');
+    auto rt_qy = splitStr(paths[1], '?');
        
     string resp_body;
     auto mime_type = string("text/plain");
@@ -241,26 +238,7 @@ handle_request(
             return server_error(e.what());
         }
     }
-    /*/
-    // Build the path to the requested file
-    std::string path = path_cat(doc_root, req.target());
-    if(req.target().back() == '/')
-        path.append("index.html");
-
-    // Attempt to open the file
-    beast::error_code ec;
-    http::file_body::value_type body;
-    body.open(path.c_str(), beast::file_mode::scan, ec);
-
-    // Handle the case where the file doesn't exist
-    if(ec == beast::errc::no_such_file_or_directory)
-        return not_found(req.target());
-    */
-
-    // Handle an unknown error
-    //if(ec)
-    //    return server_error(ec.message());
-
+  
     // Cache the size since we need it after the move
     auto const size = resp_body.size();
 
@@ -297,17 +275,6 @@ handle_request(
     res.content_length(size);
     res.keep_alive(req.keep_alive());
 
-    // Respond to GET request
-    /*
-    http::response<http::file_body> res{
-        std::piecewise_construct,
-        std::make_tuple(std::move(body)),
-        std::make_tuple(http::status::ok, req.version())};
-    res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-    res.set(http::field::content_type, mime_type(path));
-    res.content_length(size);
-    res.keep_alive(req.keep_alive());
-    */
     return res;
 }
 
