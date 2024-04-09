@@ -13,6 +13,9 @@ using std::endl;
 using std::find;
 using std::cerr;
 
+// for 's' suffix
+using namespace std::string_literals;
+
 const auto MONTH_FIELD = string("CAST(substr(game_date,6,2) AS INTEGER)");
 const auto YEAR_FIELD = string("CAST(substr(game_date,0,5) AS INTEGER)");
 
@@ -240,8 +243,20 @@ string makeCTEBase(string homeOrAway, string fieldQueryStr, const vector<string>
         }
     }
     if ((agg != "no") || (nGroup > 0)) {
-        base += " COUNT(*) as gp";
+        base += " COUNT(*) as gp,";
         selectFields.push_back("gp");
+        auto sc1 = "home_score"s;
+        auto sc2 = "visiting_score"s;
+        if(homeOrAway == "away") {
+            sc1 = sc2;
+            sc2 = "home_score";
+        }
+        base += " SUM(" + sc1 + ">" + sc2 + ") AS won,";
+        selectFields.push_back("won");
+        base += " SUM(" + sc2 + ">" + sc1 + ") AS lost,";
+        selectFields.push_back("lost");
+        base += " ROUND(1000*SUM(" + sc1 + ">" + sc2 + ")/(1.0*COUNT(*)))/1000.000 AS rec";
+        selectFields.push_back("rec");
     }
     else {
         base += " game_date as date, game_num as num, home_team as home, visiting_team as away";
@@ -274,12 +289,12 @@ int getQueryParams(const json& args,
             else if(qp.vType == valType::STR)
                 fv.setStr(v.get<string>());
             else {
-                cout << endl << "getQueryParams(" << __LINE__  <<  ") unknown type " << qp.vType;
+                cerr << endl << "getQueryParams(" << __LINE__  <<  ") unknown type " << qp.vType;
                 return 1;
             }
             cout << endl << "getQueryParams(" << __LINE__  <<  ") fv.setXXX() successful";
             fieldValues.push_back(fv);
-            cout << endl << "getQueryParams(" << __LINE__  <<  ") added " << k << "'=" << fv.asStr();
+            cout << endl << "getQueryParams(" << __LINE__  <<  ") added " << k << "=" << fv.asStr();
         }
     }
     return 0;
@@ -330,6 +345,14 @@ string buildCTEWhereClause(bool isHome, vector<string> fieldNames, vector<string
                     qy += ", ";
                 first = false;
                 qy += qp.secondClause;
+            } else {
+                if (!first)
+                    qy += ", ";
+                first = false;
+                if (g == "homeaway")
+                    qy += "homeoraway";
+                else
+                    qy += g;
             }
         }
     }
@@ -517,12 +540,16 @@ int buildSQLQuery(string argstr, string &qy,
         if ((agg == string("no")) && ((fieldNames.size() + grp.size()) == 0) 
             || (find(grp.begin(), grp.end(), string("homeaway")) != std::end(grp))) {
             // rewrite fields for join on park
-            if (isPark || isTeam) { 
+            if (isPark) { 
                 vector<string> r;
                 for(auto f : selectFieldsH) {
                     r.push_back(makeFieldParkTeam(f));
                 }
+                for(auto s : stats) {
+                    r.push_back(makeFieldParkTeam(s));
+                }
                 auto fields = joinStr(r, ", ");
+                
                 qy += " SELECT " + fields +"  FROM home_t h UNION SELECT * FROM away_t";
             }
             else
@@ -533,10 +560,18 @@ int buildSQLQuery(string argstr, string &qy,
             auto makeFieldH = [&fieldsSummed](string x) -> string {
                 if (x == "gp") {
                     fieldsSummed.emplace("gp");
-                    return "h.gp+a.gp as gp";
+                    return "h.gp+a.gp AS gp";
+                } 
+                if (x == "won") {
+                    fieldsSummed.emplace("won");
+                    return "h.won+a.won AS won";
+                } 
+                if (x == "lost") {
+                    fieldsSummed.emplace("lost");
+                    return "h.lost+a.lost AS lost";
                 } 
                 else if (x == "park")
-                    return "p.park_name as park";
+                    return "p.park_name AS park";
                 else if (x == "team")
                     return "h.team";
                 return "h." + x;
@@ -598,7 +633,7 @@ int buildSQLQuery(string argstr, string &qy,
         }
     }
     else if(isHome) {
-        if (isPark || isTeam) {
+        if (isPark) {
             vector<string> r;
             for(auto f : selectFieldsH) {
                 r.push_back(makeFieldParkTeam(f));
@@ -612,7 +647,7 @@ int buildSQLQuery(string argstr, string &qy,
             qy += " SELECT * FROM home_t h";
     }
     else { // away only
-        if (isPark || isTeam) {
+        if (isPark) {
             vector<string> r;
             for(auto f : selectFieldsA) {
                 r.push_back(makeFieldParkTeam(f));

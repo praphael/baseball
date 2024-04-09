@@ -102,13 +102,15 @@ function App() {
       <div className="container-fluid mt-4 ml-3">
         <div className="row">
           <h2>Baseball stats</h2>
-          <p>This is a tool for certain baseball statistics. If you are interested in queries like 
-             "what are the worst performances for earned runs in a month by team", 
-             or "how many home runs were hit in each stadium in 1932" you may have come to the right place.
-             Currently only team data derived from individual game boxscores is available, going back to 1903.
+          <p>If you like baseball, and have always wondered questions like "what are the worst performances 
+             for earned runs in a month by team", or "how many home runs were hit in each stadium in 1932"
+             you may have come to the right place. Currently only team data derived from individual game
+             boxscores is available, going back to 1903.
              All data was sourced from <a href="https://www.retrosheet.org/gamelogs/index.html#">Retrosheet</a>. 
-             Please direct comments/bug reports/etc. to <a href="praphael@gmail.com">praphael@gmail.com</a>.  
-             Keep in this is a side/learning project, using a combo of ReactJS, Python Flask and sqlite3. Some combinations of parameters may not make sense.  Source available <a href="https://github.com/praphael/baseball">here</a>. 
+             Source available on Github here <a href="https://github.com/praphael/baseball">here</a>. 
+             Feel free to leave comments/suggestions there as well. 
+             Keep in this is a side/learning project, using a combo of ReactJS, C++ for backend and sqlite3 in-memory database for speed.
+             Some combinations of parameters may not make sense.
              </p>
             </div>
         <div className="row">

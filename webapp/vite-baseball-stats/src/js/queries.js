@@ -3,10 +3,12 @@ import { statSortOrder } from "./stats";
 function makeBoxScoreQueryString(filter, agg, statTypes, order) {
     let qy = {};
     filter.values.forEach((v, k) => {
+        v = v.trim();
         if (k == "year" || k == "month" && v != "(all)" && v != "") {
-            v = parseInt(v.trim());
             console.log("makeBoxScoreQueryString k=", k, " v=", v);
-            if (v != null && v != undefined && v != NaN)
+            v = parseInt(v);
+            console.log("makeBoxScoreQueryString (after parse) v=", v);
+            if (v >= 0)
                 qy[k] = v;
         }
         else if(v.length > 0) {            
