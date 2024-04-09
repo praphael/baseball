@@ -11,6 +11,7 @@ using std::to_string;
 using std::stringstream;
 using std::endl;
 using std::find;
+using std::cerr;
 
 const auto MONTH_FIELD = string("CAST(substr(game_date,6,2) AS INTEGER)");
 const auto YEAR_FIELD = string("CAST(substr(game_date,0,5) AS INTEGER)");
@@ -57,14 +58,15 @@ const unordered_map<string, string> FIELD_NAME_MAP =
 
 auto QUERY_PARAMS = unordered_map<string, q_params_t>();
 
+vector<string> QUERY_PARAMS_ORDER = {"year", "team", "league", "month", "dow", "park"};
 unordered_map<string, q_params_t>& initQueryParams() {
     QUERY_PARAMS.clear();
-    QUERY_PARAMS["team"] = q_params_t{"team", "team", 1, true};
-    QUERY_PARAMS["year"] = q_params_t{YEAR_FIELD + " as year", "year", 0, false};
-    QUERY_PARAMS["month"] = q_params_t{MONTH_FIELD + " as month", "month", 0, false};
-    QUERY_PARAMS["dow"] =  q_params_t{"game_day_of_week as dow", "dow", 1, false};
-    QUERY_PARAMS["league"] = q_params_t{"league", "league", 1, true};
-    QUERY_PARAMS["park"] = q_params_t{"park", "park", 1, false};
+    QUERY_PARAMS["team"] = q_params_t{"team", "team", valType::STR, true};
+    QUERY_PARAMS["year"] = q_params_t{YEAR_FIELD + " as year", "year", valType::INT, false};
+    QUERY_PARAMS["month"] = q_params_t{MONTH_FIELD + " as month", "month", valType::INT, false};
+    QUERY_PARAMS["dow"] =  q_params_t{"game_day_of_week as dow", "dow", valType::STR, false};
+    QUERY_PARAMS["league"] = q_params_t{"league", "league", valType::STR, true};
+    QUERY_PARAMS["park"] = q_params_t{"park", "park", valType::STR, false};
     /*
                {"inn1", {"score_by_inning_1", "inn1", 0, true},
                {"inn2", {"score_by_inning_2", "inn2", 0, true},
@@ -80,54 +82,54 @@ unordered_map<string, q_params_t>& initQueryParams() {
     return QUERY_PARAMS;
 }
 
-
-
-int field_val_t::valType() { 
-    return vType;
-}
-
-int field_val_t::asInt() {
-    return static_cast<int>(*bytes);
-}
-
-char* field_val_t::asCharPtr() {
-    return bytes;
-}
-
-std::string field_val_t::asStr() {
-    return std::string(bytes);
-}
-
-void field_val_t::setInt(int v) {
-    *bytes = v;
-    vType = 0;
-}
-
-void field_val_t::setStr(std::string s) {
-    int i=0;
-    for(auto c : s) { 
-        bytes[i++] = c;
-        if(i > 126) break;
-    }
-    // null terminate
-    bytes[i] = 0;
-    vType = 1;
-}
-
-
-
-string make_dt_ms_str(int dt_ms) {
-    return to_string(dt_ms);
-}
-
 bool isNumberChar(char c) {
     return (c >= '0' && c <= '9');
 }
 
 char toUpper(char c) {
     if (c >= 'a' && c <= 'z')
-        return c + 'A';
+        return (c-'a') + 'A';
     return c;
+}
+
+int field_val_t::valType() { 
+    return vType;
+}
+
+int field_val_t::asInt() {
+    if(vType == valType::INT)
+        return v.i;
+    else if(vType == valType::STR)
+        return std::stoi(v.s);
+    return 0;
+}
+
+// convert if necessary
+std::string field_val_t::asStr() {
+    if(vType == valType::STR)
+        return string(v.s);
+    else if(vType == valType::INT)
+        return std::to_string(v.i);
+    return "";
+}
+
+// this method only makes sense when underlying value is string
+// because otherwise we would have to malloc, and it is not obvious ot the caller
+const char* field_val_t::asCharPtr() {
+    if(vType == valType::STR)
+        return v.s;
+    return nullptr;
+}
+
+
+void field_val_t::setInt(int val) {
+    vType = valType::INT;
+    v.i = val;
+}
+
+void field_val_t::setStr(std::string val) {
+    vType = valType::STR;
+    std::strcpy(v.s, val.c_str());
 }
 
 string makeHomeAwayAvgQuery(string st) {
@@ -196,9 +198,9 @@ string buildStatQueryStr(const vector<string>& stats, bool isHome, const string&
 string makeCTEBase(string homeOrAway, string fieldQueryStr, const vector<string>& fieldNames,
                    string agg, const vector<string>& grp, vector<string> &selectFields) {
     auto base = string(" ") + homeOrAway + "_t as (SELECT ";
-    cout << endl << "makeCTEBase grp=";
+    cout << endl << "makeCTEBase(" << __LINE__ << "): grp=";
     printVec(grp);
-    cout << "makeCTEBase fieldNames=";
+    cout << "makeCTEBase(" << __LINE__ << "): fieldNames=";
     printVec(fieldNames);
     auto homeOrVisit = homeOrAway;
     selectFields.clear();
@@ -252,24 +254,32 @@ string makeCTEBase(string homeOrAway, string fieldQueryStr, const vector<string>
     return base;
 }
 
-int getQueryParams(unordered_map<string, string> args, 
-                    vector<string>& fieldNames, 
-                    vector<field_val_t>& fieldValues) {
-    for (auto [k, v] : args) {
-        cout << endl << "getQueryParams: '" << k << "' '" << v << "'";
-        if (QUERY_PARAMS.count(k) > 0) {
+int getQueryParams(const json& args, 
+                   vector<string>& fieldNames, 
+                   vector<field_val_t>& fieldValues) {
+    
+    for (const auto& k : QUERY_PARAMS_ORDER) {
+        if (args.contains(k)) {
             auto qp = QUERY_PARAMS.at(k);
+            cout << endl << "getQueryParams(" << __LINE__  <<  ") k=" << k << " qp.vType- " << qp.vType;
             fieldNames.push_back(k);
             
-            auto v = args.at(k);
+            auto v = args[k];
+            cout << endl << "getQueryParams(" << __LINE__  <<  ") v= " << v;
             field_val_t fv;
             
-            //  convert to integer
-            if(qp.type == 0)
-                fv.setInt(stoi(v));
-            else 
-                fv.setStr(v);
+            // convert to integer
+            if(qp.vType == valType::INT)
+                fv.setInt(v.get<int>());
+            else if(qp.vType == valType::STR)
+                fv.setStr(v.get<string>());
+            else {
+                cout << endl << "getQueryParams(" << __LINE__  <<  ") unknown type " << qp.vType;
+                return 1;
+            }
+            cout << endl << "getQueryParams(" << __LINE__  <<  ") fv.setXXX() successful";
             fieldValues.push_back(fv);
+            cout << endl << "getQueryParams(" << __LINE__  <<  ") added " << k << "'=" << fv.asStr();
         }
     }
     return 0;
@@ -357,12 +367,26 @@ std::string joinStr(const std::vector<std::string>& elements, const std::string&
     return ss.str(); // Convert stringstream to string and return
 }
 
-int buildSQLQuery(unordered_map<string, string> args, string &qy, 
-                  vector<field_val_t>& prms, string &errMsg) {
+int buildSQLQuery(string argstr, string &qy, 
+                  vector<field_val_t>& prms, string &errMsg, 
+                  json& args) {
+
+    args.clear();
+
+    if(argstr.size() > 0) {
+        try {
+            args = json::parse(argstr);
+        } catch (json::parse_error& ex) {
+            errMsg = "JSON parse error at byte " + std::to_string(static_cast<int>(ex.byte));
+            cerr << errMsg << endl;
+            return 1;
+        }
+    }
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): parsed args" << args;
     bool isHome = true;
     bool isAway = true;
-    if (args.count("homeaway") > 0) {
-        auto homeaway = args.at("homeaway");
+    if (args.contains("homeaway")) {
+        auto homeaway = args["homeaway"];
         if (homeaway == "home") {
             isHome = true;
             isAway = false;
@@ -372,45 +396,52 @@ int buildSQLQuery(unordered_map<string, string> args, string &qy,
             isAway = true;         
         }   
     }
-    auto agg = string("sum");
-    if (args.count("agg") > 0) {
-        if (VALID_AGG.count(args.at("agg")) > 0)
-            agg = args.at("agg");
-    }
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): isHome= " << isHome << " isAway=" << isAway;
 
-    bool isOldTime = false;    
-    auto grp = vector<string>();
-    if (args.count("gro") > 0) {
-        auto g = args.at("grp");
-        grp = splitStr(g, ',');
+    auto agg = string("sum");
+    if (args.contains("aggregation")) {
+        if (VALID_AGG.count(args["aggregation"]) > 0)
+            agg = args["aggregation"];
     }
-    cout << endl << "grp=";
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): agg=" << agg;
+    
+    auto grp = vector<string>();
+    if (args.contains("group")) {
+        grp = args["group"];
+    }
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): grp=";
     printVec(grp);
 
-    if (args.count("oldtime") > 0) {
-        isOldTime = stoi(args.at("premod"));
+    bool isOldTime = false;
+    if (args.contains("oldtime")) {
+        isOldTime = args["oldtime"];
     }
     
-    auto stats_str = string("R,_R");
-    if (args.count("stats") > 0) {
-        stats_str = args.at("stats");
+    vector<string> stats = {"R, _R"};
+    if (args.contains("stats")) {
+        stats = args["stats"];
     }
-    auto stats = splitStr(stats_str, ',');
-    cout << endl << "stats=";
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): stats=";
     printVec(stats);
     
-    auto order_str = string("year,team,date");
-    if (args.count("order") > 0) {
-        order_str = args.at("order");
+    vector<string> order = {"year,team,date"};
+    if (args.contains("order")) {
+        order = args["order"];
     }
-    auto order = splitStr(order_str, ',');
-    cout << endl << "order=";
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): order=";
     printVec(order);
     
     vector<string> fieldNames;
     vector<field_val_t> fieldValues;
     getQueryParams(args, fieldNames, fieldValues);
     
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): fieldNames="; 
+    printVec(fieldNames);
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): fieldValues=";
+    for(auto f : fieldValues) {
+        cout << f.asStr();
+    }
+
     // in the case where results are not being selected or grouped by team,
     // select for home only
     if((find(fieldNames.begin(), fieldNames.end(), string("team")) == std::end(fieldNames)) 
@@ -418,29 +449,24 @@ int buildSQLQuery(unordered_map<string, string> args, string &qy,
         isAway = false;
     prms.clear();
     prms.insert(prms.end(), fieldValues.begin(), fieldValues.end());
-
-    cout << endl <<"fieldNames="; 
-    printVec(fieldNames);
-    // cout << endl << "fieldValues=";
-    // printVec(fieldValues);
     
     vector<string> statListA;
     vector<string> statListH;
     auto statQueryStrH = buildStatQueryStr(stats, true, agg, statListH);
     auto statQueryStrA = buildStatQueryStr(stats, false, agg, statListA);
-    cout << endl << "statQueryStrH=" << statQueryStrH;
-    cout << endl << "statListH=";
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): statQueryStrH=" << statQueryStrH;
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): statListH=";
     printVec(statListH);
-    cout << endl << "statQueryStrA=" << statQueryStrA;
-    cout << endl << "statListA=";
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): statQueryStrA=" << statQueryStrA;
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): statListA=";
     printVec(statListA);
     // print(f"statList=", statList)
     vector<string> selectFieldsH;
     vector<string> selectFieldsA;
     auto qy_home = makeCTEBase("home", statQueryStrH, fieldNames, agg, grp, selectFieldsH);
     auto qy_away = makeCTEBase("away", statQueryStrA, fieldNames, agg, grp, selectFieldsA);
-    cout << endl << "qy_home=" << qy_home; 
-    cout << endl << "qy_away" << qy_away; 
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): qy_home=" << qy_home; 
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): qy_away" << qy_away; 
 
     auto whereClauseH = string("");
     auto whereClauseA = string("");
@@ -479,7 +505,7 @@ int buildSQLQuery(unordered_map<string, string> args, string &qy,
         return string("h.") + x;
     };
         
-    cout << endl << "selectFieldsH="; 
+    cout << endl << "buildSQLQuery: selectFieldsH="; 
     printVec(selectFieldsH);
 
     // fields which have perfomed h.f + a.f
@@ -608,8 +634,8 @@ int buildSQLQuery(unordered_map<string, string> args, string &qy,
     //    qy += f" INNER JOIN (SELECT * FROM teams) t ON team=t.team_id"
     vector<string> ordFilt;
     for (auto o : order) {
-        auto o1 = o.substr(0, o.size()-2);
-        cout << endl << "o1=" << o1;
+        auto o1 = o.substr(0, o.size()-1);
+        cout << endl << "buildSQLQuery: o1=" << o1;
         
         auto o1_in_sfld = (find(selectFieldsH.begin(), selectFieldsH.end(), o1) != std::end(selectFieldsH));
         auto o1_in_st = (find(stats.begin(), stats.end(), o1) != std::end(stats));
@@ -637,9 +663,9 @@ int buildSQLQuery(unordered_map<string, string> args, string &qy,
 
     if (grp.size() > 0 && agg == string("no")) {
         errMsg = "There must be an aggregation (total/average) if any stats grouped";
-        return 1;        
+        return 1;
     }
-    errMsg.clear();
+    errMsg.clear();    
     return 0;
 }
 
@@ -659,12 +685,15 @@ string renderHTMLTable(vector<string> headers, query_result_t result, string opt
         thAttr = string("scope=\"row\"");
     }
 
-    ss << "<table" << tblAttr << ">";
+    ss << "<table " << tblAttr << ">";
     ss << "<thead><tr>";
     for (auto hdr : headers) {
-        ss << "<th" << thAttr << ">" << hdr << "</th>";
+        ss << "<th " << thAttr << ">" << hdr << "</th>";
     }
-    ss << "</tr></thead><tbody" << tblAttr << ">";
+    ss << "</tr></thead><tbody " << tblAttr << ">";
+    if(result.size() == 0) {
+        ss << "<tr>(no data)</tr>";
+    }
     for (auto r : result) {
         ss << "<tr " << trAttr << ">";
         for (auto d : r) 
@@ -674,190 +703,3 @@ string renderHTMLTable(vector<string> headers, query_result_t result, string opt
     ss << "</tbody></table>";
     return ss.str();
 }
-
-
-/*
-    cout << ("prms= ", prmsH + prmsA)
-    
-        cout << errMsg;
-        print(errMsg)
-        resp = make_response(errMsg, 400);
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        return resp
-
-    dt_preproc = datetime.now() - t_preproc_start
-
-@app.route(API_ROOT+"/box", methods=["OPTIONS"])
-def options_box():
-    resp = make_response("OK", 200)
-    resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Access-Control-Allow-Headers"] = "*"
-    return resp
-
-@app.route(API_ROOT+"/parks", methods=["OPTIONS"])
-def options_parks():
-    resp = make_response("OK", 200)
-    resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Access-Control-Allow-Headers"] = "*"
-    return resp
-
-@app.route(API_ROOT+"/teams", methods=["OPTIONS"])
-def options_teams():
-    resp = make_response("OK", 200)
-    resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Access-Control-Allow-Headers"] = "*"
-    return resp
-
-@app.route(API_ROOT+"/teams")
-def get_teams():
-    try: 
-        args = request.args
-        since = 1900
-        if "since" in args:
-            since = int(args.get("since"))
-        qy = """SELECT DISTINCT t.team_id, t.team_league, t.team_city, 
-                team_nickname, team_first, team_last  
-                FROM teams t 
-                INNER JOIN boxscore b 
-                ON t.team_id=b.home_team WHERE team_last > ?
-                """
-        r, query_times = appdb.executeQuery(db, qy, (since,))
-        fn = lambda t: t[0] + ": " + str(int((t[1].microseconds)/1000)) + " ms"
-        l = list(map(fn, query_times))
-        print("/teams query successful times= ", l)
-        hdr = ("team_id", "team_league", "team_city",
-               "team_nickname", "team_first", "team_last")
-        app.team_names = dict()
-        for row in r:
-            app.team_names[row[0]] = row[2] + " " + row[3]
-        resp = make_response(json.dumps({"header": hdr, "result": r}), 200)
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        return resp
-    except Exception as e:
-        print("query failed e=", e)
-        errMsg = "Query failed exception: " + str(e) + "\n"
-        errMsg += ("query: " + qy)
-        resp = make_response(errMsg, 500)
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        return resp
-
-@app.route(API_ROOT+"/parks")
-def get_parks():
-    try: 
-        args = request.args
-        since = 1900
-        if "since" in args:
-            since = int(args.get("since"))
-        qy = """SELECT DISTINCT p.park_id, p.park_name, 
-            p.park_aka, p.park_city, p.park_state,
-            p.park_open, p.park_close, p.park_league, p.notes
-             FROM parks p
-             INNER JOIN boxscore b 
-             ON p.park_id=b.park
-            WHERE CAST(substr(p.park_open, 7) AS INTEGER) > ?"""
-        r, query_times = appdb.executeQuery(db, qy, (since,))
-        fn = lambda t: t[0] + ": " + str(int((t[1].microseconds)/1000)) + " ms"
-        l = list(map(fn, query_times))
-        print("/parks query successful times= ", l)
-        hdr = ("park_id","park_name","park_aka", "park_city",
-                "park_state", "park_open", "park_close",
-                "park_league", "notes")
-        resp = make_response(json.dumps({"header": hdr, "result": r}), 200)
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        return resp
-    except Exception as e:
-        print("query failed e=", e)
-        errMsg = "Query failed exception: " + str(e) + "\n"
-        errMsg += ("query: " + qy)
-        resp = make_response(errMsg, 500)
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        return resp
-
-@app.route(API_ROOT+"/box")
-def get_box_stats():
-    try:
-        t_preproc_start = datetime.now()
-        print(datetime.now())
-        args = request.args
-        print("args=", args)
-        
-        
-        try: 
-            r, query_times = appdb.executeQuery(db, qy, prmsH + prmsA)
-            fn = lambda t: t[0] + ": " + str(int((t[1].microseconds)/1000)) + " ms"
-            l = list(map(fn, query_times))
-            print("query successful times= ", l)
-        except Exception as e:
-            print("query failed e=", e)
-            errMsg = "Query failed exception: " + str(e) + "\n"
-            errMsg += ("query: " + qy)
-            resp = make_response(errMsg, 500)
-            resp.headers["Access-Control-Allow-Origin"] = "*"
-            return resp
-        t_postproc_start = datetime.now()
-        print(r[0:5])
-        
-        # make header for table
-        hdr = selectFieldsH
-        for st in statList:
-            hdr.append(st)
-
-        # rename fields which started with '_' or number
-        for i in range(len(hdr)):
-            if hdr[i] == "homeoraway":
-                hdr[i] = "Home/Away"
-            elif hdr[i][0] == "n" and isNumberChar(hdr[i][1]):
-                hdr[i] = hdr[i][1:]
-            elif hdr[i][0] == "_":
-                hdr[i] = "opp" + hdr[i][1:]
-            else:
-                h = hdr[i][1:]
-                hdr[i] = toUpper(hdr[i][0]) + h
-
-        # fix month from number to string value
-        if "Month" in hdr or "Team" in hdr:
-            monthIdx = -1
-            teamIdx = -1
-            if "Month" in hdr:
-                monthIdx = hdr.index("Month")
-            if "Team" in hdr:
-                teamIdx = hdr.index("Team")
-            if teamIdx >= 0 and not hasattr(app, 'team_name'):
-                get_teams()
-            i = 0
-            for t in r:
-                r2 = list(t)
-                if monthIdx >= 0:
-                    month = calendar.month_name[t[monthIdx]]
-                    r2[monthIdx] = month
-                if t[teamIdx] in app.team_names:
-                    team = app.team_names[t[teamIdx]]
-                    r2[teamIdx] = team
-
-                r[i] = tuple(r2)
-                i += 1
-            #print("r(fixed month)=", r)
-
-        ret = "json"
-        if "ret" in args:
-            ret = args.get("ret")
-        print("ret=", ret)
-        
-        if ret.startswith("html"):
-            opts=ret[4:]
-            resp = make_response(renderHTMLTable(hdr, r, opts), 200)
-        else:
-            resp = make_response(json.dumps({"header": hdr, "result": r}), 200)
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        dt_postproc = datetime.now() - t_postproc_start
-        dt_pre = make_dt_ms_str(dt_preproc)
-        dt_post = make_dt_ms_str(dt_postproc)
-        dt_query = make_dt_ms_str(query_times[0][1])
-        print(f"Times: Pre: {dt_pre} Query: {dt_query} Post: {dt_post}")
-        return resp
-    except Exception as e:
-        print_exception(e)
-        resp = make_response(str(e), 500)
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        return resp
-        */

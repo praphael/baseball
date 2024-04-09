@@ -5,6 +5,7 @@ RUN yum update -y && \
     yum install -y \
         clang \
         cmake \
+        libcurl-devel \
         bzip2 \
         tar \
         less \

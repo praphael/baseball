@@ -8,8 +8,32 @@
 #include <iostream>
 #include <sstream>
 
+#include "json.hpp"
+
+using json = nlohmann::json;
+
 using query_result_t = std::vector<std::vector<std::string>>;
                   
+
+enum valType {NOT_SET, INT, STR};
+class field_val_t {    
+private:
+    // 0 == integer, 1 == string
+    valType vType = NOT_SET;
+    union {
+        int i;
+        char s[256];
+    } v;
+
+public:
+    int valType();
+    int asInt();
+    std::string asStr();
+    const char* asCharPtr();
+    void setInt(int val);
+    void setStr(std::string val);
+};
+
 // map of query to params to 
 // first entry - SQL as used in first CTE WHERE clause, including possible renaming
 // second entry - SQL as used in second WHERE clause
@@ -18,37 +42,18 @@ using query_result_t = std::vector<std::vector<std::string>>;
 struct q_params_t {
     std::string firstClause;
     std::string secondClause;
-    int type; // 0 = int, 1 - string
+    valType vType; // 0 = int, 1 - string
     bool isTeam;
 };
 
-class field_val_t {
-    // 0 == integer, 1 == string
-    int vType;
-    char bytes[128];
-
-public:
-    const static int NOT_SET = -1;
-    const static int INT = 0;
-    const static int STR = 1;
-
-    field_val_t() : vType(NOT_SET) { bytes[0] = 0; };
-    int valType();
-    int asInt();
-    char* asCharPtr();
-    std::string asStr();
-    void setInt(int v);
-    void setStr(std::string s);
-};
-
 std::unordered_map<std::string, q_params_t>& initQueryParams();
-int buildSQLQuery(std::unordered_map<std::string, std::string> args,
+int buildSQLQuery(std::string argstr,
                   std::string &qy, std::vector<field_val_t>& prms,
-                  std::string &errMsg);
+                  std::string &errMsg, json& args);
 
 std::vector<std::string> splitStr(const std::string& input, char delimiter);
 
-int getQueryParams(std::unordered_map<std::string, std::string> args,
+int getQueryParams(const json& args,
                     std::vector<std::string>& fieldNames,
                     std::vector<field_val_t>& fieldValues);
 
@@ -61,3 +66,6 @@ std::string renderHTMLTable(std::vector<std::string> headers, query_result_t res
 template <typename T> void printVec (std::vector<T> vec) {
     for(auto v : vec) std::cout << " " << v;
 };
+
+bool isNumberChar(char c);
+char toUpper(char c);

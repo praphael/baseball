@@ -27,12 +27,16 @@
 #include <thread>
 #include <vector>
 
+#include <curl/curl.h>
+
 #include "db.h"
 
 
 using std::string;
 using std::vector;
+using std::unordered_map;
 using std::cout;
+using std::cerr;
 using std::endl;
 
 //const std::vector<string> API_ROOT = {"baseball", "api"};
@@ -169,10 +173,30 @@ handle_request(
         req.target().find("..") != beast::string_view::npos)
         return bad_request("Illegal request-target");
 
-    auto paths = splitStr(req.target(), '/');
-    cout << endl << "req.req()= " << req.target();
-    cout << endl << "paths.size()= " << paths.size();
-    cout << endl << "paths= ";
+    auto tgt = string(req.target());
+    int err = 0;
+    CURL *curl = curl_easy_init();
+    if(curl) {
+        int decodelen;
+        // char *decoded = curl_easy_unescape(curl, "%63%75%72%6c", 12, &decodelen);
+        char *tgt_dec = curl_easy_unescape(curl, tgt.c_str(), tgt.size(), &decodelen);
+        
+        if(tgt_dec) {
+            /* do not assume printf() works on the decoded data! */
+            tgt = string(tgt_dec);
+            cout << endl << "handleRequst tgt=" << tgt;
+            curl_free(tgt_dec);
+        } else {
+            return bad_request("Could not parse query string");
+        }
+        curl_easy_cleanup(curl);
+    } else {
+        return bad_request("Could not initialize curl");
+    } 
+
+    auto paths = splitStr(tgt, '/');
+    cout << endl << "handle_request: paths.size()= " << paths.size();
+    cout << endl << "handle_request: paths= ";
     printVec(paths);
     if(paths.size() != 4) 
         return not_found(req.target());
@@ -182,33 +206,41 @@ handle_request(
 
     // split into route/query string
     auto rt_qy = splitStr(paths[3], '?');
-    cout << endl << "rt_qy= ";
-    printVec(rt_qy);
-    string qy = "";
-    auto rt = rt_qy[0];
-    int err = 0;
-    string resp_body, mimeType;
-    if (rt_qy.size() > 2)
-        return bad_request("Bad query string");
+       
+    string resp_body;
+    auto mime_type = string("text/plain");
+    static unordered_map<string, string> teamsMap;
 
-    if (rt_qy.size() > 1)
-        qy = rt_qy[1];
+    if (!err) {
+        cout << endl << "rt_qy= ";
+        printVec(rt_qy);
+        string qy = "";
+        auto rt = rt_qy[0];
+        if (rt_qy.size() > 2)
+            return bad_request("Bad query string");
 
-    if(rt == "parks") {
-        if(req.method() == http::verb::get)
-            err = handleParksRequest(pdb, qy, resp_body);
+        if (rt_qy.size() > 1)
+            qy = rt_qy[1];
+        try {
+            if(rt == "parks") {
+                if(req.method() == http::verb::get)
+                    err = handleParksRequest(pdb, qy, resp_body, mime_type);
+            }
+            else if (rt == "teams") {
+                if(req.method() == http::verb::get)
+                    err = handleTeamsRequest(pdb, qy, resp_body, mime_type, teamsMap);
+            }
+            else if(rt == "box") {
+                if(req.method() == http::verb::get)
+                    err = handleBoxRequest(pdb, qy, resp_body, mime_type, teamsMap);
+            } else {
+                return not_found(req.target());
+            }
+        } catch (std::exception e) {
+            std::cerr << endl << "exception during handle_request " << e.what();
+            return server_error(e.what());
+        }
     }
-    else if (rt == "teams") {
-        if(req.method() == http::verb::get)
-            err = handleTeamsRequest(pdb, qy, resp_body);
-    }
-    else if(rt == "box") {
-        if(req.method() == http::verb::get)
-            err = handleBoxRequest(pdb, qy, resp_body, mimeType);
-    } else {
-        return not_found(req.target());
-    }
-
     /*/
     // Build the path to the requested file
     std::string path = path_cat(doc_root, req.target());
@@ -232,7 +264,6 @@ handle_request(
     // Cache the size since we need it after the move
     auto const size = resp_body.size();
 
-    auto mime_type = string("text/plain");
 
     // Respond to HEAD request
     if(req.method() == http::verb::head || req.method() == http::verb::options)
@@ -240,6 +271,10 @@ handle_request(
         http::response<http::empty_body> res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, mime_type);
+        // CORS headers
+        res.set("Access-Control-Allow-Origin", "*");
+        res.set("Access-Control-Allow-Headers", "*");
+
         res.content_length(size);
         res.keep_alive(req.keep_alive());
         return res;
@@ -258,6 +293,7 @@ handle_request(
         std::make_tuple(status, req.version())};
     res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
     res.set(http::field::content_type, mime_type);
+    res.set("Access-Control-Allow-Origin", "*");
     res.content_length(size);
     res.keep_alive(req.keep_alive());
 
@@ -327,7 +363,7 @@ public:
         req_ = {};
 
         // Set the timeout.
-        stream_.expires_after(std::chrono::seconds(30));
+        stream_.expires_after(std::chrono::seconds(3));
 
         // Read a request
         http::async_read(stream_, buffer_, req_,
@@ -421,7 +457,9 @@ public:
         , doc_root_(doc_root)
     {
         beast::error_code ec;
+        initQueryParams();
         pdb = initDB();
+
         // Open the acceptor
         acceptor_.open(endpoint.protocol(), ec);
         if(ec)

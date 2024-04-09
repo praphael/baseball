@@ -1,6 +1,6 @@
 import React from 'react'
 
-import { boxScoreFiltOpts, filterFields } from '../js/filters.js'
+import { filterFields } from '../js/filters.js'
 import { statTypesArr } from '../js/stats.js'
 import NumberInputWithCheck from './NumberInputWithCheck.jsx'
 import OptionWithCheck from './OptionWithCheck.jsx'
@@ -18,7 +18,7 @@ const checkLabelClass= "form-check-label"
 const checkClasses = { divClass:checkDivClass, checkClass, labelClass:checkLabelClass, label:"Group" }
 const checkClassesOrder = { divClass:checkDivClass, checkClass, labelClass:checkLabelClass, label:"Ascending" }
 
-const BoxScoreFilters = ({filter, onFiltChange, order, onOrderChange, updateData}) => {
+const BoxScoreFilters = ({boxScoreFiltOpts, filter, onFiltChange, order, onOrderChange, updateData}) => {
 
   const orderFields = new Array()
   orderFields.push(...filterFields)

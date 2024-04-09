@@ -23,10 +23,10 @@ const homeAway = [["Home", "home"], ["Away", "away"]]
 
 // get park info
 const lastYear = 1903
-const parks=[];
-const teams = [];
 
 async function getParksTeams() {
+    const parks = [];
+    const teams = [];
     const r = await doRequest(`/parks?since=${lastYear}`, "GET", null, null, "json", "", (err)=>{
         console.log("could not fetch park data status=", err.status, " error=", err.error);
     });
@@ -60,12 +60,14 @@ async function getParksTeams() {
         })
         teams.sort();
     }
+
+    return {parks, teams};
 }
 
-getParksTeams();
-
-
-const boxScoreFiltOpts = { teams, months, daysOfWeek, homeAway, league, parks };
+// default to empty until we fetch
+const parks = [];
+const teams = [];
+const boxScoreFiltOptsDefaults = { teams, months, daysOfWeek, homeAway, league, parks };
 //const boxScoreIdxMaps = { teamIdxMap, monthIdxMap, dayOfWeekIdxMap }
 
 const boxScoreFiltDefaults = {
@@ -84,4 +86,4 @@ boxScoreFiltDefaults.group.add("month");
 
 const orderDefaults = [["team", true], ["year", false], ["date", false]]
 
-export {boxScoreFiltOpts, boxScoreFiltDefaults, filterFields, orderDefaults}; //}, boxScoreIdxMaps};
+export {boxScoreFiltOptsDefaults, boxScoreFiltDefaults, filterFields, orderDefaults, getParksTeams}; //}, boxScoreIdxMaps};

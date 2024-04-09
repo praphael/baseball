@@ -6,7 +6,7 @@ import StatTypes from './components/StatTypes.jsx';
 
 import { doRequest } from './js/requests.js'
 import { makeBoxScoreQueryString } from './js/queries.js'
-import { boxScoreFiltDefaults, filterFields, orderDefaults } from './js/filters.js'
+import { boxScoreFiltOptsDefaults, boxScoreFiltDefaults, filterFields, getParksTeams, orderDefaults } from './js/filters.js'
 import { statTypesArr, statSortOrder, statSetsDefault } from './js/stats.js'
 
 const statSets = statSetsDefault;
@@ -24,13 +24,26 @@ function App() {
   const [statSet, setStatSet] = useState("Offense 1");
   const [order, setOrder] = useState(orderDefaults);
   const [aggregate, setAggregate] = useState("sum");
+  const [boxScoreFiltOpts, setBoxScoreFiltOpts] = useState(boxScoreFiltOptsDefaults);
+
+  console.log("boxScoreFiltOptsDefaults=", boxScoreFiltOptsDefaults);
+  useEffect(() => {
+      const doFetch = async () => {
+        const boxScoreFiltOptsNew = {...boxScoreFiltOpts};
+        const r = await getParksTeams();
+        boxScoreFiltOptsNew.parks = r.parks;
+        boxScoreFiltOptsNew.teams = r.teams;
+        setBoxScoreFiltOpts(boxScoreFiltOptsNew);
+      };
+      doFetch();
+  }, []);
   
   const updateData = async () => {
     console.log("updateData");
     const statTypes = statSets.get(statSet);
     const qy = makeBoxScoreQueryString(filter, aggregate, statTypes, order);
     console.log("qy=", qy);
-    const url = "/box?" + qy + "&ret=html-bs";
+    const url = encodeURI("/box?" + qy);
     const r = await doRequest(url, 'GET', null, "", null, "html", (e) => {
         alert(`Get Data:  status ${e.status} error: ${e.error}`);
     });
@@ -101,7 +114,7 @@ function App() {
         <div className="row">
           <div className="col-3">
             <h4>Filters/Order:</h4>
-            <BoxScoreFilters filter={filter} onFiltChange={onFiltChange}
+            <BoxScoreFilters boxScoreFiltOpts={boxScoreFiltOpts} filter={filter} onFiltChange={onFiltChange}
                              order={order} onOrderChange={onOrderChange} updateData={updateData}/>
           </div>
           <div className="col-auto">
