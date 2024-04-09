@@ -6,7 +6,7 @@ import StatTypes from './components/StatTypes.jsx';
 
 import { doRequest } from './js/requests.js'
 import { makeBoxScoreQueryString } from './js/queries.js'
-import { boxScoreFiltDefaults, filterFields, orderDefaults } from './js/filters.js'
+import { boxScoreFiltOptsDefaults, boxScoreFiltDefaults, filterFields, getParksTeams, orderDefaults } from './js/filters.js'
 import { statTypesArr, statSortOrder, statSetsDefault } from './js/stats.js'
 
 const statSets = statSetsDefault;
@@ -24,13 +24,26 @@ function App() {
   const [statSet, setStatSet] = useState("Offense 1");
   const [order, setOrder] = useState(orderDefaults);
   const [aggregate, setAggregate] = useState("sum");
+  const [boxScoreFiltOpts, setBoxScoreFiltOpts] = useState(boxScoreFiltOptsDefaults);
+
+  console.log("boxScoreFiltOptsDefaults=", boxScoreFiltOptsDefaults);
+  useEffect(() => {
+      const doFetch = async () => {
+        const boxScoreFiltOptsNew = {...boxScoreFiltOpts};
+        const r = await getParksTeams();
+        boxScoreFiltOptsNew.parks = r.parks;
+        boxScoreFiltOptsNew.teams = r.teams;
+        setBoxScoreFiltOpts(boxScoreFiltOptsNew);
+      };
+      doFetch();
+  }, []);
   
   const updateData = async () => {
     console.log("updateData");
     const statTypes = statSets.get(statSet);
     const qy = makeBoxScoreQueryString(filter, aggregate, statTypes, order);
     console.log("qy=", qy);
-    const url = "/box?" + qy + "&ret=html-bs";
+    const url = encodeURI("/box?" + qy);
     const r = await doRequest(url, 'GET', null, "", null, "html", (e) => {
         alert(`Get Data:  status ${e.status} error: ${e.error}`);
     });
@@ -89,19 +102,21 @@ function App() {
       <div className="container-fluid mt-4 ml-3">
         <div className="row">
           <h2>Baseball stats</h2>
-          <p>This is a tool for certain baseball statistics. If you are interested in queries like 
-             "what are the worst performances for earned runs in a month by team", 
-             or "how many home runs were hit in each stadium in 1932" you may have come to the right place.
-             Currently only team data derived from individual game boxscores is available, going back to 1903.
+          <p>If you like baseball, and have always wondered questions like "what are the worst performances 
+             for earned runs in a month by team", or "how many home runs were hit in each stadium in 1932"
+             you may have come to the right place. Currently only team data derived from individual game
+             boxscores is available, going back to 1903.
              All data was sourced from <a href="https://www.retrosheet.org/gamelogs/index.html#">Retrosheet</a>. 
-             Please direct comments/bug reports/etc. to <a href="praphael@gmail.com">praphael@gmail.com</a>.  
-             Keep in this is a side/learning project, using a combo of ReactJS, Python Flask and sqlite3. Some combinations of parameters may not make sense.  Source available <a href="https://github.com/praphael/baseball">here</a>. 
+             Source available on Github here <a href="https://github.com/praphael/baseball">here</a>. 
+             Feel free to leave comments/suggestions there as well. 
+             Keep in this is a side/learning project, using a combo of ReactJS, C++ for backend and sqlite3 in-memory database for speed.
+             Some combinations of parameters may not make sense.
              </p>
             </div>
         <div className="row">
           <div className="col-3">
             <h4>Filters/Order:</h4>
-            <BoxScoreFilters filter={filter} onFiltChange={onFiltChange}
+            <BoxScoreFilters boxScoreFiltOpts={boxScoreFiltOpts} filter={filter} onFiltChange={onFiltChange}
                              order={order} onOrderChange={onOrderChange} updateData={updateData}/>
           </div>
           <div className="col-auto">

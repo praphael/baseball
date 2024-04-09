@@ -276,9 +276,10 @@ def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
                     else:
                         x = v
                         if i in strIdx:
+                            vr = v
                             if "'" in v:
-                                v = v.replace("'", "''")
-                            x = f"'{v}'"
+                                vr = v.replace("'", "''")
+                            x = f"'{vr}'"
                             
                     if len(x) == 0:
                         x = "NULL"
