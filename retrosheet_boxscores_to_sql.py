@@ -246,6 +246,8 @@ def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
                     s = ""
                 ln = "INSERT INTO boxscore VALUES("
                 for v in row:
+                    if i > 76:
+                        break
                     x = "NULL"
                     if i == 0:
                         x = f"DATE('{v[0:4]}-{v[4:6]}-{v[6:]}')"
@@ -295,8 +297,9 @@ def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
 
                     ln += x
                     i += 1
-                    if i < len(row):
-                        ln += ", "
+                    ln += ", "
+                # remove last comma
+                ln = ln[:-2]
                 ln += ")"
                 if useDB:
                     cur.execute(ln)
