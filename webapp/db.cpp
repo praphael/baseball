@@ -194,9 +194,11 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
             }
         }
         else if (p.valType() == valType::STR) {
-            auto s = p.asCharPtr();
+            auto sp = p.asStr();
+            // wrap in single quotes
+            // auto s = "\'" + sp + "\'";
             // TODO: investigate potential memory leak here
-            err = sqlite3_bind_text(pstmt, c, s, strlen(s), SQLITE_TRANSIENT);
+            err = sqlite3_bind_text(pstmt, c, sp.c_str(), sp.size(), SQLITE_TRANSIENT);
             if (err != SQLITE_OK) {
                 errMsg = "doQuery(" + to_string(__LINE__) + "): sqlite3_bind_text() failed err="s;
                 errMsg += to_string(err) + " c=" + to_string(c);
@@ -247,6 +249,13 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
                 else if (colType == SQLITE_TEXT) {
                     auto txt = sqlite3_column_text(pstmt, c);
                     r.push_back(string(reinterpret_cast<const char*>(txt)));
+                } 
+                else if (colType == SQLITE_FLOAT) {
+                    auto fp = sqlite3_column_double(pstmt, c);
+                    std::stringstream ss;
+                    ss << std::fixed << std::setprecision(2) << fp;
+                    std::string s = ss.str();
+                    r.push_back(s);
                 } else {
                     errMsg = "doQuery: unknown column type " + to_string(colType) + " at c=" + to_string(c);
                     cerr << endl << errMsg;

@@ -138,7 +138,7 @@ string makeHomeAwayAvgQuery(string st) {
     auto h = hss.str();
     ass << "a.gp*a." << st << "/(1.0*(h.gp+a.gp))";
     auto a = ass.str();
-    ss << "trunc(100*(" << h << " + " << a << "))/100.0";
+    ss << "ROUND(100*(" << h << " + " << a << "))/100.0";
     return ss.str();
 }
 
@@ -170,13 +170,13 @@ string buildStatQueryStr(const vector<string>& stats, bool isHome, const string&
                 b = ob; // # switch
             string fld;
             if (agg == "avg") {
-                fld = ", trunc(100*avg(" + b + "_" + fName + "))/100.00 as ";
+                fld = ", ROUND(100*AVG(" + b + "_" + fName + "))/100.00 AS ";
             }
             else if(agg == "no") { // # no aggregaton
-                fld = ", " + b + "_" + fName + " as ";
+                fld = ", " + b + "_" + fName + " AS ";
             }
             else { // # use sum as default
-                fld = ", sum(" + b + "_" + fName + ") as ";
+                fld = ", SUM(" + b + "_" + fName + ") AS ";
             }
             st = f;
             if (isAgainst)
@@ -197,7 +197,7 @@ string buildStatQueryStr(const vector<string>& stats, bool isHome, const string&
 // fieldNames are names that appear in SELECT
 string makeCTEBase(string homeOrAway, string fieldQueryStr, const vector<string>& fieldNames,
                    string agg, const vector<string>& grp, vector<string> &selectFields) {
-    auto base = string(" ") + homeOrAway + "_t as (SELECT ";
+    auto base = string(" ") + homeOrAway + "_t AS (SELECT ";
     cout << endl << "makeCTEBase(" << __LINE__ << "): grp=";
     printVec(grp);
     cout << "makeCTEBase(" << __LINE__ << "): fieldNames=";
@@ -606,10 +606,10 @@ int buildSQLQuery(string argstr, string &qy,
             auto fields = joinStr(r, ", ");
             
             fields += ", " + joinStr(statListH,  ", ");
-            qy += " SELECT " + fields + " from home_t h";
+            qy += " SELECT " + fields + " FROM home_t h";
         }
         else
-            qy += " SELECT * from home_t h";
+            qy += " SELECT * FROM home_t h";
     }
     else { // away only
         if (isPark || isTeam) {
@@ -620,10 +620,10 @@ int buildSQLQuery(string argstr, string &qy,
             auto fields = joinStr(r, ", ");
             
             fields += ", " + joinStr(statListA,  ", ");
-            qy += " SELECT " + fields + " from away_t h";
+            qy += " SELECT " + fields + " FROM away_t h";
         }
         else
-            qy += " SELECT * from away_t h";
+            qy += " SELECT * FROM away_t h";
     }
 
     // join park names
