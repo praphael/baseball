@@ -198,11 +198,12 @@ handle_request(
     cout << endl << "handle_request: paths.size()= " << paths.size();
     cout << endl << "handle_request: paths= ";
     printVec(paths);
-    if(paths.size() != 2) 
+    if(paths.size() != 4)
         return not_found(req.target());
-
+    if(paths[1] != "baseball" || paths[2] != "api")
+        return not_found(req.target());
     // split into route/query string
-    auto rt_qy = splitStr(paths[1], '?');
+    auto rt_qy = splitStr(paths[3], '?');
        
     string resp_body;
     auto mime_type = string("text/plain");
