@@ -27,6 +27,7 @@ function App() {
   const [aggregate, setAggregate] = useState("sum");
   const [boxScoreFiltOpts, setBoxScoreFiltOpts] = useState(boxScoreFiltOptsDefaults);
   const [minGP, setMinGP] = useState(10);
+  const [limit, setLimit] = useState(1);
 
   console.log("boxScoreFiltOptsDefaults=", boxScoreFiltOptsDefaults);
   useEffect(() => {
@@ -44,7 +45,7 @@ function App() {
   const updateData = async () => {
     console.log("updateData");
     const statTypes = statSets.get(statSet);
-    const qy = makeBoxScoreQueryString(filter, aggregate, statTypes, order, minGP);
+    const qy = makeBoxScoreQueryString(filter, aggregate, statTypes, order, minGP, limit);
     console.log("qy=", qy);
     const url = encodeURI("/box?" + qy);
     const r = await doRequest(url, 'GET', null, "", null, "html", (e) => {
@@ -64,6 +65,11 @@ function App() {
     if (n != NaN && n >= 0) setMinGP(n);
   }
 
+  const onNewLimit=(v) => {
+    const n = parseInt(v);
+    if (n != NaN && n >= 1) setLimit(n);
+  }
+
   const onFiltChange = (field, value, isGroup) => {
     console.log("onFiltChange field=", field, "value=", value);
     console.log("onFiltChange filter=", filter);
@@ -72,10 +78,24 @@ function App() {
       const newFilt = {...filter}
       // true if called from group check, else undefined
       if(isGroup) {
-          if(value)
+          if(value) {
             newFilt.group.add(field);
-          else
+            // clear the selected values 
+            // because doesn't make sense to select for value while also grouping
+            // except for ranges
+            if(field == "team") {
+              if(filter.values.get("teamlow") == filter.values.get("teamhigh")) {
+                newFilt.values.set("teamlow", "");
+                newFilt.values.set("teamhigh", "");
+              }
+            }
+            else {
+                newFilt.values.set(field, "");
+            }
+          }
+          else {
             newFilt.group.delete(field);
+          }
       }
       else filter.values.set(field, value);
       setFilter(newFilt);
@@ -147,11 +167,17 @@ function App() {
                         <option value="avg">Average</option>
                     </select>
                 </div>
-                <div className="col-3">
-                  <label className="form-label" htmlFor="filter_minGP">Min Games Played:</label>
-                  <input className="input form-input" size="10"
+                <div className="col-2">
+                  <label className="form-label" htmlFor="filter_minGP">Min Games:</label><br/>
+                  <input className="input form-input" size="5"
                     type="text" id="filter_minGP" value={minGP}
                     onChange={(e)=>(onNewMinGPVal(e.target.value))} />
+                </div>
+                <div className="col-2">
+                  <label className="form-label" htmlFor="filter_minGP">Limit:</label><br/>
+                  <input className="input form-input" size="5"
+                    type="text" id="filter_limit" value={limit}
+                    onChange={(e)=>(onNewLimit(e.target.value))} />
                 </div>
                 <div className="col-4 p-4 align-items-center">
                   <button className={updateButtonClass} onClick={()=>(updateData())}>Get Data</button>

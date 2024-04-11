@@ -1,6 +1,6 @@
 import { statSortOrder } from "./stats";
 
-function makeBoxScoreQueryString(filter, agg, statTypes, order, minGP) {
+function makeBoxScoreQueryString(filter, agg, statTypes, order, minGP, limit) {
     let qy = {};
     filter.values.forEach((v, k) => {
         v = v.trim();
@@ -65,6 +65,7 @@ function makeBoxScoreQueryString(filter, agg, statTypes, order, minGP) {
     qy["minGP"] = minGP;
     qy["ret"] = "html";
     qy["retopt"] = "bs"; // bootstrap
+    qy["limit"] = limit;
     return JSON.stringify(qy);
 }
 

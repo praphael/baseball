@@ -115,8 +115,12 @@ std::string field_val_t::asStr() const {
         return string(v.s);
     else if(vType == valType::INT)
         return std::to_string(v.i);
-    else if(vType == valType::INT_RANGE)
-        return std::to_string(v.rng.low) + " " + std::to_string(v.rng.high);
+    else if(vType == valType::INT_RANGE) {
+        if (v.rng.low != v.rng.high)
+            return std::to_string(v.rng.low) + " to " + std::to_string(v.rng.high);
+        else 
+            return std::to_string(v.rng.low);
+    }
     return "";
 }
 
@@ -230,23 +234,19 @@ string makeCTEBase(string homeOrAway, string fieldQueryStr, const vector<string>
     for (auto f : fieldNames) {
         fieldNamesSet.emplace(f);
         // if we are grouping by, do not select for this field unless it is in the group
-        if(grp.size() == 0)
+        if(grp.size() == 0 || std::find(grp.begin(), grp.end(), f) != std::end(grp)) {
             selectFields.push_back(f);
-        else {
-            if(std::find(grp.begin(), grp.end(), f) != std::end(grp)) {
-                selectFields.push_back(f);
 
-                auto qp = QUERY_PARAMS[f];
-                if (qp.isTeam)
-                    base += (homeOrVisit + "_");
+            auto qp = QUERY_PARAMS[f];
+            if (qp.isTeam)
+                base += (homeOrVisit + "_");
 
-                base += qp.fieldSelector;
-                if (qp.isTeam || f != qp.fieldSelector)
-                    base += " AS " + f;
-                base += ", ";
-            } 
-            else fieldsNotInSelect.push_back(i);
-        }
+            base += qp.fieldSelector;
+            if (qp.isTeam || f != qp.fieldSelector)
+                base += " AS " + f;
+            base += ", ";
+        } 
+        else fieldsNotInSelect.push_back(i);
         i++;
     }
     auto nGroup = 0;
@@ -736,12 +736,9 @@ int buildFinalSelect(string &final_select,
         }
     }
 
-    
-
     string order_by;
     err = makeOrderBy(order_by, order, selectFields, statList, fieldsSummed, fieldsAveraged);
-    string limit_clause = " LIMIT 101";
-    final_select = home_qy + join_clause + away_qy + on_clause + order_by + limit_clause;
+    final_select = home_qy + join_clause + away_qy + on_clause + order_by;
     
     return 0;
     // disabled for now -- fixed after fetch
@@ -749,89 +746,114 @@ int buildFinalSelect(string &final_select,
     //    qy += f" INNER JOIN (SELECT * FROM teams) t ON team=t.team_id"
 }
 
-int buildSQLQuery(string argstr, string &qy, 
-                  vector<field_val_t>& prms, string &errMsg, 
-                  json& args) {
+struct args_t {
+    bool isHome;
+    bool isAway;
+    string agg;
+    vector<string> grp;
+    bool isOldTime;
+    vector<string> stats;
+    vector<string> order;
+    int minGP = 0;
+    int limit;
+};
 
-    args.clear();
+int getArgs(string argstr, args_t& args, json& j_args, string& errMsg) {
+    j_args.clear();
 
     if(argstr.size() > 0) {
         try {
-            args = json::parse(argstr);
+            j_args = json::parse(argstr);
         } catch (json::parse_error& ex) {
-            errMsg = "JSON parse error at byte " + std::to_string(static_cast<int>(ex.byte));
+            errMsg = "getArgs: JSON parse error at byte " + std::to_string(static_cast<int>(ex.byte));
             cerr << errMsg << endl;
             return 1;
         }
     }
-    cout << endl << "buildSQLQuery(" << __LINE__ << "): parsed args" << args;
-    bool isHome = true;
-    bool isAway = true;
-    if (args.contains("homeaway")) {
-        auto homeaway = args["homeaway"];
+    cout << endl << "getArgs(" << __LINE__ << "): parsed args" << j_args;
+    args.isHome = true;
+    args.isAway = true;
+    if (j_args.contains("homeaway")) {
+        auto homeaway = j_args["homeaway"];
         if (homeaway == "home") {
-            isHome = true;
-            isAway = false;
+            args.isHome = true;
+            args.isAway = false;
         }
         else if(homeaway == "away") {
-            isHome = false;
-            isAway = true;         
+            args.isHome = false;
+            args.isAway = true;         
         }   
     }
-    cout << endl << "buildSQLQuery(" << __LINE__ << "): isHome= " << isHome << " isAway=" << isAway;
+    cout << endl << "getArgs(" << __LINE__ << "): isHome= " << args.isHome;
+    cout << " isAway=" << args.isAway;
 
-    auto agg = string("sum");
-    if (args.contains("aggregation")) {
-        if (VALID_AGG.count(args["aggregation"]) > 0)
-            agg = args["aggregation"];
+    args.agg = string("sum");
+    if (j_args.contains("aggregation")) {
+        if (VALID_AGG.count(j_args["aggregation"]) > 0)
+            args.agg = j_args["aggregation"];
     }
-    cout << endl << "buildSQLQuery(" << __LINE__ << "): agg=" << agg;
+    cout << endl << "getArgs(" << __LINE__ << "): agg=" << args.agg;
     
-    auto grp = vector<string>();
-    if (args.contains("group")) {
-        grp = args["group"];
+    args.grp = vector<string>();
+    if (j_args.contains("group")) {
+        args.grp = j_args["group"];
     }
-    cout << endl << "buildSQLQuery(" << __LINE__ << "): grp=";
-    printVec(grp);
+    cout << endl << "getArgs(" << __LINE__ << "): grp=";
+    printVec(args.grp);
 
-    if (grp.size() > 0 && agg == "no") {
+    if (args.grp.size() > 0 && args.agg == "no") {
         errMsg = "There must be an aggregation (total/average) if any stats grouped";
         cerr << endl << errMsg;
         return 1;
     }
 
-    if (grp.size() == 0 && agg != "no") {
+    if (args.grp.size() == 0 && args.agg != "no") {
         errMsg = "At least one field must be grouped if there is am aggregation (total/average)";
         cerr << endl << errMsg;
         return 1;
     }
 
-    bool isOldTime = false;
-    if (args.contains("oldtime")) {
-        isOldTime = args["oldtime"].get<bool>();
+    args.isOldTime = false;
+    if (j_args.contains("oldtime")) {
+        args.isOldTime = j_args["oldtime"].get<bool>();
     }
     
-    vector<string> stats = {"R, _R"};
-    if (args.contains("stats")) {
-        stats = args["stats"];
+    args.stats = {"R, _R"};
+    if (j_args.contains("stats")) {
+        args.stats = j_args["stats"];
     }
-    cout << endl << "buildSQLQuery(" << __LINE__ << "): stats=";
-    printVec(stats);
+    cout << endl << "getArgs(" << __LINE__ << "): stats=";
+    printVec(args.stats);
     
-    vector<string> order = {"year,team,date"};
-    if (args.contains("order")) {
-        order = args["order"];
+    args.order = {"year,team,date"};
+    if (j_args.contains("order")) {
+        args.order = j_args["order"];
     }
-    int minGP = 0;
-    if (args.contains("minGP")) {
-        minGP = args["minGP"].get<int>();
+    args.minGP = 0;
+    if (j_args.contains("minGP")) {
+        args.minGP = j_args["minGP"].get<int>();
     }
-    cout << endl << "buildSQLQuery(" << __LINE__ << "): minGP=" << minGP;
-    
+    cout << endl << "getArgs(" << __LINE__ << "): minGP=" << args.minGP;
+
+    args.limit = 100;
+    if (j_args.contains("limit")) {
+        args.limit = j_args["limit"].get<int>();
+    }
+
+    return 0;
+}
+
+int buildSQLQuery(string argstr, string &qy, 
+                  vector<field_val_t>& prms, string &errMsg, 
+                  json& j_args) {
+
+    args_t args;
+    auto err = getArgs(argstr, args, j_args, errMsg);
+    if(err) return err;
 
     vector<string> fieldNames;
     vector<field_val_t> fieldValues;
-    getQueryParams(args, fieldNames, fieldValues);
+    getQueryParams(j_args, fieldNames, fieldValues);
     
     cout << endl << "buildSQLQuery(" << __LINE__ << "): fieldNames="; 
     printVec(fieldNames);
@@ -843,9 +865,9 @@ int buildSQLQuery(string argstr, string &qy,
     // in the case where results are not being selected or grouped by team,
     // select for home only
     if((find(fieldNames.begin(), fieldNames.end(), string("team")) == std::end(fieldNames)) 
-       && find(grp.begin(), grp.end(), string("team")) == std::end(grp) && 
-          find(grp.begin(), grp.end(), string("homeoraway")) == std::end(grp))
-        isAway = false;
+       && find(args.grp.begin(), args.grp.end(), string("team")) == std::end(args.grp) && 
+          find(args.grp.begin(), args.grp.end(), string("homeoraway")) == std::end(args.grp))
+        args.isAway = false;
     prms.clear();
     prms.insert(prms.end(), fieldValues.begin(), fieldValues.end());
     
@@ -855,8 +877,8 @@ int buildSQLQuery(string argstr, string &qy,
     // e.g. home aaway splits, groupings by team
     vector<string> statListA;
     vector<string> statListH;
-    auto statQueryStrH = buildStatQueryStr(stats, true, agg, statListH);
-    auto statQueryStrA = buildStatQueryStr(stats, false, agg, statListA);
+    auto statQueryStrH = buildStatQueryStr(args.stats, true, args.agg, statListH);
+    auto statQueryStrA = buildStatQueryStr(args.stats, false, args.agg, statListA);
     cout << endl << "buildSQLQuery(" << __LINE__ << "): statQueryStrH=" << statQueryStrH;
     cout << endl << "buildSQLQuery(" << __LINE__ << "): statListH=";
     printVec(statListH);
@@ -866,9 +888,9 @@ int buildSQLQuery(string argstr, string &qy,
     // print(f"statList=", statList)
     vector<string> selectFieldsH, selectFieldsA;
     vector<int> fieldsNotInSelectH, fieldsNotInSelectA;
-    auto qy_home = makeCTEBase("home", statQueryStrH, fieldNames, agg, grp, 
+    auto qy_home = makeCTEBase("home", statQueryStrH, fieldNames, args.agg, args.grp, 
                                 selectFieldsH, fieldsNotInSelectH);
-    auto qy_away = makeCTEBase("away", statQueryStrA, fieldNames, agg, grp,
+    auto qy_away = makeCTEBase("away", statQueryStrA, fieldNames, args.agg, args.grp,
                                 selectFieldsA, fieldsNotInSelectA);
     cout << endl << "buildSQLQuery(" << __LINE__ << "): qy_home=" << qy_home; 
     cout << endl << "buildSQLQuery(" << __LINE__ << "): qy_away" << qy_away; 
@@ -878,19 +900,19 @@ int buildSQLQuery(string argstr, string &qy,
 
     qy.clear();
     qy += string("WITH");
-    if (isHome) {
-        whereClauseH = buildCTEWhereClause(true, fieldNames, grp, isOldTime, 
-                                           selectFieldsH, minGP, fieldsNotInSelectH);
+    if (args.isHome) {
+        whereClauseH = buildCTEWhereClause(true, fieldNames, args.grp, args.isOldTime, 
+                                           selectFieldsH, args.minGP, fieldsNotInSelectH);
         qy += qy_home + whereClauseH + ")";        
     }
-    if (isAway) {
-        if(isHome) {
+    if (args.isAway) {
+        if(args.isHome) {
             qy += ", ";
             auto prmsA = prms;
             prms.insert(prms.end(), prmsA.begin(), prmsA.end());            
         }
-        whereClauseA = buildCTEWhereClause(false, fieldNames, grp, isOldTime,
-                                           selectFieldsA, minGP, fieldsNotInSelectA);
+        whereClauseA = buildCTEWhereClause(false, fieldNames, args.grp, args.isOldTime,
+                                           selectFieldsA, args.minGP, fieldsNotInSelectA);
         cout << endl << "qy (before away)=" << qy;
         qy += qy_away + whereClauseA + ")";        
         cout << endl << "qy (after away)=" << qy;
@@ -904,10 +926,14 @@ int buildSQLQuery(string argstr, string &qy,
 
 
     string final_select;
-    auto err = buildFinalSelect(final_select, fieldNames, selectFieldsH, fieldsNotInSelectH,
-                                fieldValues, statListH, grp, order, agg, isHome, isAway);
+    err = buildFinalSelect(final_select, fieldNames, selectFieldsH, fieldsNotInSelectH,
+                        fieldValues, statListH, args.grp, args.order, args.agg, 
+                        args.isHome, args.isAway);
     
     qy += final_select;
+    string limit_clause = " LIMIT " + to_string(args.limit);
+    qy += limit_clause;
+
     return err;
 }
 
