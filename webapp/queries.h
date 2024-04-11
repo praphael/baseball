@@ -15,7 +15,13 @@ using json = nlohmann::json;
 using query_result_t = std::vector<std::vector<std::string>>;
                   
 
-enum valType {NOT_SET, INT, STR};
+enum valType {NOT_SET, INT, STR, INT_RANGE};
+
+struct range_t {
+    int low;
+    int high;
+};
+
 class field_val_t {    
 private:
     // 0 == integer, 1 == string
@@ -23,27 +29,26 @@ private:
     union {
         int i;
         char s[256];
+        range_t rng;
     } v;
 
 public:
-    valType getValType();
-    int asInt();
-    std::string asStr();
-    const char* asCharPtr();
+    valType getValType() const;
+    int asInt() const;
+    range_t asIntRange() const;
+    std::string asStr() const;
+    const char* asCharPtr() const;
     void setInt(int val);
     void setStr(std::string val);
+    void setIntRange(int low, int high);
 };
 
-// map of query to params to 
-// first entry - SQL as used in first CTE WHERE clause, including possible renaming
-// second entry - SQL as used in second WHERE clause
-//third entry - representative value, used for type inference
-// fourth entry - true/false, whether this is a "team" stat, to be used for appending 'home/visiting" to field name
+// parameter types
 struct q_params_t {
-    std::string firstClause;
-    std::string secondClause;
-    valType vType; // 0 = int, 1 - string
-    bool isTeam;
+    // SQL for selecting this column in table, including funciton call,etc.
+    std::string fieldSelector; 
+    valType vType; 
+    bool isTeam; // whether is team-dependent field, e.g. score
 };
 
 std::unordered_map<std::string, q_params_t>& initQueryParams();
@@ -57,9 +62,10 @@ int getQueryParams(const json& args,
                     std::vector<std::string>& fieldNames,
                     std::vector<field_val_t>& fieldValues);
 
-std::string buildCTEWhereClause(bool isHome, std::vector<std::string> fieldNames, 
-                                std::vector<std::string> grp,
-                                bool isOldTime);
+std::string buildCTEWhereClause(bool isHome, const std::vector<std::string>& fieldNames, 
+                                const std::vector<std::string>& grp,
+                                bool isOldTime, const std::vector<std::string>& selectFields,
+                                int minGP, const std::vector<int>& fieldsNotInSelect);
 
 std::string renderHTMLTable(std::vector<std::string> headers, query_result_t result, std::string opts);
 

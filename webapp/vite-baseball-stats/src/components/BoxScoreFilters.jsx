@@ -4,6 +4,7 @@ import { filterFields } from '../js/filters.js'
 import { statTypesArr } from '../js/stats.js'
 import NumberInputWithCheck from './NumberInputWithCheck.jsx'
 import OptionWithCheck from './OptionWithCheck.jsx'
+import OptionRangeWithCheck from './OptionRangeWithCheck.jsx'
 import AccordionHeader from './AccordionHeader.jsx'
 
 const optionInputDivClass = "row mb-1 mt-1"; // border border-secondary
@@ -48,12 +49,13 @@ const BoxScoreFilters = ({boxScoreFiltOpts, filter, onFiltChange, order, onOrder
             onChange={onFiltChange}
             optionClasses={optionClasses}
             checkClasses={checkClasses}/>
-        <NumberInputWithCheck fieldName="year" label="Year"
-            val={filter.values.get("year")}
-            checkVal={filter.group.has("year")}
+        <OptionRangeWithCheck fieldName="year" label="Years" options={boxScoreFiltOpts.years} 
+            valLow={filter.values.get("yearlow")}
+            valHigh={filter.values.get("yearhigh")}
+            checkVal={filter.group.has("year")} 
             onChange={onFiltChange}
-            numberInputClasses={numberInputClasses}
-            checkClasses={checkClasses} />
+            optionClasses={optionClasses}
+            checkClasses={checkClasses}/>
         <OptionWithCheck fieldName="month" label="Month" options={boxScoreFiltOpts.months}
             val={filter.values.get("month")}
             checkVal={filter.group.has("month")}

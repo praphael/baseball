@@ -10,20 +10,23 @@ using std::cout;
 using std::endl;
 
 int main(int argc, char *argv[]) {
-    if (argc < 1)
-        cout <<  endl << "Usage: test <query string>";
-
+    if (argc < 4)
+        cout << endl << "Usage: test <yearStart>, <yearEnd>, <query string>";
+    auto yearStart = std::atoi(argv[1]);
+    auto yearEnd = std::atoi(argv[2]);
+    auto qyStr = string(argv[3]);
     initQueryParams();
-    sqlite3 *pdb = initDB();
-    vector<field_val_t> params;
+    sqlite3 *pdb = initDB(yearStart, yearEnd);
     query_result_t result;
     string resp, mimeType;
     std::unordered_map<std::string, std::string> teamsMap;
-    handleParksRequest(pdb, "", resp, mimeType);
+    /*
+    handleParksRequest(pdb, qyStr, resp, mimeType);
     cout << resp;
-    handleTeamsRequest(pdb, "", resp, mimeType, teamsMap);
+    handleTeamsRequest(pdb, qyStr, resp, mimeType, teamsMap);
     cout << resp;
-    handleBoxRequest(pdb, "", resp, mimeType, teamsMap);
+    */
+    handleBoxRequest(pdb, qyStr, resp, mimeType, teamsMap);
     cout << resp;
     /* doQuery(pdb, "SELECT * from parks", params, result);
     for(auto row : result) {

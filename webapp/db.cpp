@@ -45,6 +45,7 @@ void copyTable(sqlite3* pdb, const std::string qy, col_info_t& colInfo,
 
     if (err != SQLITE_OK) {
         cerr << std::endl << "copyTable: could not prepare insert statement " << err;
+        cerr << std::endl << pzTail;
         exit(1);
     }                             
 
@@ -177,20 +178,45 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
     auto err = sqlite3_prepare_v2(pdb, qy.c_str(), qy.size(), &pstmt, &pzTail); 
     if (err != SQLITE_OK) {
         errMsg = "doQuery(" + to_string(__LINE__) + "): could not prepare query statement "s;
+        // create more meaningful error message
+        // back up 30 characters, and advance forward same amount
+        int nch=0;
+        char *e = const_cast<char*>(pzTail);
+        char *b = e;
+        while (nch < 30 && b != qy.c_str()) {
+            nch++;
+            b--;
+            if(*e != 0) e++;
+        }
+        // null terminate 
+        *e = 0;
+        errMsg.push_back('\n');
+        errMsg += string(b); errMsg.push_back('\n');
+        for(int i=nch; i>0; i--) errMsg.push_back(' ');
+        errMsg.push_back('^'); errMsg.push_back('\n'); 
+        for(int i=nch; i>0; i--) errMsg.push_back(' ');
+        errMsg.push_back('|'); errMsg.push_back('\n'); 
+        for(int i=nch; i>0; i--) errMsg.push_back(' ');
+        errMsg += "\nerror here";
+        for(int i=nch-10; i>0; i--) errMsg.push_back('-');
+        errMsg.push_back('+');
+
         cerr << std::endl << errMsg << err;
+        cerr << std::endl << "qy=\"" << qy << "\"";
         return(1);
     }                             
 
     /* bind parametes */
     int c = 1;
     for (auto p : prms) {
+        cout << endl << "doQuery ("  << __LINE__ << ") p=" << p.asStr();
         if (p.getValType() == valType::INT) {
             err = sqlite3_bind_int(pstmt, c, p.asInt());
             if (err != SQLITE_OK) {
                 errMsg = "doQuery(" + to_string(__LINE__) + "): sqlite3_bind_int failed err="s;
                 errMsg += to_string(err)+ " c=" + to_string(c);
                 cerr << endl << errMsg;
-                return 1;
+                return 2;
             }
         }
         else if (p.getValType() == valType::STR) {
@@ -203,12 +229,29 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
                 errMsg = "doQuery(" + to_string(__LINE__) + "): sqlite3_bind_text() failed err="s;
                 errMsg += to_string(err) + " c=" + to_string(c);
                 cerr << endl << errMsg;
-                return 2;
+                return 3;
+            }
+        } else if (p.getValType() == valType::INT_RANGE) {
+            auto rng = p.asIntRange();
+            err = sqlite3_bind_int(pstmt, c, rng.low);
+            if (err != SQLITE_OK) {
+                errMsg = "doQuery(" + to_string(__LINE__) + "): sqlite3_bind_int failed err="s;
+                errMsg += to_string(err)+ " c=" + to_string(c);
+                cerr << endl << errMsg;
+                return 4;
+            }
+            c += 1;
+            err = sqlite3_bind_int(pstmt, c, rng.high);
+            if (err != SQLITE_OK) {
+                errMsg = "doQuery(" + to_string(__LINE__) + "): sqlite3_bind_int failed err="s;
+                errMsg += to_string(err)+ " c=" + to_string(c);
+                cerr << endl << errMsg;
+                return 5;
             }
         } else {
             errMsg = "doQuery(" + to_string(__LINE__) + "): unknown type "s + to_string(p.getValType());
             cerr << endl << errMsg;
-            return 3;  // unknown type
+            return 6;  // unknown type
         }
         c++; 
     }
@@ -224,7 +267,7 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
     if (err != SQLITE_ROW) {
         // errMsg += "doQuery: sqlite3_step() err=" + to_string(err);
         cerr << endl << "doQuery no data qy='" << qy << "'";
-        return 0;        
+        return 0;
     }
     
     int row = 0;
@@ -253,7 +296,7 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
                 else if (colType == SQLITE_FLOAT) {
                     auto fp = sqlite3_column_double(pstmt, c);
                     std::stringstream ss;
-                    ss << std::fixed << std::setprecision(2) << fp;
+                    ss << std::fixed << std::setprecision(3) << fp;
                     std::string s = ss.str();
                     r.push_back(s);
                 } else {
@@ -277,7 +320,7 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
     return 0;
 }
 
-sqlite3* initDB() {
+sqlite3* initDB(int yearStart, int yearEnd) {
     initTableInfo();
     sqlite3 *pdb, *pdb_mem;
     
@@ -311,9 +354,7 @@ sqlite3* initDB() {
     }
     copyTable(pdb, qyTeams, teamsCol, "teams", pdb_mem, 600);
     copyTable(pdb, qyParks, parksCol, "parks", pdb_mem, 1000);
-    auto startYear = 1950;
-    auto endYear = 1960;
-    for (auto yr=startYear; yr<=endYear; yr++) {
+    for (auto yr=yearStart; yr<=yearEnd; yr++) {
         auto qyBox = std::string("SELECT * from boxscore WHERE CAST(substr(game_date,0,5) AS INTEGER) == ") + std::to_string(yr);
         cout << endl << "initDB: getting year" << yr;
         copyTable(pdb, qyBox, boxCol, "boxscore", pdb_mem, 100000);
@@ -388,6 +429,10 @@ void fixColumnNames(vector<string>& colummNames) {
             else {
                 col[0] = toUpper(col[0]);
             }
+
+            // replace '_' with spaces
+            auto idx = size_t{0};
+            while ((idx = col.find('_')) != string::npos) col[idx] = ' ';
         }
         cout << "->" << col;
     }
@@ -488,7 +533,6 @@ int handleBoxRequest(sqlite3 *pdb, const string &qy, string& resp, string &mimeT
     auto err = buildSQLQuery(qy, box_qry, prms, resp, args);
     cout << endl << "handleBoxRequest( " << __LINE__ << "): box_qry=" << box_qry;
     if(err) { 
-        resp = "handleBoxRequest() buildSQLQuery failed: err=" + to_string(err);
         cerr << endl << "handleBoxRequest( " << __LINE__ << "): buildSQLQuery failed err=";
         cerr << err;
         return 400;
@@ -535,50 +579,3 @@ int handleBoxRequest(sqlite3 *pdb, const string &qy, string& resp, string &mimeT
 
     return 0;
 }
-
-/*
-# make header for table
-        hdr = selectFieldsH
-        for st in statList:
-            hdr.append(st)
-
-        # rename fields which started with '_' or number
-        for i in range(len(hdr)):
-            if hdr[i] == "homeoraway":
-                hdr[i] = "Home/Away"
-            elif hdr[i][0] == "n" and isNumberChar(hdr[i][1]):
-                hdr[i] = hdr[i][1:]
-            elif hdr[i][0] == "_":
-                hdr[i] = "opp" + hdr[i][1:]
-            else:
-                h = hdr[i][1:]
-                hdr[i] = toUpper(hdr[i][0]) + h
-
-        # fix month from number to string value
-        if "Month" in hdr or "Team" in hdr:
-            monthIdx = -1
-            teamIdx = -1
-            if "Month" in hdr:
-                monthIdx = hdr.index("Month")
-            if "Team" in hdr:
-                teamIdx = hdr.index("Team")
-            if teamIdx >= 0 and not hasattr(app, 'team_name'):
-                get_teams()
-            i = 0
-            for t in r:
-                r2 = list(t)
-                if monthIdx >= 0:
-                    month = calendar.month_name[t[monthIdx]]
-                    r2[monthIdx] = month
-                if t[teamIdx] in app.team_names:
-                    team = app.team_names[t[teamIdx]]
-                    r2[teamIdx] = team
-
-                r[i] = tuple(r2)
-                i += 1
-            #print("r(fixed month)=", r)
-
-        ret = "json"
-        if "ret" in args:
-            ret = args.get("ret")
-        print("ret=", ret)*/

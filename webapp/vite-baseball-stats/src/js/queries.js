@@ -1,15 +1,30 @@
 import { statSortOrder } from "./stats";
 
-function makeBoxScoreQueryString(filter, agg, statTypes, order) {
+function makeBoxScoreQueryString(filter, agg, statTypes, order, minGP) {
     let qy = {};
     filter.values.forEach((v, k) => {
         v = v.trim();
-        if (k == "year" || k == "month" && v != "(all)" && v != "") {
-            console.log("makeBoxScoreQueryString k=", k, " v=", v);
-            v = parseInt(v);
-            console.log("makeBoxScoreQueryString (after parse) v=", v);
-            if (v >= 0)
-                qy[k] = v;
+        if (k == "yearlow" || k == "yearhigh" || k == "month") {
+            if (v != "(all)" && v != "") {
+                console.log("makeBoxScoreQueryString k=", k, " v=", v);
+                v = parseInt(v);
+                console.log("makeBoxScoreQueryString (after parse) v=", v);
+                if (v >= 0) {
+                    if (k == "yearlow") {
+                        const q = qy["year"];
+                        qy["year"] = {...q, "low" : v};
+                        console.log("yearlow qy=", qy);
+                    }
+                    else if (k == "yearhigh") {
+                        const q = qy["year"];
+                        qy["year"] = {...q, "high" : v};
+                        console.log("yearhigh qy=", qy);
+                    }
+                    else {
+                        qy[k] = v;
+                    }
+                }
+            }
         }
         else if(v.length > 0) {            
             qy[k] = v;
@@ -44,9 +59,10 @@ function makeBoxScoreQueryString(filter, agg, statTypes, order) {
     order.forEach((ord) => { 
       let ordStr = ord[0];
       console.log("ord= ", ord)
-      ordStr += (ord[1]? "<" : ">");
+      ordStr += (ord[1]? ">" : "<");
       qy["order"].push(ordStr);
     });   
+    qy["minGP"] = minGP;
     qy["ret"] = "html";
     qy["retopt"] = "bs"; // bootstrap
     return JSON.stringify(qy);

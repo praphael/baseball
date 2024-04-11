@@ -5,7 +5,7 @@
 #include "sqlite3.h"
 #include "queries.h"
 
-sqlite3* initDB();
+sqlite3* initDB(int yearStart, int yearEnd);
 
 int doQuery(sqlite3 *pdb, std::string qy, 
             const std::vector<field_val_t>& params,

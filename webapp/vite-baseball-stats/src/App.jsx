@@ -8,6 +8,7 @@ import { doRequest } from './js/requests.js'
 import { makeBoxScoreQueryString } from './js/queries.js'
 import { boxScoreFiltOptsDefaults, boxScoreFiltDefaults, filterFields, getParksTeams, orderDefaults } from './js/filters.js'
 import { statTypesArr, statSortOrder, statSetsDefault } from './js/stats.js'
+import NumberInputWithCheck from './components/NumberInputWithCheck.jsx';
 
 const statSets = statSetsDefault;
 
@@ -25,10 +26,12 @@ function App() {
   const [order, setOrder] = useState(orderDefaults);
   const [aggregate, setAggregate] = useState("sum");
   const [boxScoreFiltOpts, setBoxScoreFiltOpts] = useState(boxScoreFiltOptsDefaults);
+  const [minGP, setMinGP] = useState(10);
 
   console.log("boxScoreFiltOptsDefaults=", boxScoreFiltOptsDefaults);
   useEffect(() => {
       const doFetch = async () => {
+        console.log("useEffect boxScoreFiltOpts=", boxScoreFiltOpts);
         const boxScoreFiltOptsNew = {...boxScoreFiltOpts};
         const r = await getParksTeams();
         boxScoreFiltOptsNew.parks = r.parks;
@@ -41,7 +44,7 @@ function App() {
   const updateData = async () => {
     console.log("updateData");
     const statTypes = statSets.get(statSet);
-    const qy = makeBoxScoreQueryString(filter, aggregate, statTypes, order);
+    const qy = makeBoxScoreQueryString(filter, aggregate, statTypes, order, minGP);
     console.log("qy=", qy);
     const url = encodeURI("/box?" + qy);
     const r = await doRequest(url, 'GET', null, "", null, "html", (e) => {
@@ -54,8 +57,13 @@ function App() {
 
   const onNewAggVal=(v) => {
     setAggregate(v);
-    updateData();
   }
+
+  const onNewMinGPVal=(v) => {
+    const n = parseInt(v);
+    if (n != NaN && n >= 0) setMinGP(n);
+  }
+
   const onFiltChange = (field, value, isGroup) => {
     console.log("onFiltChange field=", field, "value=", value);
     console.log("onFiltChange filter=", filter);
@@ -102,11 +110,12 @@ function App() {
       <div className="container-fluid mt-4 ml-3">
         <div className="row">
           <h2>Baseball stats</h2>
-          <p>If you like baseball, and have always wondered questions like "what are the worst performances 
-             for earned runs in a month by team", or "how many home runs were hit in each stadium in 1932"
-             you may have come to the right place. Currently only team data derived from individual game
-             boxscores is available, going back to 1903.
+          <p>If questions like "what are the worst performances 
+             for earned runs in a month by an MLB team", or "how many home runs were hit by each team over the last ten years"
+             you may have come to the right place. This tool allows one to into various groupings and splits from different statics.
+             MLB data derived from individual game going back to 1903. 
              All data was sourced from <a href="https://www.retrosheet.org/gamelogs/index.html#">Retrosheet</a>. 
+             </p><p>
              Source available on Github here <a href="https://github.com/praphael/baseball">here</a>. 
              Feel free to leave comments/suggestions there as well. 
              Keep in this is a side/learning project, using a combo of ReactJS, C++ for backend and sqlite3 in-memory database for speed.
@@ -130,15 +139,21 @@ function App() {
               { /* aggregation */ }
                 <div className={aggregateDivClass}>
                 { /* <label className={filtOptLabelClass} htmlFor="filter_agg">Total/Avg:</label> */ }
-                    <label>Total/Average</label>
+                    <label>Aggregate:</label>
                     <select className={aggregateSelectClass} id="filter_agg" value={aggregate}
-                        onChange={(e)=> (onNewAggVal(e.target.value))}>
+                        onInput={(e)=> (onNewAggVal(e.target.value))}>
                         <option value="no">(no)</option>
                         <option value="sum">Total</option>
                         <option value="avg">Average</option>
                     </select>
                 </div>
-                <div className="col-4 align-items-end">
+                <div className="col-3">
+                  <label className="form-label" htmlFor="filter_minGP">Min Games Played:</label>
+                  <input className="input form-input" size="10"
+                    type="text" id="filter_minGP" value={minGP}
+                    onChange={(e)=>(onNewMinGPVal(e.target.value))} />
+                </div>
+                <div className="col-4 p-4 align-items-center">
                   <button className={updateButtonClass} onClick={()=>(updateData())}>Get Data</button>
                 </div>
               </div>

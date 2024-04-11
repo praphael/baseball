@@ -419,14 +419,16 @@ public:
     listener(
         net::io_context& ioc,
         tcp::endpoint endpoint,
-        std::shared_ptr<std::string const> const& doc_root)
+        std::shared_ptr<std::string const> const& doc_root,
+        int yearStart, 
+        int yearEnd)
         : ioc_(ioc)
         , acceptor_(net::make_strand(ioc))
         , doc_root_(doc_root)
     {
         beast::error_code ec;
         initQueryParams();
-        pdb = initDB();
+        pdb = initDB(yearStart, yearEnd);
 
         // Open the acceptor
         acceptor_.open(endpoint.protocol(), ec);
@@ -506,29 +508,46 @@ private:
 int main(int argc, char* argv[])
 {
     // Check command line arguments.
-    if (argc != 5)
+    if (argc > 7)
     {
         std::cerr <<
-            "Usage: http-server-async <address> <port> <doc_root> <threads>\n" <<
+            "Usage: httpd [<yearStart>] [<yearEnd>] [<address>] [<port>] [<doc_root>] [<threads>]\n" <<
             "Example:\n" <<
-            "    http-server-async 0.0.0.0 8080 . 1\n";
+            "    httpd 1903 2022 0.0.0.0 8080 . 1\n";
         return EXIT_FAILURE;
     }
-    auto const address = net::ip::make_address(argv[1]);
-    auto const port = static_cast<unsigned short>(std::atoi(argv[2]));
-    auto const doc_root = std::make_shared<std::string>(argv[3]);
-    auto const threads = std::max<int>(1, std::atoi(argv[4]));
+    // defaults
+    auto yearStart = 1903;
+    auto yearEnd = 2022;
+    string address_str = "127.0.0.1";
+    unsigned short port = 5000;
+    string docroot = ".";
+    int threads = 2;
 
+    if (argc > 1)
+        yearStart = std::atoi(argv[1]);
+    if (argc > 2)
+        yearEnd = std::atoi(argv[2]);
+    if (argc > 3)
+        address_str = string(argv[3]);
+    if (argc > 4)
+        port = static_cast<unsigned short>(std::atoi(argv[4]));
+    if (argc > 5)
+        docroot= string(argv[5]);
+    if (argc > 6)
+        threads = std::max<int>(1, std::atoi(argv[6]));
+
+    auto doc_root = std::make_shared<string>(docroot);
     
     // The io_context is required for all I/O
     net::io_context ioc{threads};
-
+    auto address = net::ip::make_address(address_str);
     std::cout << std::endl << "creating listening port";
     // Create and launch a listening port
     std::make_shared<listener>(
         ioc,
         tcp::endpoint{address, port},
-        doc_root)->run();
+        doc_root, yearStart, yearEnd)->run();
 
 
     std::cout << std::endl << "running io service";

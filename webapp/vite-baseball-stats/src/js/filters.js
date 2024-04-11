@@ -22,13 +22,17 @@ const daysOfWeek = [["Sun", "Sun"], ["Mon", "Mon"], ["Tue", "Tue"], ["Wed", "Wed
 const league = [["American", "AL"], ["National", "NL"]]
 const homeAway = [["Home", "home"], ["Away", "away"]]
 
-// get park info
-const lastYear = 1903
 
+const firstYear = 1903;
+const lastYear = 2022;
+const years = [];
+for (let yr=firstYear; yr<=lastYear; yr++) years.push([yr.toString(), yr.toString()]);
+
+// get park info
 async function getParksTeams() {
     const parks = [];
     const teams = [];
-    const r = await doRequest(`/parks?since=${lastYear}`, "GET", null, null, "json", "", (err)=>{
+    const r = await doRequest(`/parks?since=${firstYear}`, "GET", null, null, "json", "", (err)=>{
         console.log("could not fetch park data status=", err.status, " error=", err.error);
     });
 
@@ -68,7 +72,7 @@ async function getParksTeams() {
 // default to empty until we fetch
 const parks = [];
 const teams = [];
-const boxScoreFiltOptsDefaults = { teams, months, daysOfWeek, homeAway, league, parks };
+const boxScoreFiltOptsDefaults = { teams, years, months, daysOfWeek, homeAway, league, parks };
 //const boxScoreIdxMaps = { teamIdxMap, monthIdxMap, dayOfWeekIdxMap }
 
 const boxScoreFiltDefaults = {
@@ -77,7 +81,8 @@ const boxScoreFiltDefaults = {
     agg: "sum"  // aggregation ("sum", "avg", "no")
 }
 boxScoreFiltDefaults.values.set("team", "BAL");
-boxScoreFiltDefaults.values.set("year", "2019");
+boxScoreFiltDefaults.values.set("yearlow", "2022");
+boxScoreFiltDefaults.values.set("yearhigh", "2022");
 boxScoreFiltDefaults.values.set("month", "");
 boxScoreFiltDefaults.values.set("park", "");
 boxScoreFiltDefaults.values.set("dow", "");
