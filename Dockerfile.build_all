@@ -40,7 +40,19 @@ RUN mkdir alldata && \
     unzip -d alldata teams.zip && \
     rm *.zip
 
-RUN git clone https://github.com/praphael/baseball
+RUN mkdir /baseball && \
+    mkdir /baseball/webapp && \
+    mkdir /baseball/vite-baseball-stats
+
+# copy files
+# don't use bulk copy to avoid copying over junk/temp files
+COPY ./*.py /baseball
+COPY ./webapp/*.c* /baseball/webapp
+COPY ./webapp/*.h* /baseball/webapp
+COPY ./webapp/CMakeLists.txt /baseball/webapp
+COPY ./webapp/CMakeLists.txt /baseball/webapp
+COPY ./webapp/build.sh /baseball/webapp
+COPY ./webapp/vite-baseball-stats /baseball/webapp/vite-baseball-stats
 
 RUN mv alldata baseball && \
     cd baseball && \
@@ -55,7 +67,10 @@ RUN cd /baseball/webapp && \
 
 # # bundle front and backend into tar archive
 RUN cd /baseball/webapp && \
-    tar cf dist.tar httpd baseball.db vite-baseball-stats/dist && \
+    tar cf dist.tar httpd baseball.db && \
+    cd vite-baseball-stats && \
+    tar rf ../dist.tar dist && \
+    cd .. && \
     bzip2 dist.tar
     
 

@@ -381,7 +381,7 @@ int makeArgMap(string qy, unordered_map<string, string>& args) {
     return 0;
 }
 
-string makeJSONresponse(vector<string> columnNames, query_result_t result) {
+string makeJSONresponse(vector<string> columnNames, query_result_t result, int limit) {
     string r;
     r += "{ \"headers\": [";
     for(auto c : columnNames) {
@@ -389,6 +389,7 @@ string makeJSONresponse(vector<string> columnNames, query_result_t result) {
     }
     r.pop_back();
     r += "], \"result\": [";
+    int rn = 0;
     for(auto row : result) {
         r += "[";
         for(auto fld : row) {
@@ -396,9 +397,19 @@ string makeJSONresponse(vector<string> columnNames, query_result_t result) {
         }
         r.pop_back();
         r += "],";
+        rn += 1;
+        if(rn >= limit) break;
     }
     r.pop_back();
-    r += "]}";
+    r += "], ";
+    r += "\"hasMore\": ";
+    if (result.size() > rn) {
+        r += "true";
+    } else {
+        r += "false";
+    }
+
+    r += " }";
     return r;
 }
 
@@ -490,7 +501,7 @@ int handleParksRequest(sqlite3 *pdb, const string &qy, string& resp, string& mim
     vector<string> columnNames;
     int err = doQuery(pdb, qry, prms, result, columnNames, resp);
     if (err) return err;
-    resp = makeJSONresponse(columnNames, result);
+    resp = makeJSONresponse(columnNames, result, result.size());
     mimeType = "application/json";
     return 0;
 }
@@ -519,7 +530,7 @@ int handleTeamsRequest(sqlite3 *pdb, const string &qy, string& resp, string& mim
         teamsMap[row[0]] = row[2] + " " + row[3];
     }
     if (err) return err;
-    resp = makeJSONresponse(columnNames, result);
+    resp = makeJSONresponse(columnNames, result, result.size());
     mimeType = "application/json";
     return 0;
 }
@@ -528,8 +539,8 @@ int handleBoxRequest(sqlite3 *pdb, const string &qy, string& resp, string &mimeT
                     const unordered_map<string, string>& teamsMap) {
     string box_qry;
     vector<field_val_t> prms;
-    json args;
-    cout << endl << "handleBoxRequest( " << __LINE__ << "): calling buildSQLQuery()" << args;
+    args_t args;
+    cout << endl << "handleBoxRequest( " << __LINE__ << "): calling buildSQLQuery() qy=" << qy;
     auto err = buildSQLQuery(qy, box_qry, prms, resp, args);
     cout << endl << "handleBoxRequest( " << __LINE__ << "): box_qry=" << box_qry;
     if(err) { 
@@ -547,12 +558,10 @@ int handleBoxRequest(sqlite3 *pdb, const string &qy, string& resp, string &mimeT
          cerr << err;
          return 500;
     }
-    auto retType = string("html");
-
+    
     cout << endl << "handleBoxRequest( " << __LINE__ << "): doQuery returned " << result.size() << " rows";
-    if(args.contains("ret")) {
-        retType = args["ret"];
-    }
+
+    auto retType = args.ret;
     try { 
         cout << endl << "handleBoxRequest( " << __LINE__ << "): fixing results";
         fixResults(columnNames, result, teamsMap);
@@ -567,13 +576,10 @@ int handleBoxRequest(sqlite3 *pdb, const string &qy, string& resp, string &mimeT
     }
     cout << endl << "handleBoxRequest( " << __LINE__ << "): retType=" << retType;
     if(retType == "json") {
-        resp = makeJSONresponse(columnNames, result);
+        resp = makeJSONresponse(columnNames, result, args.limit);
     }
     else if(retType == "html") {
-        auto opts = string("");
-        if(args.contains("retopt"))
-            opts = args["retopt"].get<string>();
-        resp = renderHTMLTable(columnNames, result, opts);
+        resp = renderHTMLTable(columnNames, result, args.retopts, args.limit);
     } 
     mimeType = "application/json";
 

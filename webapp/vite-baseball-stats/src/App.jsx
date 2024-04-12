@@ -27,7 +27,7 @@ function App() {
   const [aggregate, setAggregate] = useState("sum");
   const [boxScoreFiltOpts, setBoxScoreFiltOpts] = useState(boxScoreFiltOptsDefaults);
   const [minGP, setMinGP] = useState(10);
-  const [limit, setLimit] = useState(1);
+  const [limit, setLimit] = useState(25);
 
   console.log("boxScoreFiltOptsDefaults=", boxScoreFiltOptsDefaults);
   useEffect(() => {
@@ -38,6 +38,8 @@ function App() {
         boxScoreFiltOptsNew.parks = r.parks;
         boxScoreFiltOptsNew.teams = r.teams;
         setBoxScoreFiltOpts(boxScoreFiltOptsNew);
+        // do initla fetch with default params
+        await updateData();
       };
       doFetch();
   }, []);
@@ -143,7 +145,7 @@ function App() {
              </p>
             </div>
         <div className="row">
-          <div className="col-3">
+          <div className="col-auto">
             <h4>Filters/Order:</h4>
             <BoxScoreFilters boxScoreFiltOpts={boxScoreFiltOpts} filter={filter} onFiltChange={onFiltChange}
                              order={order} onOrderChange={onOrderChange} updateData={updateData}/>

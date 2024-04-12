@@ -43,6 +43,20 @@ public:
     void setIntRange(int low, int high);
 };
 
+struct args_t {
+    bool isHome;
+    bool isAway;
+    std::string agg;
+    std::vector<std::string> grp;
+    bool isOldTime;
+    std::vector<std::string> stats;
+    std::vector<std::string> order;
+    unsigned int minGP;
+    unsigned int limit;
+    std::string ret;
+    std::string retopts;
+};
+
 // parameter types
 struct q_params_t {
     // SQL for selecting this column in table, including funciton call,etc.
@@ -54,7 +68,7 @@ struct q_params_t {
 std::unordered_map<std::string, q_params_t>& initQueryParams();
 int buildSQLQuery(std::string argstr,
                   std::string &qy, std::vector<field_val_t>& prms,
-                  std::string &errMsg, json& args);
+                  std::string &errMsg, args_t& args);
 
 std::vector<std::string> splitStr(const std::string& input, char delimiter);
 
@@ -67,7 +81,8 @@ std::string buildCTEWhereClause(bool isHome, const std::vector<std::string>& fie
                                 bool isOldTime, const std::vector<std::string>& selectFields,
                                 int minGP, const std::vector<int>& fieldsNotInSelect);
 
-std::string renderHTMLTable(std::vector<std::string> headers, query_result_t result, std::string opts);
+std::string renderHTMLTable(std::vector<std::string> headers, query_result_t result,
+                            std::string opts, int limit);
 
 template <typename T> void printVec (std::vector<T> vec) {
     for(auto v : vec) std::cout << " " << v;

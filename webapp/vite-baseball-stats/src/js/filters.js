@@ -80,7 +80,7 @@ const boxScoreFiltDefaults = {
     group: new Set(),
     agg: "sum"  // aggregation ("sum", "avg", "no")
 }
-boxScoreFiltDefaults.values.set("team", "BAL");
+boxScoreFiltDefaults.values.set("team", "");
 boxScoreFiltDefaults.values.set("yearlow", "2022");
 boxScoreFiltDefaults.values.set("yearhigh", "2022");
 boxScoreFiltDefaults.values.set("month", "");
@@ -88,7 +88,7 @@ boxScoreFiltDefaults.values.set("park", "");
 boxScoreFiltDefaults.values.set("dow", "");
 boxScoreFiltDefaults.values.set("homeaway", "");
 boxScoreFiltDefaults.values.set("league", "");
-boxScoreFiltDefaults.group.add("month");
+boxScoreFiltDefaults.group.add("team");
 
 const orderDefaults = [["team", true], ["year", false], ["date", false]]
 

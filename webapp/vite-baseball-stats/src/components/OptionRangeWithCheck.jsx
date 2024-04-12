@@ -19,7 +19,6 @@ const OptionRangeWithCheck = ({fieldName, label, options, valLow, valHigh,
             <div className="container">
                 <div className="row">
                     <div className="col-auto">
-                        
                         <select className={optionClasses.selectClass} id={idLow} value={valLow} 
                             onChange={ (e)=> (onNewVal(e.target.value, "low"))}>
                             <option value="">(all)</option>

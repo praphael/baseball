@@ -1,7 +1,13 @@
-#!/bin/sh
+#!/bin/bash
 
-sudo docker build . -f Dockerfile.build_all -t bb:stats_build
-id=$(sudo docker create bb:stats_build) && \
-  sudo docker cp $id:/baseball/webapp/dist.tar.bz2 . && \
-  sudo docker rm -v $id && \
-  sudo docker build . -f Dockerfile -t bb:stats_srv
+docker build . -f Dockerfile.build_all -t bb:stats_build;
+r=$?; echo "r=$r"
+if [[ $r == 0 ]]; then
+  id=$(docker create bb:stats_build) && \
+  docker cp $id:/baseball/webapp/dist.tar.bz2 . && \
+  docker rm -v $id && \
+  docker build . -f Dockerfile -t praphael/baseball:stats_dist;
+  docker push praphael/baseball:bb_stats_dist
+else
+  echo "Docker build failed, cannot generate distribution image";
+fi

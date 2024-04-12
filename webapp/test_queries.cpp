@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
         cout <<  endl << "Usage: test <query string>";
 
     auto qp = initQueryParams();
-    json args = json::parse(argv[1]);
+    args_t args;
     
     auto err = 0;
     vector<string> fieldNames;

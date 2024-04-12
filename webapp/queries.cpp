@@ -643,11 +643,6 @@ int makeJoinOnClause(string &join_clause, string& on_clause,
         }
     }
 
-    // join park names
-    auto isPark = std::find(fieldNames.begin(), fieldNames.end(), "park") != std::end(fieldNames);
-    if (isPark)
-        on_clause += " INNER JOIN (SELECT * FROM parks) p ON h.park=p.park_id";
-
     return 0;
 }
 
@@ -738,25 +733,22 @@ int buildFinalSelect(string &final_select,
 
     string order_by;
     err = makeOrderBy(order_by, order, selectFields, statList, fieldsSummed, fieldsAveraged);
-    final_select = home_qy + join_clause + away_qy + on_clause + order_by;
+
+    // join park names
+    auto park_clause = ""s;
+    auto isPark = std::find(fieldNames.begin(), fieldNames.end(), "park"s) != std::end(fieldNames)
+                  || std::find(grp.begin(), grp.end(), "park"s) != std::end(grp);
+    if (isPark)
+        park_clause = " INNER JOIN (SELECT * FROM parks) p ON park=p.park_id"s;
+
+    cout << endl << "isPark= " << isPark;
+    final_select = home_qy + join_clause + away_qy + on_clause + park_clause + order_by;
     
     return 0;
     // disabled for now -- fixed after fetch
     //if isTeam:
     //    qy += f" INNER JOIN (SELECT * FROM teams) t ON team=t.team_id"
 }
-
-struct args_t {
-    bool isHome;
-    bool isAway;
-    string agg;
-    vector<string> grp;
-    bool isOldTime;
-    vector<string> stats;
-    vector<string> order;
-    int minGP = 0;
-    int limit;
-};
 
 int getArgs(string argstr, args_t& args, json& j_args, string& errMsg) {
     j_args.clear();
@@ -840,14 +832,24 @@ int getArgs(string argstr, args_t& args, json& j_args, string& errMsg) {
         args.limit = j_args["limit"].get<int>();
     }
 
+    args.ret = "html";
+    if (j_args.contains("ret")) {
+        args.ret = j_args["ret"];
+    }
+
+    args.retopts = "bs";
+    if (j_args.contains("retopts")) {
+        args.retopts = j_args["retopts"];
+    }
+
     return 0;
 }
 
 int buildSQLQuery(string argstr, string &qy, 
                   vector<field_val_t>& prms, string &errMsg, 
-                  json& j_args) {
-
-    args_t args;
+                  args_t& args) 
+{
+    json j_args;
     auto err = getArgs(argstr, args, j_args, errMsg);
     if(err) return err;
 
@@ -931,13 +933,15 @@ int buildSQLQuery(string argstr, string &qy,
                         args.isHome, args.isAway);
     
     qy += final_select;
-    string limit_clause = " LIMIT " + to_string(args.limit);
+    // add some extra to determine if there are more records available
+    string limit_clause = " LIMIT " + to_string(args.limit+5);
     qy += limit_clause;
 
     return err;
 }
 
-string renderHTMLTable(vector<string> headers, query_result_t result, string opts) {
+string renderHTMLTable(vector<string> headers, query_result_t result,
+                       string opts, int limit) {
     auto tblAttr = string("");
     auto tbAttr = string("");
     auto trAttr = string("");
@@ -962,12 +966,17 @@ string renderHTMLTable(vector<string> headers, query_result_t result, string opt
     if(result.size() == 0) {
         ss << "<tr>(no data)</tr>";
     }
+    auto rn = 0;
     for (auto r : result) {
         ss << "<tr " << trAttr << ">";
         for (auto d : r) 
             ss << "<td " << tdAttr << ">" <<  d << "</td>";
         ss << "</tr>";
+        rn += 1;
+        if(rn == limit) break;
     }
     ss << "</tbody></table>";
+    if(result.size() > rn)
+        ss << "<span>(reached limit) more records available</span>";
     return ss.str();
 }
