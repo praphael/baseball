@@ -234,7 +234,8 @@ string makeCTEBase(string homeOrAway, string fieldQueryStr, const vector<string>
     for (auto f : fieldNames) {
         fieldNamesSet.emplace(f);
         // if we are grouping by, do not select for this field unless it is in the group
-        if(grp.size() == 0 || std::find(grp.begin(), grp.end(), f) != std::end(grp)) {
+        if(grp.size() == 0 || std::find(grp.begin(), grp.end(), f) != std::end(grp)
+             || f == "park") {
             selectFields.push_back(f);
 
             auto qp = QUERY_PARAMS[f];

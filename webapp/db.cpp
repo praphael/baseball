@@ -487,9 +487,9 @@ int handleParksRequest(sqlite3 *pdb, const string &qy, string& resp, string& mim
             "p.park_aka, p.park_city, p.park_state,"
             "p.park_open, p.park_close, p.park_league, p.notes"
             " FROM parks p"
-            " INNER JOIN boxscore b"
-            " ON p.park_id=b.park"
-            " WHERE CAST(substr(p.park_open, 7) AS INTEGER) > ?";
+            " INNER JOIN (SELECT game_date, park FROM boxscore b)"
+            " ON p.park_id=park"
+            " WHERE CAST(substr(game_date, 0,5) AS INTEGER) > ?";
     
     auto yearSince = 1902;
     vector<field_val_t> prms;
