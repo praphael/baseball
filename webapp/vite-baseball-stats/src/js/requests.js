@@ -1,5 +1,5 @@
-const serverIP="127.0.0.1"
-const baseURL="http://"+serverIP+"/baseball/api"
+const server="127.0.0.1"
+const baseURL="http://"+server+"/baseball/api"
 
 function makeRequestObj(method, body, bodyType="json", authToken="") {
     let contentType = "json"

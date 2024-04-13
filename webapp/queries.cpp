@@ -12,12 +12,15 @@ using std::stringstream;
 using std::endl;
 using std::find;
 using std::cerr;
+using std::pair;
 
 // for 's' suffix
 using namespace std::string_literals;
 
 const auto MONTH_FIELD = string("CAST(substr(game_date,6,2) AS INTEGER)");
 const auto YEAR_FIELD = string("CAST(substr(game_date,0,5) AS INTEGER)");
+
+const auto VALID_AGG = unordered_set<string>{"no", "sum", "avg", "max", "min"};
 
 const unordered_map<string, string> FIELD_NAME_MAP =     
                 { {"R", "score"},
@@ -62,15 +65,17 @@ const unordered_map<string, string> FIELD_NAME_MAP =
 auto QUERY_PARAMS = unordered_map<string, q_params_t>();
 
 // Note: Home/Away split not a query parameter because it has special handling
-vector<string> QUERY_PARAMS_ORDER = {"year", "team", "league", "month", "dow", "park"};
+vector<string> QUERY_PARAMS_ORDER = {"year", "team", "_team", "league", "_league", "month", "dow", "park_id", "park"};
 unordered_map<string, q_params_t>& initQueryParams() {
     QUERY_PARAMS.clear();
     QUERY_PARAMS["team"] = q_params_t{"team", valType::STR, true};
+    QUERY_PARAMS["_team"] = q_params_t{"team", valType::STR, true};
     QUERY_PARAMS["year"] = q_params_t{YEAR_FIELD,  valType::INT_RANGE, false};
     QUERY_PARAMS["month"] = q_params_t{MONTH_FIELD, valType::INT, false};
     QUERY_PARAMS["dow"] =  q_params_t{"game_day_of_week", valType::STR, false};
     QUERY_PARAMS["league"] = q_params_t{"league", valType::STR, true};
-    QUERY_PARAMS["park"] = q_params_t{"park", valType::STR, false};
+    QUERY_PARAMS["_league"] = q_params_t{"league", valType::STR, true};
+    QUERY_PARAMS["park_id"] = q_params_t{"park", valType::STR, false};
     
     /*
                {"inn1", {"score_by_inning_1", "inn1", 0, true},
@@ -86,6 +91,13 @@ unordered_map<string, q_params_t>& initQueryParams() {
                */
     return QUERY_PARAMS;
 }
+
+// order of select parameters in final select statement
+vector<pair<string, bool>> SELECT_PARAMS_ORDER = { {"year", true}, {"date", false}, {"month", true}, 
+                                       {"dow", true}, {"park_id", true}, {"num", false},
+                                       {"homeaway", true}, {"team", true}, {"league", true}, {"score", false},
+                                        {"_team", true}, {"_league", true}, { "_score", false} };
+
 
 bool isNumberChar(char c) {
     return (c >= '0' && c <= '9');
@@ -153,22 +165,12 @@ void field_val_t::setIntRange(int low, int high) {
     vType = valType::INT_RANGE;
 }
 
-string makeHomeAwayAvgQuery(string st) {
-    stringstream hss, ass, ss;
-    hss << "h.gp*h." << st << "/(1.0*(h.gp+a.gp))";
-    auto h = hss.str();
-    ass << "a.gp*a." << st << "/(1.0*(h.gp+a.gp))";
-    auto a = ass.str();
-    ss << "ROUND(1000*(" << h << " + " << a << "))/1000.0";
-    return ss.str();
-}
-
 
 // build SQL query string from fields provided
 string buildStatQueryStr(const vector<string>& stats, bool isHome, const string& agg, vector<string>& statList) {
-    auto h = string("home");
-    auto v = string("visiting");
-    auto statQueryStr = string("");
+    auto h = "home"s;
+    auto v = "visiting"s;
+    auto statQueryStr = ""s;
     statList.clear();
     cout << endl << "buildStatQueryStr agg=" << agg;
     for (auto st : stats) {
@@ -190,14 +192,14 @@ string buildStatQueryStr(const vector<string>& stats, bool isHome, const string&
             if (isAgainst)
                 b = ob; // # switch
             string fld;
-            if (agg == "avg") {
-                fld = ", ROUND(1000*AVG(" + b + "_" + fName + "))/1000.00 AS ";
-            }
-            else if(agg == "no") { // # no aggregaton
+            if(agg == "no") { // # no aggregaton
                 fld = ", " + b + "_" + fName + " AS ";
             }
-            else { // # use sum as default
-                fld = ", SUM(" + b + "_" + fName + ") AS ";
+            else if (agg == "avg") {
+                fld = ", ROUND(1000*AVG(" + b + "_" + fName + "))/1000.00 AS ";
+            }
+            else { // use aggregation name
+                fld = ", " + agg + "(" + b + "_" + fName + ") AS ";
             }
             st = f;
             if (isAgainst)
@@ -214,97 +216,141 @@ string buildStatQueryStr(const vector<string>& stats, bool isHome, const string&
     return statQueryStr;
 }
 
-// make common table expression base
+std::string buildCTEWhereClause(bool isHome, 
+                                const vector<string>& fieldNames,
+                                const unordered_map<string, field_val_t> fieldValueMap,
+                                bool isOldTime,
+                                const vector<string>& selectFields,
+                                vector<field_val_t>& prms)  // output
+{
+    auto first = true;
+    auto query = ""s;
+    if (!isOldTime) {
+        query = " WHERE " + YEAR_FIELD + " > 1902 ";
+        first = false;
+    }
+
+    for (auto f : fieldNames) {
+        cout << endl << "buildCTEWhereClause: f=" << f;
+        if (!first) 
+            query += " AND ";
+        else
+            query = " WHERE ";
+        first = false;
+        
+        auto qp = QUERY_PARAMS.at(f);
+        if (qp.isTeam) {
+            bool isOpp = (f[0]== '_');
+            if (isHome != isOpp)
+                query += " home_";
+            else // both are true 
+                query += " visiting_";
+        }
+        if (f == "year") {
+            query += (YEAR_FIELD + " BETWEEN ? AND ? ");
+        }
+        else {
+            query += (qp.fieldSelector + "=? ");
+        }
+        prms.push_back(fieldValueMap.at(f));
+    }
+
+    return query;
+}
+
+// make common table expression
 // fieldNames are names that appear in SELECT
-string makeCTEBase(string homeOrAway, string fieldQueryStr, const vector<string>& fieldNames,
-                   string agg, const vector<string>& grp, vector<string> &selectFields,
-                   vector<int> &fieldsNotInSelect) {
-    auto base = string(" ") + homeOrAway + "_t AS (SELECT ";
-    cout << endl << "makeCTEBase(" << __LINE__ << "): grp=";
-    printVec(grp);
-    cout << "makeCTEBase(" << __LINE__ << "): fieldNames=";
+string makeCTE(bool isHome, 
+               bool isOldTime,
+               const vector<string>& fieldNames,
+               const unordered_map<string, field_val_t> fieldValueMap,
+               const vector<string>& group,
+               const vector<string>& stats, 
+               vector<string> &selectFields,   // output
+               unordered_set<string> &selectFieldsSet,   // output
+               vector<string> &statList,        // output
+               vector<field_val_t> &prms)       // output
+{
+    auto homeOrAway = "home"s;
+    if (!isHome)
+        homeOrAway = "away"s;
+
+    auto query = " "s + homeOrAway + "_t AS (SELECT "s;
+    cout << endl << "makeCTEBase(" << __LINE__ << "): fieldNames=";
     printVec(fieldNames);
     auto homeOrVisit = homeOrAway;
-    selectFields.clear();
-    
     if (homeOrAway == "away")
-        homeOrVisit = "visiting";
-    unordered_set<string> fieldNamesSet;
-    int i=0;
+        homeOrVisit = "visiting"s;
+    
+    selectFields.clear();
+    selectFieldsSet.clear();
+    query += "'"s + homeOrAway + "' AS homeaway, "s;
+    selectFields.push_back("homeaway"s);
+    selectFieldsSet.emplace("homeaway"s);
     for (auto f : fieldNames) {
-        fieldNamesSet.emplace(f);
-        // if we are grouping by, do not select for this field unless it is in the group
-        if(grp.size() == 0 || std::find(grp.begin(), grp.end(), f) != std::end(grp)
-             || f == "park") {
-            selectFields.push_back(f);
+        // since this is handled in home/away split
+        if(f == "team" || f == "_team" || f == "league" || f == "_league") continue;
+        selectFields.push_back(f);
+        selectFieldsSet.emplace(f);
+        
+        auto qp = QUERY_PARAMS[f];
+        if (qp.isTeam)
+            query += (homeOrVisit + "_");
 
-            auto qp = QUERY_PARAMS[f];
-            if (qp.isTeam)
-                base += (homeOrVisit + "_");
-
-            base += qp.fieldSelector;
-            if (qp.isTeam || f != qp.fieldSelector)
-                base += " AS " + f;
-            base += ", ";
-        } 
-        else fieldsNotInSelect.push_back(i);
-        i++;
+        query += qp.fieldSelector;
+        if (qp.isTeam || f != qp.fieldSelector)
+            query += " AS " + f;
+        query += ", ";
+        
     }
-    auto nGroup = 0;
-    // all in group must also
-    for (auto g : grp) {
-        // skip fields already in field names
-        if(fieldNamesSet.count(g) > 0) continue;
-        if (g == "homeaway") {
-            char ch = toUpper(homeOrAway[0]);
-            auto hOrA = ch + homeOrAway.substr(1);
-            base += "'" + hOrA + "' AS homeoraway, ";
-            selectFields.push_back("homeoraway");
-            nGroup += 1;
-        }
-        else if(QUERY_PARAMS.count(g) > 0) {
+    // need to add fields group fields which were not in select
+    for (auto g : group) {
+        if(selectFieldsSet.count(g) == 0) {
+            // since this is handled in home/away split
+            if(g == "team" || g == "_team" || g == "league" || g == "_league") continue;
             selectFields.push_back(g);
+            selectFieldsSet.emplace(g);
+            
             auto qp = QUERY_PARAMS[g];
             if (qp.isTeam)
-                base += homeOrVisit + "_";
-            base += qp.fieldSelector;
+                query += (homeOrVisit + "_");
+
+            query += qp.fieldSelector;
             if (qp.isTeam || g != qp.fieldSelector)
-                base += " AS " + g;
-            
-            base += ", ";
-            nGroup += 1;
+                query += " AS " + g;
+            query += ", ";
         }
-    }
-    if ((agg != "no") || (nGroup > 0)) {
-        base += " COUNT(*) as gp,";
-        selectFields.push_back("gp");
-        auto sc1 = "home_score"s;
-        auto sc2 = "visiting_score"s;
-        if(homeOrAway == "away") {
-            sc1 = sc2;
-            sc2 = "home_score";
-        }
-        base += " SUM(" + sc1 + ">" + sc2 + ") AS won,";
-        selectFields.push_back("won");
-        base += " SUM(" + sc2 + ">" + sc1 + ") AS lost,";
-        selectFields.push_back("lost");
-        base += " ROUND(1000*SUM(" + sc1 + ">" + sc2 + ")/(1.0*COUNT(*)))/1000.000 AS rec";
-        selectFields.push_back("rec");
-    }
-    else {
-        base += " game_date as date, game_num as num, home_team as home, visiting_team as away";
-        selectFields.insert(selectFields.end(), {"date", "num", "home", "away"});
     }
 
-    base += fieldQueryStr;
-    base += string(" FROM boxscore");
+    query += " game_date AS date, game_num AS num";
+    selectFields.insert(selectFields.end(), {"date", "num", "team", "league", "score"});
+    selectFieldsSet.insert({"date", "num", "team", "league", "score"});
+    if(isHome) {
+        query += ", home_team AS team, visiting_team as _team";
+        query += ", home_league AS league, visiting_league as _league";
+        query += ", home_score AS score, visiting_score AS _score";
+    } else {
+        query += ", visiting_team AS team, home_team as _team";
+        query += ", visiting_league as league, home_league AS _league";
+        query += ", visiting_score AS score, home_score AS _score";
+    }
+
+    // used for counting wins/losess and gropings by team/league
+    selectFields.insert(selectFields.end(), {"_team", "_score", "_league"});
+    selectFieldsSet.insert( {"_team", "_score", "_league"});    
+
+    statList.clear();
+    query += buildStatQueryStr(stats, isHome, "no", statList);
+    query += " FROM boxscore"s;
+    query += buildCTEWhereClause(isHome, fieldNames, fieldValueMap, isOldTime, selectFields, prms);
     
-    return base;
+    return query;
 }
 
 int getQueryParams(const json& args, 
                    vector<string>& fieldNames, 
-                   vector<field_val_t>& fieldValues) {
+                   unordered_map<string, field_val_t>& fieldValueMap,
+                   unordered_set<string>& fieldNamesSet) {
     
     for (const auto& k : QUERY_PARAMS_ORDER) {
         if (args.contains(k)) {
@@ -328,97 +374,14 @@ int getQueryParams(const json& args,
                 return 1;
             }
             cout << endl << "getQueryParams(" << __LINE__  <<  ") fv.setXXX() successful";
-            fieldValues.push_back(fv);
+            fieldValueMap[k] = fv;
             cout << endl << "getQueryParams(" << __LINE__  <<  ") added " << k << "=" << fv.asStr();
         }
     }
     return 0;
 }
-
-std::string buildCTEWhereClause(bool isHome, const vector<string>& fieldNames,
-                           const vector<string>& grp, bool isOldTime,
-                           const vector<string>& selectFields, int minGP,
-                           const vector<int>& fieldsNotInSelect)
-{
-    auto first = true;
-    auto qy = string("");
-    if (!isOldTime) {
-        qy = " WHERE " + YEAR_FIELD + " > 1902 ";
-        first = false;
-    }
-
-    for (auto f : fieldNames) {
-        if (!first) 
-            qy += " AND ";
-        else
-            qy = " WHERE ";
-        first = false;
-        // if "team" stat
-        auto qp = QUERY_PARAMS.at(f);
-        if (qp.isTeam) {
-            if (isHome)
-                qy += " home_";
-            else
-                qy += " visiting_";
-        }
-        if (f == "year") {
-            qy += (YEAR_FIELD + " BETWEEN ? AND ? ");
-        }
-        else {
-            qy += (qp.fieldSelector + "=? ");
-        }
-    }
-
-    if (grp.size() > 0) {
-        qy += " GROUP BY ";
-        first = true;
-        auto groupBy = unordered_set<string>();
-        // place all fields which are not aggregates in the "GROUP BY" clause
-        // SQLITE3does not enforce this (PostgresSQL does), but it makes sense
-        // fields which are not also in the "grp" do have a meaning if home/away
-        // is both.
-        // perform aggregate operation (sum/avg/etc.) after join
-        /*
-        for (auto f : fieldNames) {
-            auto qp = QUERY_PARAMS.at(f);
-            if (!first) 
-                qy += ", ";
-            first = false;
-            qy += f;
-            groupBy.emplace(f);
-        } */
-            
-        for (auto g : grp) {
-            if(groupBy.count(g) > 0) continue;
-            if (QUERY_PARAMS.count(g) > 0) {
-                auto qp = QUERY_PARAMS.at(g);
-                if (!first)
-                    qy += ", ";
-                first = false;
-                qy += g;
-            } else {
-                if (!first)
-                    qy += ", ";
-                first = false;
-                if (g == "homeaway")
-                    qy += "homeoraway";
-                else
-                    qy += g;
-            }
-        }
-    }
-
-    if (minGP > 0 && (std::find(selectFields.begin(), selectFields.end(), "gp")
-                      != std::end(selectFields))) {
-        auto minGP_s = to_string(minGP);
-        qy += " HAVING gp > " + minGP_s;
-    }
-    return qy;
-}
     
 using result_t = vector<vector<string> >;
-
-const auto VALID_AGG = unordered_set<string>{"no", "sum", "avg"};
 
 std::vector<std::string> splitStr(const std::string& input, char delimiter) {
     std::vector<std::string> tokens;
@@ -447,230 +410,105 @@ std::string joinStr(const std::vector<std::string>& elements, const std::string&
     return ss.str(); // Convert stringstream to string and return
 }
 
-string makeFieldParkTeam(string x, string hOrA, bool isSplitYear)  {
-    if (x == "park" && hOrA == "h.") 
-        return string("p.park_name AS park");
-    if (isSplitYear && x == "year")
-        return string("min(" + hOrA + "year) AS year_begin, max(" + hOrA + "year) AS year_end");
-    return string(hOrA) + x;
+string makeFinalSelect(bool isSplitYear, 
+                       const vector<string>& selectFields,
+                       const unordered_set<string>& selectFieldsSet,
+                       const unordered_map<string, field_val_t>& fieldValueMap,
+                       const vector<string>& statList,
+                       const vector<string>& group,
+                       const unordered_set<string>& groupSet,
+                       string agg,
+                       unordered_set<string>& selectFieldsSetOut) 
+{       
+    string query = " SELECT ";
+    auto isFirst = true;
+    for (auto p : SELECT_PARAMS_ORDER) {
+        auto p_name = p.first;   // the parameter name
+        auto p_isagg = p.second;  // whether this parameter can be part of aggregation
+
+        cout << endl << "makeFinalSelect: p_name=" << p_name << " p_isagg=" << p_isagg;
+        // don't include 'home/away' label unless we are goruping
+        //if(p_name == "homeaway" && !groupSet.count("homeaway") > 0)
+        //    continue;
+
+        
+        if((selectFieldsSet.count(p_name) > 0 && (agg == "no" || p_isagg)) )
+        {
+            // skip 'homeaway' column if it is not in select or group
+            if (p_name == "homeaway" && (groupSet.count(p_name) + fieldValueMap.count(p_name)) == 0)
+                continue;
+            
+            // remove team from aggregations, if not part of the selection or grouping
+            if (agg != "no" && (p_name == "team" || p_name == "_team") 
+                && (fieldValueMap.count(p_name) + groupSet.count(p_name) == 0))
+                continue;
+
+            if(!isFirst)
+                query += ", "s;
+            isFirst = false;
+            if(p_name == "year" && isSplitYear) {
+                query += "'"s + fieldValueMap.at("year").asStr() + "' AS year";
+                // do not add to selectFieldsSetOut since it is just extraneous column
+                continue;
+            }
+            selectFieldsSetOut.emplace(p_name);
+            if(p_name == "num") {
+                query += "REPLACE(h.num, '0', ' ') AS num";
+            }
+            else {
+            query += "h." + p_name;
+            if(p_name == "park_id")
+                query += ", p.park_name AS park";
+            }
+        }
+    }
+    // add on games played/records
+    if(agg != "no") {
+        query += ", COUNT(*) AS gp";
+        query += ", SUM(score > _score) AS won";
+        query += ", SUM(_score > score) AS lost";
+        query += ", ROUND(1000*SUM(score > _score)/(1.0*COUNT(*)))/1000.00 AS rec";
+        selectFieldsSetOut.insert({"gp", "won", "lost", "rec"});
+        if(agg == "avg") {
+            for (auto s : statList)
+                query += ", ROUND(1000*AVG(h." + s + "))/1000.00 AS " + s;
+        }
+        else {
+            for (auto s : statList)
+                query += ", " + agg + "(h." + s + ") AS " + s;
+        }
+    }
+    else
+        query += ", h." + joinStr(statList, ", h.");
+
+    // in the case where team is not selected or grouped
+    // then only join from home table
+    if(fieldValueMap.count("team") + groupSet.count("team") == 0)
+        query += " FROM home_t h";
+    else
+        query += " FROM both_t h";
+
+    return query;
 }
 
-string makeFields (const vector<string>& selectFields, 
-                   const vector<string>& fieldNames, 
-                   const vector<field_val_t>& fieldValues, 
-                   const vector<int>& fieldsNotInSelect,
-                   const vector<string>& statList, 
-                   string hOrA, bool isSplitYear) {
-    vector<string> r;
-    int i = 0, fnis = 0;
-    
-    for(auto f : selectFields) {
-        // align the fields which were not included in the select statement
-        // with their original relative position
-        if(fnis < fieldsNotInSelect.size() && i == fieldsNotInSelect[fnis]) {
-            auto fnisIdx = fieldsNotInSelect[fnis];
-            r.push_back(makeFieldParkTeam("'" + fieldValues[fnisIdx].asStr() 
-                                            + "' AS " + fieldNames[fnisIdx], "", isSplitYear));
-            fnis++;                                          
-        }
-        r.push_back(makeFieldParkTeam(f, hOrA, isSplitYear));
-        i++;
-    }
+string makeOrderBy(const vector<string>& order,
+                   const unordered_set<string>& selectFieldsSet,
+                   const vector<string>& statList)
+{
+    string order_clause = ""s;
+    unordered_set<string> statsSet;
     for(auto s : statList) {
-        r.push_back(makeFieldParkTeam(s, hOrA, false));
+        statsSet.emplace(s);
     }
-    return joinStr(r, ", ");
-}
-
-int makeHomeSelect(string &home_qy, 
-                   bool isSplitYear, 
-                   const vector<string>& fieldNames,
-                   const vector<string>& selectFields,
-                   const vector<int>& fieldsNotInSelect,
-                   const vector<field_val_t>& fieldValues, 
-                   const vector<string>& statList,
-                   const vector<string>& grp,
-                   string agg, 
-                   bool isAway, 
-                   unordered_set<string>& fieldsSummed,
-                   unordered_set<string>& fieldsAveraged) 
-{
-    if (!isAway) {
-        auto fields = makeFields(selectFields, fieldNames, fieldValues, fieldsNotInSelect, 
-                                 statList, "h.", isSplitYear);
-        home_qy = " SELECT " + fields + " FROM home_t h";
-    }
-    else {
-
-        // no grouping or 'homeaway' is also in group
-        if (agg == "no"s || std::find(selectFields.begin(), selectFields.end(), "homeoraway") != selectFields.end()) {
-            // rewrite fields 
-            auto fields = makeFields(selectFields, fieldNames, fieldValues, fieldsNotInSelect, 
-                                     statList, "h.", isSplitYear);
-            home_qy = " SELECT " + fields + " FROM home_t h";
-        }
-        // there is an aggregation, so we must also adjsut stats for home/away split
-        else {
-            auto makeFieldH = [&fieldsSummed, &fieldsAveraged, isSplitYear](string x) -> string {
-                if (x == "gp") {
-                    fieldsSummed.emplace("gp");
-                    return "h.gp+a.gp AS gp";
-                } 
-                else if (x == "won") {
-                    fieldsSummed.emplace("won");
-                    return "h.won+a.won AS won";
-                } 
-                else if (x == "lost") {
-                    fieldsSummed.emplace("lost");
-                    return "h.lost+a.lost AS lost";
-                } 
-                else if (x == "rec") {
-                    fieldsAveraged.emplace("rec");
-                    return "ROUND(1000*h.rec+1000*a.rec)/2000 AS rec";
-                } 
-                else if (x == "park")
-                    return "p.park_name AS park";
-                // TODO, join tto team name for this year
-                else if (x == "team")  
-                    return "h.team";
-                else if (x == "year" && isSplitYear)
-                    return "min(h.year) as year_begin, max(h.year) as year_end";
-                return "h." + x;
-            };
-            
-            vector<string> r;
-            int i = 0, fnis = 0;
-            for(auto f : selectFields) {
-                // align the fields which were not included in the select statement
-                // with their original relative position
-                if(fnis < fieldsNotInSelect.size() && i == fieldsNotInSelect[fnis]) {
-                    auto fnisIdx = fieldsNotInSelect[fnis];
-                    r.push_back("'" + fieldValues[fnisIdx].asStr() + "'" + " AS " 
-                                + fieldNames[fnisIdx]);
-                    fnis++;
-                }
-                r.push_back(makeFieldH(f));
-                i++;
-            }
-            home_qy = " SELECT " + joinStr(r, ", ");
-            
-            for (auto st : statList) {
-                home_qy += ", ";
-                if (agg == "no" || agg == "sum") {
-                    fieldsSummed.emplace(st);
-                    home_qy += " h." + st + "+" + "a." + st ;
-                }
-                else if (agg == "avg") {
-                    fieldsAveraged.emplace(st);
-                    // for averages need to reweight/home away based on gams played
-                    home_qy += makeHomeAwayAvgQuery(st);
-                }
-                home_qy += " AS " + st;
-            }
-            home_qy += " FROM home_t h";
-        }
-    }
-    return 0;
-}
-
-int makeAwaySelect(string &away_qy,
-                   bool isSplitYear, 
-                   const vector<string>& fieldNames,
-                   const vector<string>& selectFields,
-                   const vector<int>& fieldsNotInSelect,
-                   const vector<field_val_t>& fieldValues,
-                   const vector<string>& statList,
-                   const vector<string>& grp, 
-                   string agg,
-                   bool isHome,
-                   bool isUnion)
-{
-    if (!isHome) {
-        // pass "h" here so we get correct park behavior
-        auto fields = makeFields(selectFields, fieldNames, fieldValues, fieldsNotInSelect,
-                                 statList, "h.", isSplitYear);
-        away_qy = " SELECT " + fields + " FROM away_t h";
-    } 
-    else {
-        auto fields = makeFields(selectFields, fieldNames, fieldValues, fieldsNotInSelect, 
-                                 statList, "", isSplitYear);
-        if (isUnion)
-            away_qy = " SELECT " + fields + " FROM away_t a";
-        else
-            away_qy = " (SELECT " + fields + " FROM away_t) a";
-    }
-
-    return 0;
-}
-
-int makeJoinOnClause(string &join_clause, string& on_clause,
-                     bool isHome, bool isAway, 
-                     const vector<string>& fieldNames,
-                     const vector<string>& grp, 
-                     string agg) 
-{
-    // join on fields which are not also in group
-    auto joinSet = unordered_set<string>();
-    // add all fieldNames
-    for(auto g : grp) { 
-        joinSet.emplace(g); 
-    }
-
-    join_clause = "";
-    if(isHome && isAway) {
-        join_clause = " INNER JOIN ";
-        if (agg == "no" || joinSet.count("homeaway") > 0)
-            join_clause = " UNION ";
-        else if((fieldNames.size() + grp.size()) == 0) // should be only one row
-            join_clause = " FULL JOIN ";
-    }
-
-    
-    on_clause = "";
-    if(join_clause == " INNER JOIN ") {        
-        if(joinSet.size() > 0) { 
-            on_clause = " ON";    
-            auto first = true;
-            for (auto j : joinSet) {
-                if (!first)
-                    on_clause += " AND ";
-                first = false;
-                auto qp = QUERY_PARAMS[j];
-                on_clause += " h." + j + "=a." + j;
-            }
-        } 
-        else {
-            join_clause = "UNION";
-        }
-    }
-
-    return 0;
-}
-
-int makeOrderBy(string &order_clause, const vector<string>& order,
-                const vector<string>& selectFields,
-                const vector<string>& stats,
-                unordered_set<string> fieldsSummed,
-                unordered_set<string> fieldsAveraged) 
-{
-    order_clause = "";
     vector<string> ordFilt;
     for (auto o : order) {
         auto o1 = o.substr(0, o.size()-1);
-        cout << endl << "buildSQLQuery: o1=" << o1;
+        cout << endl << "makeOrderBy: o1=" << o1;
         
-        auto o1_in_sfld = (find(selectFields.begin(), selectFields.end(), o1) != std::end(selectFields));
-        auto o1_in_st = (find(stats.begin(), stats.end(), o1) != std::end(stats));
+        auto o1_in_sfld = selectFieldsSet.count(o1) > 0;
+        auto o1_in_st = statsSet.count(o1) > 0;
         if (o1_in_sfld || o1_in_st) {
-            auto ordstr = string("");
-            if (fieldsAveraged.count(o1) > 0) 
-                ordstr = makeHomeAwayAvgQuery(o1);
-            else {
-                ordstr = "h." + o1;
-                auto o1_in_fs = (fieldsSummed.count(o1) > 0);
-                if (o1_in_fs)
-                    ordstr += "+a." + o1;
-            }
+            auto ordstr = o1;
             auto lastc = o[o.size()-1];
             if (lastc == '<') 
                 ordstr += " ASC";
@@ -682,69 +520,41 @@ int makeOrderBy(string &order_clause, const vector<string>& order,
     if (ordFilt.size() > 0)
         order_clause = " ORDER BY " + joinStr(ordFilt, ", ");
 
-    return 0;
+    return order_clause;
 }
 
+int buildLastClause(string &lastClause, 
+                    const unordered_map<string, field_val_t>& fieldValueMap,
+                    const vector<string>& selectFields, 
+                    const unordered_set<string>& selectFieldsSet,
+                    const vector<string>& statList, 
+                    vector<string>& group,
+                    string agg,
+                    bool isSplitYear, 
+                    unordered_set<string>& selectFieldsSetOut)
+{
+    unordered_set<string> groupSet;
+    for(auto g : group) groupSet.emplace(g);
 
+    lastClause = makeFinalSelect(isSplitYear, selectFields, selectFieldsSet,
+                                 fieldValueMap, statList, group, groupSet, agg, 
+                                 selectFieldsSetOut);
 
-int buildFinalSelect(string &final_select, 
-                     const vector<string>& fieldNames, 
-                     const vector<string>& selectFields, 
-                     const vector<int>& fieldsNotInSelect,
-                     const vector<field_val_t>& fieldValues, 
-                     const vector<string>& statList, 
-                     const vector<string>& grp,
-                     const vector<string>& order,
-                     string agg,
-                     bool isHome,
-                     bool isAway) 
-{    // in the case where years 1) appear in the selection, 
-    // 2) there is a GROUP BY but
-    // 3) year is not 'grp' 
-    // then split year into two fields year_start and year_end
-    bool isSplitYear = false;
-    if(find(selectFields.begin(), selectFields.end(), string("year")) == std::end(selectFields) && 
-       grp.size() > 0 && find(grp.begin(), grp.end(), string("year")) != std::end(grp)) {
-        isSplitYear = true;
-    }
-
-    unordered_set<string> fieldsSummed, fieldsAveraged;
-    string home_qy = "", away_qy = "";
-    int err = 0;
-    if (isHome) {
-        err = makeHomeSelect(home_qy, isSplitYear, fieldNames, selectFields, fieldsNotInSelect,
-                             fieldValues, statList, grp, agg, isAway, fieldsSummed, fieldsAveraged);
-        if(err) {
-            cerr << endl << "buildFinalSelect(" <<  __LINE__  << "): error in makeHomeSelect err=" << err;
-        }
-    }
-
-    /* make JOIN ... ON claues*/
-    string join_clause = "", on_clause="";
-    err = makeJoinOnClause(join_clause, on_clause, isHome, isAway, 
-                           fieldNames, grp, agg);
-    if (isAway) {
-        err = makeAwaySelect(away_qy, isSplitYear, fieldNames, selectFields, fieldsNotInSelect, 
-                             fieldValues, statList, grp, agg, isHome,
-                             (join_clause == " UNION "s));
-        if(err) {
-            cerr << endl << "buildFinalSelect(" <<  __LINE__  << "): error in makeAwaySelect err= " << err;
-        }
-    }
-
-    string order_by;
-    err = makeOrderBy(order_by, order, selectFields, statList, fieldsSummed, fieldsAveraged);
+    cout << endl << "buildLastClause: final_select=" << lastClause;
 
     // join park names
-    auto park_clause = ""s;
-    auto isPark = std::find(fieldNames.begin(), fieldNames.end(), "park"s) != std::end(fieldNames)
-                  || std::find(grp.begin(), grp.end(), "park"s) != std::end(grp);
+    auto isPark = fieldValueMap.count("park_id") > 0 || groupSet.count("park_id") > 0;
     if (isPark)
-        park_clause = " INNER JOIN (SELECT * FROM parks) p ON park=p.park_id"s;
+        lastClause += " INNER JOIN (SELECT * FROM parks) p ON h.park_id=p.park_id"s;
 
-    cout << endl << "isPark= " << isPark;
-    final_select = home_qy + join_clause + away_qy + on_clause + park_clause + order_by;
-    
+    if(group.size() > 0) {
+        auto itr = std::find(group.begin(), group.end(), "park_id"s);
+        // replace "park_id" in group with "park_name"
+        if(itr != group.end())
+            *itr = "park";
+        lastClause += " GROUP BY " + joinStr(group, ", ");
+    }
+
     return 0;
     // disabled for now -- fixed after fetch
     //if isTeam:
@@ -846,97 +656,82 @@ int getArgs(string argstr, args_t& args, json& j_args, string& errMsg) {
     return 0;
 }
 
-int buildSQLQuery(string argstr, string &qy, 
-                  vector<field_val_t>& prms, string &errMsg, 
-                  args_t& args) 
+int buildSQLQuery(string argstr, string &qy,
+                  vector<field_val_t>& prms, string &errMsg,
+                  args_t& args)
 {
     json j_args;
     auto err = getArgs(argstr, args, j_args, errMsg);
     if(err) return err;
 
     vector<string> fieldNames;
-    vector<field_val_t> fieldValues;
-    getQueryParams(j_args, fieldNames, fieldValues);
+    unordered_map<string, field_val_t> fieldValueMap;
+    unordered_set<string> fieldNamesSet, groupSet;
+    getQueryParams(j_args, fieldNames, fieldValueMap, fieldNamesSet);
     
-    cout << endl << "buildSQLQuery(" << __LINE__ << "): fieldNames="; 
-    printVec(fieldNames);
-    cout << endl << "buildSQLQuery(" << __LINE__ << "): fieldValues=";
-    for(auto f : fieldValues) {
-        cout << f.asStr();
+    cout << endl << "buildSQLQuery(" << __LINE__ << "): fieldValueMap=";
+    for(auto [f, v] : fieldValueMap) {
+        cout << f << ": " << v.asStr();
     }
-
-    // in the case where results are not being selected or grouped by team,
-    // select for home only
-    if((find(fieldNames.begin(), fieldNames.end(), string("team")) == std::end(fieldNames)) 
-       && find(args.grp.begin(), args.grp.end(), string("team")) == std::end(args.grp) && 
-          find(args.grp.begin(), args.grp.end(), string("homeoraway")) == std::end(args.grp))
-        args.isAway = false;
-    prms.clear();
-    prms.insert(prms.end(), fieldValues.begin(), fieldValues.end());
     
-
     // Basic strategy is to split up the query into two temp (CTE) tables home_t and away_t
     // then combine results.  We do this because many queries would not make sense unless we did
     // e.g. home aaway splits, groupings by team
-    vector<string> statListA;
-    vector<string> statListH;
-    auto statQueryStrH = buildStatQueryStr(args.stats, true, args.agg, statListH);
-    auto statQueryStrA = buildStatQueryStr(args.stats, false, args.agg, statListA);
-    cout << endl << "buildSQLQuery(" << __LINE__ << "): statQueryStrH=" << statQueryStrH;
-    cout << endl << "buildSQLQuery(" << __LINE__ << "): statListH=";
-    printVec(statListH);
-    cout << endl << "buildSQLQuery(" << __LINE__ << "): statQueryStrA=" << statQueryStrA;
-    cout << endl << "buildSQLQuery(" << __LINE__ << "): statListA=";
-    printVec(statListA);
-    // print(f"statList=", statList)
-    vector<string> selectFieldsH, selectFieldsA;
-    vector<int> fieldsNotInSelectH, fieldsNotInSelectA;
-    auto qy_home = makeCTEBase("home", statQueryStrH, fieldNames, args.agg, args.grp, 
-                                selectFieldsH, fieldsNotInSelectH);
-    auto qy_away = makeCTEBase("away", statQueryStrA, fieldNames, args.agg, args.grp,
-                                selectFieldsA, fieldsNotInSelectA);
-    cout << endl << "buildSQLQuery(" << __LINE__ << "): qy_home=" << qy_home; 
-    cout << endl << "buildSQLQuery(" << __LINE__ << "): qy_away" << qy_away; 
+    vector<string> selectFields, statList;
+    unordered_set<string> selectFieldsSet;
 
-    auto whereClauseH = string("");
-    auto whereClauseA = string("");
-
-    qy.clear();
-    qy += string("WITH");
-    if (args.isHome) {
-        whereClauseH = buildCTEWhereClause(true, fieldNames, args.grp, args.isOldTime, 
-                                           selectFieldsH, args.minGP, fieldsNotInSelectH);
-        qy += qy_home + whereClauseH + ")";        
+    prms.clear();
+    qy = "WITH"s;
+    if(args.isHome) {
+        qy += makeCTE(true, args.isOldTime, fieldNames, fieldValueMap, args.grp,
+                      args.stats, selectFields, selectFieldsSet, statList, prms);
+        qy += "), ";
+    } else {
+        // need empty set so both_t UNION makes sense
+        qy += " home_t as (SELECT 1 WHERE 1=0), "; 
     }
-    if (args.isAway) {
-        if(args.isHome) {
-            qy += ", ";
-            auto prmsA = prms;
-            prms.insert(prms.end(), prmsA.begin(), prmsA.end());            
-        }
-        whereClauseA = buildCTEWhereClause(false, fieldNames, args.grp, args.isOldTime,
-                                           selectFieldsA, args.minGP, fieldsNotInSelectA);
-        cout << endl << "qy (before away)=" << qy;
-        qy += qy_away + whereClauseA + ")";        
-        cout << endl << "qy (after away)=" << qy;
+    if(args.isAway) {
+        qy += makeCTE(false, args.isOldTime, fieldNames, fieldValueMap, args.grp,
+                     args.stats, selectFields, selectFieldsSet, statList, prms);
+        qy += "), ";
+    } else {
+        // need empty set so both_t UNION makes sense
+        qy += " away_t as (SELECT 1 WHERE 1=0), ";
     }
-    
-    cout << endl << "qy=" << qy;
+    qy += " both_t AS (SELECT * from home_t UNION SELECT * from away_t)";
+    cout << endl << "qy(CTE)=" << qy;
     // prmsH = tuple(fieldValues)prmsA = tuple(fieldValues)
     
-    cout << endl << "buildSQLQuery: selectFieldsH="; 
-    printVec(selectFieldsH);
+    cout << endl << "buildSQLQuery: selectFields=";
+    printVec(selectFields);
+    cout << endl << "buildSQLQuery: prms=";
+    for(auto p : prms)
+        cout << endl << p.asStr();
 
-
-    string final_select;
-    err = buildFinalSelect(final_select, fieldNames, selectFieldsH, fieldsNotInSelectH,
-                        fieldValues, statListH, args.grp, args.order, args.agg, 
-                        args.isHome, args.isAway);
+    // in the case where years 1) appear in the selection, 
+    // 2) there is a GROUP BY but
+    // 3) year is not 'grp' 
+    // then split year into two fields year_start and year_end
+    bool isSplitYear = false;
+    if(fieldValueMap.count("year") > 0 && groupSet.count("year") == 0 
+       && groupSet.size() > 0)
+        isSplitYear = true;
+    string lastClause;
+    unordered_set<string> selectFieldsSetOut;
+    err = buildLastClause(lastClause, fieldValueMap, selectFields,
+                          selectFieldsSet, statList, args.grp, 
+                          args.agg, isSplitYear, selectFieldsSetOut);
+    cout << endl << "lastClause=" << lastClause;
     
-    qy += final_select;
+    // need to wrap around last select by another select, since the minGP cannot be selected for
+    // in the same clause it is defined, and also for ordering to make sense (after aggregation)
+    qy += " SELECT * FROM(" + lastClause + ")";
+    if(args.agg != "no")
+        qy += " WHERE gp > " + to_string(args.minGP);
+    qy += makeOrderBy(args.order, selectFieldsSetOut, statList);
+
     // add some extra to determine if there are more records available
-    string limit_clause = " LIMIT " + to_string(args.limit+5);
-    qy += limit_clause;
+    qy += " LIMIT " + to_string(args.limit+5);
 
     return err;
 }

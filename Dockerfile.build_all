@@ -12,15 +12,16 @@ RUN yum update -y && \
         npm \
         tar \
         less \
+        nginx \
+        sqlite \
         wget \
         which && \
         yum clean all
 
 # download boost 1.84
-RUN wget https://boostorg.jfrog.io/artifactory/main/release/1.84.0/source/boost_1_84_0.tar.bz2
-
 # build boost
-RUN tar xjvf boost_1_84_0.tar.bz2 && \
+RUN wget https://boostorg.jfrog.io/artifactory/main/release/1.84.0/source/boost_1_84_0.tar.bz2 && \
+    tar xjvf boost_1_84_0.tar.bz2 && \
     cd boost_1_84_0 && \
     ./bootstrap.sh --with-toolset=clang --prefix=/usr/local && \
     ./b2 --with-system -j$(nproc) install  && \
@@ -32,26 +33,22 @@ RUN wget https://www.retrosheet.org/gamelogs/gl1871_2023.zip && \
     wget https://www.retrosheet.org/ballparks.zip && \
     wget https://www.retrosheet.org/teams.zip
 
-# run scripts to extract data from retrosheet files into Sqlite3 DB
+# make directories, run scripts to extract data from retrosheet files
+# into Sqlite3 DB
 RUN mkdir alldata && \
     mkdir alldata/gamelogs && \
+    mkdir /baseball && \
+    mkdir /baseball/webapp && \
+    mkdir /baseball/vite-baseball-stats && \
     unzip -d alldata/gamelogs gl1871_2023.zip && \
     unzip -d alldata ballparks.zip && \
     unzip -d alldata teams.zip && \
-    rm *.zip
-
-RUN mkdir /baseball && \
-    mkdir /baseball/webapp && \
-    mkdir /baseball/vite-baseball-stats
+    rm *.zip 
 
 # copy files
 # don't use bulk copy to avoid copying over junk/temp files
 COPY ./*.py /baseball
-COPY ./webapp/*.c* /baseball/webapp
-COPY ./webapp/*.h* /baseball/webapp
-COPY ./webapp/CMakeLists.txt /baseball/webapp
-COPY ./webapp/CMakeLists.txt /baseball/webapp
-COPY ./webapp/build.sh /baseball/webapp
+COPY ./webapp/*.c*  ./webapp/*.h* /webapp/CMakeLists.txt ./webapp/build.sh /baseball/webapp
 COPY ./webapp/vite-baseball-stats /baseball/webapp/vite-baseball-stats
 
 RUN mv alldata baseball && \
@@ -62,11 +59,12 @@ RUN mv alldata baseball && \
     rm -r alldata 
 
 # build backend and front end
-RUN cd /baseball/webapp && \
-    ./build.sh
-
-# # bundle front and backend into tar archive
-RUN cd /baseball/webapp && \
+# replace server name in requests.js 
+# bundle front and backend into tar archive
+RUN cd /baseball/webapp && \  
+    sed -i 's/server=.*/server="switchfielder.com"/' \
+        vite-baseball-stats/src/js/requests.js && \
+    ./build.sh && \
     tar cf dist.tar httpd baseball.db && \
     cd vite-baseball-stats && \
     tar rf ../dist.tar dist && \

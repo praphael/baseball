@@ -2,7 +2,6 @@ import React from 'react'
 
 import { filterFields } from '../js/filters.js'
 import { statTypesArr } from '../js/stats.js'
-import NumberInputWithCheck from './NumberInputWithCheck.jsx'
 import OptionWithCheck from './OptionWithCheck.jsx'
 import OptionRangeWithCheck from './OptionRangeWithCheck.jsx'
 import AccordionHeader from './AccordionHeader.jsx'
@@ -12,7 +11,6 @@ const selectClass = "col-4 form-select";
 const inputClass = "ml-2 col-8 form-input";
 const optionInputLabelClass = "form-label"
 const optionClasses = { divClass:optionInputDivClass, selectClass, labelClass:optionInputLabelClass } 
-const numberInputClasses = { divClass:optionInputDivClass, inputClass, labelClass:optionInputLabelClass }
 const checkDivClass = "col-1 form-check mb-2";
 const checkClass = "col-2 ms-1 form-check-input";
 const checkLabelClass= "form-check-label"
@@ -21,13 +19,12 @@ const checkClassesOrder = { divClass:checkDivClass, checkClass, labelClass:check
 
 const BoxScoreFilters = ({boxScoreFiltOpts, filter, onFiltChange, order, onOrderChange, updateData}) => {
 
-  const orderFields = new Array()
-  orderFields.push(...filterFields)
-  orderFields.push(...statTypesArr)
-  
+const orderFields = new Array()
+orderFields.push(...filterFields)
+orderFields.push(...statTypesArr)
 
-  console.log("BoxScoreFilters filter=", filter);
-  console.log("BoxScoreFilters filter.group=", filter.group);
+console.log("BoxScoreFilters filter=", filter);
+console.log("BoxScoreFilters filter.group=", filter.group);
 
 
 //  console.log("boxScoreFilt.values= ", boxScoreFilt.values);
@@ -46,6 +43,12 @@ const BoxScoreFilters = ({boxScoreFiltOpts, filter, onFiltChange, order, onOrder
         <OptionWithCheck fieldName="team" label="Team" options={boxScoreFiltOpts.teams} 
             val={filter.values.get("team")}
             checkVal={filter.group.has("team")} 
+            onChange={onFiltChange}
+            optionClasses={optionClasses}
+            checkClasses={checkClasses}/>
+        <OptionWithCheck fieldName="_team" label="Opp Team" options={boxScoreFiltOpts.teams} 
+            val={filter.values.get("_team")}
+            checkVal={filter.group.has("_team")} 
             onChange={onFiltChange}
             optionClasses={optionClasses}
             checkClasses={checkClasses}/>
@@ -87,6 +90,13 @@ const BoxScoreFilters = ({boxScoreFiltOpts, filter, onFiltChange, order, onOrder
           onChange={onFiltChange}
           optionClasses={optionClasses}
           checkClasses={checkClasses} />
+        <OptionWithCheck fieldName="_league" label="Opp League" 
+          options={boxScoreFiltOpts.league} 
+          val={filter.values.get("_league")}
+          checkVal={filter.group.has("_league")}
+          onChange={onFiltChange}
+          optionClasses={optionClasses}
+          checkClasses={checkClasses} />
         { /* day of week */ }
         <OptionWithCheck fieldName="dow" label="Day" options={boxScoreFiltOpts.daysOfWeek} 
             val={filter.values.get("dow")} 
@@ -95,9 +105,9 @@ const BoxScoreFilters = ({boxScoreFiltOpts, filter, onFiltChange, order, onOrder
             optionClasses={optionClasses}
             checkClasses={checkClasses} />
         { /* park */ }
-        <OptionWithCheck fieldName="park" label="Park" options={boxScoreFiltOpts.parks} 
-            val={filter.values.get("park")} 
-            checkVal={filter.group.has("park")}
+        <OptionWithCheck fieldName="park_id" label="Park" options={boxScoreFiltOpts.parks} 
+            val={filter.values.get("park_id")} 
+            checkVal={filter.group.has("park_id")}
             onChange={onFiltChange} 
             optionClasses={optionClasses}
             checkClasses={checkClasses} />

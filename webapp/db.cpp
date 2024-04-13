@@ -170,7 +170,7 @@ void copyTable(sqlite3* pdb, const std::string qy, col_info_t& colInfo,
 int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
             query_result_t& result, std::vector<std::string>& columnNames, 
             string& errMsg) {
-    sqlite3_stmt *pstmt;;
+    sqlite3_stmt *pstmt;
     const char *pzTail;
 
     errMsg.clear();
@@ -204,7 +204,7 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
         cerr << std::endl << errMsg << err;
         cerr << std::endl << "qy=\"" << qy << "\"";
         return(1);
-    }                             
+    }
 
     /* bind parametes */
     int c = 1;
@@ -253,7 +253,7 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
             cerr << endl << errMsg;
             return 6;  // unknown type
         }
-        c++; 
+        c++;
     }
 
     auto stmt_str = sqlite3_expanded_sql(pstmt);
@@ -266,7 +266,7 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
     err = sqlite3_step(pstmt);
     if (err != SQLITE_ROW) {
         // errMsg += "doQuery: sqlite3_step() err=" + to_string(err);
-        cerr << endl << "doQuery no data qy='" << qy << "'";
+        cerr << endl << "doQuery no data stmt_str='" << stmt_str << "'";
         return 0;
     }
     
@@ -421,9 +421,20 @@ void fixColumnNames(vector<string>& colummNames) {
     for(auto& col : colummNames) {
         cout << endl << "col= " << col;
         if(col.size() > 1) {
-            
+            if (col == "_team") {
+                col = "Opp";
+            }
+            else if (col == "_league") {
+                col = "OppLg";
+            }
+            else if (col == "league") {
+                col = "Lg";
+            }
+            else if (col == "_score") {
+                col = "OppSc";
+            }
             // statistics with '_' replace with 'opp'
-            if(col[0] == '_') {
+            else if(col[0] == '_') {
                 col.replace(0, 1, "opp");
             }
             // stats prepened with 'n' so SQL works
@@ -432,9 +443,9 @@ void fixColumnNames(vector<string>& colummNames) {
                 col.erase(col.begin());
             }
             else if (col == "dow") {
-                col = "Day of Week";
+                col = "Day";
             }
-            else if (col == "homeoraway") {
+            else if (col == "homeaway") {
                 col = "Home/Away";
             }
             else {
@@ -443,7 +454,7 @@ void fixColumnNames(vector<string>& colummNames) {
 
             // replace '_' with spaces
             auto idx = size_t{0};
-            while ((idx = col.find('_')) != string::npos) col[idx] = ' ';
+            while ((idx = col.find('_')) != string::npos) col[idx++] = ' ';
         }
         cout << "->" << col;
     }

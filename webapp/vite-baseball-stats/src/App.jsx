@@ -26,8 +26,8 @@ function App() {
   const [order, setOrder] = useState(orderDefaults);
   const [aggregate, setAggregate] = useState("sum");
   const [boxScoreFiltOpts, setBoxScoreFiltOpts] = useState(boxScoreFiltOptsDefaults);
-  const [minGP, setMinGP] = useState(10);
-  const [limit, setLimit] = useState(25);
+  const [minGP, setMinGP] = useState(1);
+  const [limit, setLimit] = useState(30);
 
   console.log("boxScoreFiltOptsDefaults=", boxScoreFiltOptsDefaults);
   useEffect(() => {

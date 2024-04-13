@@ -8,26 +8,26 @@ RUN yum update -y && \
         bzip2 && \
         yum clean all
 
-# download retrosheet files
-RUN mkdir /webapp
-COPY dist.tar.bz2 /webapp
-RUN cd /webapp && \
-    tar xjvf dist.tar.bz2 && \
-    rm dist.tar.bz2
+# make directories        
+RUN mkdir /webapp && \
+    mkdir /var/www && \
+    mkdir /var/www/baseball
 
-# setup nginx and copy dist 
-RUN mkdir /var/www
+# copy files
 COPY index.html /var/www
-RUN mkdir /var/www/baseball && \
-    cp -r /webapp/dist/* /var/www/baseball &&\
-    rm -rf /webapp/dist
-
+COPY dist.tar.bz2 /webapp
 COPY baseball.conf /etc/nginx/conf.d
 COPY proxy_params /etc/nginx
 
+# setup - extrac tar archive
 # in index.html, need to convert absolute (TLD) path '/assets'
 # to relative 'assets', otherwise doesn't work through proxy
-RUN cd /var/www/baseball && \
+RUN cd /webapp && \
+    tar xjvf dist.tar.bz2 && \
+    rm dist.tar.bz2 && \
+    cp -r /webapp/dist/* /var/www/baseball && \
+    rm -rf /webapp/dist && \
+    cd /var/www/baseball && \
     sed -i 's/\/assets/assets/' index.html
 
 # NOTE: this doesn't automatically expose port

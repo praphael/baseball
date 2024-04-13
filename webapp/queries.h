@@ -72,15 +72,6 @@ int buildSQLQuery(std::string argstr,
 
 std::vector<std::string> splitStr(const std::string& input, char delimiter);
 
-int getQueryParams(const json& args,
-                    std::vector<std::string>& fieldNames,
-                    std::vector<field_val_t>& fieldValues);
-
-std::string buildCTEWhereClause(bool isHome, const std::vector<std::string>& fieldNames, 
-                                const std::vector<std::string>& grp,
-                                bool isOldTime, const std::vector<std::string>& selectFields,
-                                int minGP, const std::vector<int>& fieldsNotInSelect);
-
 std::string renderHTMLTable(std::vector<std::string> headers, query_result_t result,
                             std::string opts, int limit);
 

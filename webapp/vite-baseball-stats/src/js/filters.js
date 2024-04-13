@@ -81,15 +81,17 @@ const boxScoreFiltDefaults = {
     agg: "sum"  // aggregation ("sum", "avg", "no")
 }
 boxScoreFiltDefaults.values.set("team", "");
+boxScoreFiltDefaults.values.set("_team", "");
 boxScoreFiltDefaults.values.set("yearlow", "2022");
 boxScoreFiltDefaults.values.set("yearhigh", "2022");
 boxScoreFiltDefaults.values.set("month", "");
-boxScoreFiltDefaults.values.set("park", "");
+boxScoreFiltDefaults.values.set("park_id", "");
 boxScoreFiltDefaults.values.set("dow", "");
 boxScoreFiltDefaults.values.set("homeaway", "");
 boxScoreFiltDefaults.values.set("league", "");
+boxScoreFiltDefaults.values.set("_league", "");
 boxScoreFiltDefaults.group.add("team");
 
-const orderDefaults = [["team", true], ["year", false], ["date", false]]
+const orderDefaults = [["team", false], ["year", true], ["date", false]]
 
 export {boxScoreFiltOptsDefaults, boxScoreFiltDefaults, filterFields, orderDefaults, getParksTeams}; //}, boxScoreIdxMaps};
