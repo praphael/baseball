@@ -178,12 +178,13 @@ def parseLineScore(r):
         if inn == 10:
             isExtra = True
             firstNine = s
-            print('extra inning game ', end="")
+            #print('extra inning game ', end="")
             s = ""
         if inn > 1 and inn != 10:
             s += ", "
         if inn > 9:
-            print(f"{inn} ", end="")
+            pass
+            #print(f"{inn} ", end="")
         # run out of innings, so keep appending NULL    
         if i >= len(r):
             s += "NULL"
@@ -210,20 +211,20 @@ def parseLineScore(r):
                     print(f"ERROR: attempting to parse line score {r}")
                     print(f"       expected intger value got {runStr}")
                     runStr = "NULL"
-        if isExtra:
-            print(f"runs {runStr} ", end="")
+        #if isExtra:
+        #    print(f"runs {runStr} ", end="")
         s += runStr
         i += 1
         inn += 1
     if isExtra:
         extras = s
-        print(f"    extras= {extras}")  
-        print(f"    firstNine= {firstNine}")                
+        #print(f"    extras= {extras}")  
+        #print(f"    firstNine= {firstNine}")                
     else:
         firstNine = s
     return (firstNine, extras)
 
-def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
+def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur, includePayoffs=True):
     s = ""
     numFields = 0
     # games which went to extra innings
@@ -232,10 +233,25 @@ def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
     completions = []
     useDB = conn is not None
 
-    for year in range(yearStart, yearEnd+1):
-        fName = f"gl{year}.txt"
+    tbl = "boxscore"
+    extra_tbl = "extra"
+    comp_tbl = "completion"
+    
+    playoffs = ("wc", "dv", "lc", "ws")
+    rng = list(range(yearStart, yearEnd+1))
+    rng.extend(playoffs)
+    playoffGTMap = {"wc": "C", "dv":"D", "lc":"L", "ws":"S"}
+    game_num_id = 0
+    # map of date/hometeam/number the integer game id
+    gameIDMap = dict()
+    for f in rng:
+        fName = f"gl{f}.txt"
         fPath = os.path.join(baseDir, fName)
         print(f"processing file {fPath}")
+        game_type = "R"
+        if f in playoffs:
+            game_type = playoffGTMap[f]
+        
         with open(fPath, "r") as fIn:
             rdr = csv.reader(fIn, delimiter=',', quotechar='"')
             for row in rdr:
@@ -244,25 +260,37 @@ def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
                 # clear string to save space if we aren't writing out query
                 if not writeFiles:
                     s = ""
-                ln = "INSERT INTO boxscore VALUES("
+                    
+                ln = "INSERT INTO " + tbl + " VALUES("
+                ln += str(game_num_id) + ", "
+                ln += "'" + game_type + "', "
+                
                 for v in row:
                     if i > 76:
                         break
                     x = "NULL"
                     if i == 0:
+                        game_date = v
                         x = f"DATE('{v[0:4]}-{v[4:6]}-{v[6:]}')"
-                    elif i == 13:
+                    elif i == 1:
+                        game_num = v
+                        x = game_num
+                    elif i == 6:
+                        home_team = v
+                        x = "'" + home_team + "'"
+                    elif i == 13:  # completion
                         x = "TRUE"
-                        if len(v) > 0:
+                        # completion info, including date on which game was completed
+                        if len(v) > 0:  
                             x = "FALSE"
-                            completions.append((game_date, game_num, home_team, v))
-                    elif i in (19, 20):
+                            completions.append((game_num_id, v))
+                    elif i in (19, 20):  # score by inning
                         (x, ext) = parseLineScore(v)
                         if(len(ext) > 0):
                             if i == 19:
                                 ext_visit = ext
                             else:
-                                extras.append((game_date, game_num, home_team, ext_visit, ext))
+                                extras.append((game_num_id, ext_visit, ext))
                     elif i in posStrIdx:
                         if v == '':
                             x = "'U'"
@@ -284,16 +312,7 @@ def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
                             x = f"'{vr}'"
                             
                     if len(x) == 0:
-                        x = "NULL"
-
-                    # need to remember these as they consit of the key
-                    # used fro completion info an extra innings
-                    if i == 0:
-                        game_date = x
-                    elif i == 1:
-                        game_num = x
-                    elif i == 6:
-                        home_team = x
+                        x = "NULL"             
 
                     ln += x
                     i += 1
@@ -306,6 +325,14 @@ def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
                 ln += "\n"
                 numFields = ln.count(",") + 1
                 s += ln
+
+                if game_date not in gameIDMap:
+                    gameIDMap[game_date] = dict()
+                if home_team not in gameIDMap[game_date]:
+                    gameIDMap[game_date][home_team] = dict()                
+
+                gameIDMap[game_date][home_team][game_num] = game_num_id
+                game_num_id += 1
         if useDB:
             conn.commit()
 
@@ -315,9 +342,8 @@ def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
         # clear string to save space if we aren't writing out query
         if not writeFiles:
             s = ""
-        ln = f"INSERT INTO extra VALUES({g[0]}, {g[1]}, {g[2]}"
-        ext = g[3]  # visitor 
-        for n in range(2):
+        ln = f"INSERT INTO {extra_tbl} VALUES({g[0]}"
+        for ext in (g[1], g[2]):
             r = re.split(",", ext)
             for i in range(10, 26):
                 ln += ", "
@@ -325,7 +351,7 @@ def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
                     ln += r[i-10]
                 else:
                     ln += "NULL"
-            ext = g[4]  # home
+                
         ln += ")"
         if useDB:
             cur.execute(ln)
@@ -341,10 +367,10 @@ def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
         # clear string to save space if we aren't writing out query
         if not writeFiles:
             s = ""
-        ln = f"INSERT INTO completion VALUES({g[0]}, {g[1]}, {g[2]}, "
-        r = re.split(",",  g[3])
+        ln = f"INSERT INTO {comp_tbl} VALUES({g[0]}, "
+        r = re.split(",",  g[1])
         dt = r[0]
-        print(f"dt= {dt}")
+        #print(f"dt= {dt}")
         ln += f"DATE('{dt[0:4]}-{dt[4:6]}-{dt[6:8]}'), "
         ln += f"'{r[1]}', "
         ln += f"{r[2]}, "
@@ -368,7 +394,7 @@ def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
     print(f'numFields= {numFields}')        
 
     if writeFiles:
-        fPath = f"boxscores_{yearStart}_to_{yearEnd}.sql"
+        fPath = f"boxscores_{rng[0]}_to_{rng[-1]}.sql"
         fout = open(fPath, "w")
         if fout is None:
             print(f"ERROR: cannot open '{fPath}' for writing")
@@ -377,6 +403,8 @@ def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur):
         fout.write(s)
         fout.write("COMMIT;\n")
         fout.close()
+
+    return gameIDMap
 
 if __name__=="__main__":
     connectPG = False

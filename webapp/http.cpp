@@ -518,7 +518,7 @@ int main(int argc, char* argv[])
     }
     // defaults
     auto yearStart = 1903;
-    auto yearEnd = 2022;
+    auto yearEnd = 2023;
     string address_str = "127.0.0.1";
     unsigned short port = 5000;
     string docroot = ".";

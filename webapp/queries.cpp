@@ -442,6 +442,15 @@ string makeFinalSelect(bool isSplitYear,
             if (agg != "no" && (p_name == "team" || p_name == "_team") 
                 && (fieldValueMap.count(p_name) + groupSet.count(p_name) == 0))
                 continue;
+            // exclude league and opposing league if we're not selecting by team
+            if (agg != "no" && (p_name == "league") 
+                && (fieldValueMap.count(p_name) + groupSet.count(p_name) 
+                    + fieldValueMap.count("team") + groupSet.count("team") == 0))
+                continue;
+            if (agg != "no" && (p_name == "_league") 
+                && (fieldValueMap.count(p_name) + groupSet.count(p_name) 
+                    + fieldValueMap.count("_team") + groupSet.count("_team") == 0))
+                continue;
 
             if(!isFirst)
                 query += ", "s;
