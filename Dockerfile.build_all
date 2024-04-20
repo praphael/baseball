@@ -29,30 +29,26 @@ RUN wget https://boostorg.jfrog.io/artifactory/main/release/1.84.0/source/boost_
     rm -rf boost*
 
 # download retrosheet files
-RUN wget https://www.retrosheet.org/gamelogs/gl1871_2023.zip && \
-    wget https://www.retrosheet.org/ballparks.zip && \
-    wget https://www.retrosheet.org/teams.zip
-
+RUN wget https://www.retrosheet.org/alldata.zip
+    
 # make directories, run scripts to extract data from retrosheet files
 # into Sqlite3 DB
-RUN mkdir alldata && \
-    mkdir alldata/gamelogs && \
+RUN mkdir /baseball/alldata && \
     mkdir /baseball && \
     mkdir /baseball/webapp && \
     mkdir /baseball/vite-baseball-stats && \
-    unzip -d alldata/gamelogs gl1871_2023.zip && \
-    unzip -d alldata ballparks.zip && \
-    unzip -d alldata teams.zip && \
-    rm *.zip 
+    unzip -d /baseball/alldata alldata.zip
 
 # copy files
 # don't use bulk copy to avoid copying over junk/temp files
+# use extraneous ARG to ignore cache after this point (force recopy)
+# change ARG at command line to forcd the rebuild
+ARG UPDATE_BUILD
 COPY ./*.py /baseball
-COPY ./webapp/*.c*  ./webapp/*.h* /webapp/CMakeLists.txt ./webapp/build.sh /baseball/webapp
+COPY ["./webapp/*.c*", "./webapp/*.h*", "/webapp/CMakeLists.txt", "./webapp/build.sh", "/baseball/webapp"]
 COPY ./webapp/vite-baseball-stats /baseball/webapp/vite-baseball-stats
 
-RUN mv alldata baseball && \
-    cd baseball && \
+RUN cd /baseball && \
     ./retrosheet_init_db.py && \
     ./retrosheet_data_to_sql.py && \
     mv baseball.db webapp && \
@@ -61,8 +57,9 @@ RUN mv alldata baseball && \
 # build backend and front end
 # replace server name in requests.js 
 # bundle front and backend into tar archive
+ARG SERVER_NAME=switchfielder.com
 RUN cd /baseball/webapp && \  
-    sed -i 's/server=.*/server="switchfielder.com"/' \
+    sed -i -e 's/server=.*/server="$SERVER_NAME"/' \
         vite-baseball-stats/src/js/requests.js && \
     ./build.sh && \
     tar cf dist.tar httpd baseball.db && \
