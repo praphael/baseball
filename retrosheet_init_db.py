@@ -450,7 +450,7 @@ allTables["event_data_er"]="""CREATE TABLE event_data_er (
 )
 """
 
-# field cond: D=dry, S=soaked,  W=wet, U=unknown;
+# field cond: D=dry, S=soaked, W=wet, A=damp, U=unknown;
 # precip: Z=drizzle, N=none, R=rain, S=showers, W=snow, U=unknown;
 # sky: C=cloudy, D=dome, N=night, O=overcast, S=sunny, U=unknown;
 # winddir = FC=fromcf, FL=fromlf, FR=fromrf, LR=ltor, RT=rtol, TC=tocf, TL=tolf, TR=torf, U=unknown.
@@ -492,114 +492,6 @@ allTables["game_info"]="""CREATE TABLE game_info (
 )    
 """
 
-allTables["player_game_batting"] = """CREATE TABLE player_game_batting (
-    game_id integer,
-    player_num_id smallint,
-    team varchar(4),
-    lineup smallint,
-    seq smallint,
-    GP smallint,
-    AB smallint,
-    R smallint,
-    H smallint,
-    n2B smallint,
-    n3B smallint,
-    HR smallint,
-    RBI smallint,
-    SH smallint,
-    SF smallint,
-    HBP smallint,
-    BB smallint,
-    IBB smallint,
-    K smallint,
-    SB smallint, 
-    CS smallint,
-    GIDP smallint,
-    INTF smallint,
-    PRIMARY KEY(game_id, player_num_id)
-)"""
-
-allTables["player_game_pinchrunning"] = """CREATE TABLE player_game_pinchrunning ( 
-    game_id integer,
-    player_num_id smallint,
-    team varchar(4),
-    inning smallint,
-    GP smallint,
-    R smallint,
-    SB smallint, 
-    CS smallint,
-    PRIMARY KEY(game_id, player_num_id)
-)"""
-
-allTables["player_game_pinchhitting"] = """CREATE TABLE player_game_pinchhitting ( 
-    game_id integer,
-    player_num_id smallint,
-    team varchar(4),
-    inning smallint,
-    GP smallint,
-    AB smallint,
-    R smallint,
-    H smallint,
-    n2B smallint,
-    n3B smallint,
-    HR smallint,
-    RBI smallint,
-    SH smallint,
-    SF smallint,
-    HBP smallint,
-    BB smallint,
-    IBB smallint,
-    K smallint,
-    SB smallint, 
-    CS smallint,
-    GIDP smallint,
-    INTF smallint,
-    PRIMARY KEY(game_id, player_num_id)
-)
-"""
-
-allTables["player_game_fielding"] = """CREATE TABLE player_game_fielding (
-    game_id integer,
-    player_num_id smallint,
-    team varchar(4),
-    pos char(1),
-    seq smallint,
-    GP smallint,
-    IF3 smallint,
-    PO smallint,
-    A smallint,
-    E smallint,
-    DP smallint,
-    TP smallint,
-    PB smallint,
-    PRIMARY KEY(game_id, player_num_id, seq, pos)
-)"""
-
-allTables["player_game_pitching"] = """CREATE TABLE player_game_pitching (
-    game_id integer,
-    player_num_id smallint,
-    team varchar(4),
-    seq smallint,
-    GP smallint,
-    IP3 smallint,
-    NOOUT smallint,
-    BFP smallint,
-    H smallint,
-    n2B smallint,
-    n3B smallint,
-    HR smallint,
-    R smallint,
-    ER smallint,
-    BB smallint,
-    IBB smallint,
-    K smallint,
-    HBP smallint,
-    WP smallint,
-    BK smallint,
-    SH smallint,
-    SF smallint,
-    PRIMARY KEY(game_id, player_num_id)
-)"""
 
 if __name__ == "__main__":
     connectPG = False
