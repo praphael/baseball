@@ -88,10 +88,24 @@ allTables["game_situation"] = """CREATE TABLE game_situation (
     bat_base char(1),
     hit_loc char(4),
     hit_type char(4),
-    bat_result2 char(4),
-    bat_base2 char(1),
     outs_made char(1),
     runs_scored char(1),
+    PRIMARY KEY(game_id, event_id)
+)"""
+
+allTables["game_result2"] = """CREATE TABLE game_result2 (
+    game_id integer,
+    event_id smallint,
+    bat_result2 char(4),
+    bat_base2 char(1),
+    PRIMARY KEY(game_id, event_id)
+)"""
+
+allTables["game_result3"] = """CREATE TABLE game_result3 (
+    game_id integer,
+    event_id smallint,
+    bat_result3 char(4),
+    bat_base3 char(1),
     PRIMARY KEY(game_id, event_id)
 )"""
 
