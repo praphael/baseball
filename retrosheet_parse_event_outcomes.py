@@ -475,17 +475,21 @@ class PlayEvent(Event):
             
             # double play, with 1 or 2 assists
             # either ground ball or lineout, likely to bag other than first
-            m = re.match(r"^(\d)?(\d)\(([B123])\)(\d)\(([B123])\)[#!?+-]?", bat0)
+            m = re.match(r"^(\d)?(\d)\(([B123])\)(\d)(\d)?\(([B123])\)[#!?+-]?", bat0)
             if m is not None:
-                DEBUG_PRINT("double play ")
+                DEBUG_PRINT("double play")
                 grps = m.groups()
                 if grps[0] is not None:
                     self.fielding.assists.append(int(grps[0]))
                 self.fielding.putouts.append(int(grps[1]))
                 self.fielding.assists.append(int(grps[1]))
                 self.run.out.append(grps[2])
-                self.fielding.putouts.append(int(grps[3]))
-                self.run.out.append(grps[4])
+                if grps[4] is not None:
+                    self.fielding.assists.append(int(grps[3]))
+                    self.fielding.putouts.append(int(grps[4]))
+                else:
+                    self.fielding.putouts.append(int(grps[3]))
+                self.run.out.append(grps[5])
                 self.bat.result = "FO"
                 return False
             
@@ -1804,7 +1808,7 @@ class GameState:
             if self.outs > 3:
                 DEBUG_PRINT(f"ERROR: too many outs ({self.outs})")
                 return True, self.possiblySafeDueToError, isNextHalfInning
-            DEBUG_PRINT(" end of inning")
+            DEBUG_PRINT("----- end of inning ------")
             self.nextHalfInning()
             isNextHalfInning = True
 
@@ -1866,11 +1870,11 @@ def deleteDBAfterEvent(gameID, savePtEventID):
         cur.execute(stmt)
 
 def parseGame(gameID, plays, conn, cur):
-    stmt = "SELECT tiebreak_base, use_dh, has_pitch_cnt, has_pitch_seq, home_team_bat_first,"
-    stmt += " win_pitcher, loss_pitcher, save_pitcher, gw_rbi"
+    stmt = "SELECT flags, win_pitcher, loss_pitcher, save_pitcher, gw_rbi"
     stmt += f" FROM game_info WHERE game_id={gameID}"
     cur.execute(stmt)
-    tb_base, use_dh, is_cnt, is_seq, htbf, win_p, lose_p, save_p, gw_rbi = cur.fetchall()[0]
+    flags, win_p, lose_p, save_p, gw_rbi = cur.fetchall()[0]
+    htbf = bool(flags & (1 << 2))
     stmt = f"SELECT home_team, visiting_team, game_date FROM boxscore WHERE game_id={gameID}"
     cur.execute(stmt)
     home_team, away_team, game_date = cur.fetchall()[0]
@@ -2056,10 +2060,11 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=None):
                         failed += 1
                         failedGames.append((gameID, plays))
                         deleteDBAfterEvent(gameID, 0)
-                        PRINT_DEBUG_OUT()
-                        print(f"parsed ", total, "before failure")
-                        exit(1)                        
-
+                        #PRINT_DEBUG_OUT()
+                        #print(f"parsed ", total, "before failure")
+                        #exit(1)                        
+                    else:
+                        conn.commit()
                     # clear debugging output to save mem/CPU
                     DEBUG_OUT = []
                 gameID = tup[0]
@@ -2101,9 +2106,6 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=None):
 
     print("total=", total, " initial failed=", failed, f" % {100.0-failed*100.0/total:0.3}")
     print("total=", total, " final failed=", failed-reparseSuccess, f" % {100.0-(failed-reparseSuccess)*100.0/total:0.3}")
-
-
-
 
 if __name__ == "__main__":
     connectPG = False

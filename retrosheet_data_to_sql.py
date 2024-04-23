@@ -119,8 +119,8 @@ if __name__ == "__main__":
     parks(writeFiles, conn, cur)
     playerIDMap = players(writeFiles, conn, cur)
     gameIDMap = getBoxScoreData(startYear, endYear, writeFiles, conn, cur, True)
-    if endYear > 1968:
-        endYear = 1968
+    #if endYear > 1968:
+    #    endYear = 1968
     #getPlayerStats(startYear, endYear, gameIDMap, playerIDMap, conn, cur, True)
     getEvents(startYear, endYear, gameIDMap, playerIDMap, conn, cur, True)
     conn.commit()

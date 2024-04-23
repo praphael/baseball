@@ -6,11 +6,10 @@ import os
 
 baseDir = "alldata/events"
 
-INFO_FIELDS = ("date", "number", "type", "hometeam", "visteam", "site", "starttime", "daynight",
-               "innings", "tiebreaker", "usedh", "pitches", "htbf",
-               "fieldcond", "precip", "sky", "temp", "winddir", "windspeed", "timeofgame",
-                "attendance", "oscorer", "umphome", "ump1b", "ump2b", "ump3b", "umplf", "umprf", 
-                "wp", "lp", "save", "gwrbi")
+INFO_FIELDS = ("date", "number", "type", "hometeam", "visteam", "site",
+               "starttime", "innings", "flags", "cond", "timeofgame",
+                "attendance",  "oscorer", "umphome", "ump1b", "ump2b", "ump3b",
+                "umplf", "umprf", "wp", "lp", "save", "gwrbi")
 
 class GameID:
     def __init__(self, v=None) -> None:
@@ -70,14 +69,19 @@ class GameInfo:
         for fld in INFO_FIELDS:
             setattr(self, fld, None)
         self.game_type = "R"
-        self.htbf = False
+        self.daynight = "U"
         self.sky = "U"
         self.winddir = "U"
         self.precip = "U"
-        self.fieldcond = "U"
-        self.innings = 9
+        self.fieldcond =  "U"
+        self.innings = "9"
+        self.use_dh = False
+        self.htbf = False
+        self.windspeed = -1
+        self.temp = 0
         self.has_pitch_cnt = False
         self.has_pitch_seq = False
+        self.tiebreak_base = 0
 
     def add(self, vals):
         f = vals[0]
@@ -108,7 +112,7 @@ class GameInfo:
                     if v not in ("1", "2", "3"):
                         print(f"GameInfo: Unknown value for ", f, ": ", v)
                         return
-                    self.tiebreaker = v
+                    self.tiebreak_base = int(v)
                 # integral values
                 elif f in ("innings", "windspeed", "temp", "timeofgame", "attendance"):
                     try:
@@ -159,19 +163,32 @@ class GameInfo:
         game_id = self.getGameID(gameIDMap)
         vals = [str(game_id)]
         # start at 6th field because this info is in boxscores with 
-        # game_game_number_id
+        # game_number_id
         for f in INFO_FIELDS[6:]:
             v = getattr(self, f)
-            if f == "pitches":
-                vals.append(str(int(self.has_pitch_cnt)))
-                vals.append(str(int(self.has_pitch_seq)))
+            if f == "flags":
+                flags = self.has_pitch_cnt & (self.has_pitch_seq << 1)
+                flags = flags & (self.htbf << 2) & (self.use_dh << 3)
+                flags = flags &  (self.tiebreak_base << 5)
+                flags += 32 # ensure printable char
+                vals.append(f"{flags}")
+            elif f == "cond":
+                v = self.daynight + self.fieldcond + self.precip 
+                ws = str(self.windspeed)
+                if len(ws) < 2:
+                    ws = "0" + ws
+                tmp = str(self.temp)
+                if len(tmp) < 2:
+                    tmp = "0" + tmp
+                v += self.sky + self.winddir + ws + tmp
+                vals.append(f"'{v}'")
             elif v is None:
                 vals.append("NULL")
             elif type(v) == type(True):
                 vals.append(str(int(v)))
             elif type(v) == type(""):
                 # wrap string values in quotes
-                vals.append("'" + v + "'")
+                vals.append(f"'{v}'")
             else:  # default (numeric type)
                 vals.append(str(v))
         stmt += ", ".join(vals) + ")"

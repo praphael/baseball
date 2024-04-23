@@ -257,13 +257,13 @@ allTables["teams"]="""CREATE TABLE teams (
 allTables["player"]="""CREATE TABLE player (
     player_num_id smallint PRIMARY KEY, 
     player_id char(8),
-    name_last varchar(64),
-    name_first varchar(64),
-    name_other varchar(64),
+    name_last char(64),
+    name_first char(64),
+    name_other char(64),
     birth date,
-    birth_city varchar(64),
-    birth_state varchar(64),
-    birth_country varchar(64),
+    birth_city char(64),
+    birth_state char(64),
+    birth_country char(64),
     debut date,
     last_game date,
     manager_debut date,
@@ -273,20 +273,20 @@ allTables["player"]="""CREATE TABLE player (
     ump_debut date,
     ump_last_game date,
     death date,
-    death_city varchar(64),
-    death_state varchar(64),
-    death_country varchar(64),
+    death_city char(64),
+    death_state char(64),
+    death_country char(64),
     bats char(1),
     throws char(1),
-    height varchar(16),
+    height char(8),
     weight smallint,
-    cemetary varchar(64),
-    cemetary_city varchar(64),
-    cemetary_state varchar(64),
-    cemetary_country varchar(64),
-    cemetary_note varchar(64),
-    birth_name varchar(64),
-    name_change varchar(64),
+    cemetary char(64),
+    cemetary_city char(64),
+    cemetary_state char(64),
+    cemetary_country char(64),
+    cemetary_note char(64),
+    birth_name char(64),
+    name_change char(64),
     bat_change char(1),
     hall_of_fame char(3)
 ) WITHOUT ROWID
@@ -299,7 +299,7 @@ allTables["event_start"]="""CREATE TABLE event_start (
     game_id integer,
     event_id smallint,
     player_id smallint,
-    team varchar(4),
+    team char(4),
     bat_pos char(1),
     field_pos char(1),
     PRIMARY KEY(game_id, event_id)
@@ -312,7 +312,7 @@ allTables["event_sub"]="""CREATE TABLE event_sub (
     game_id integer,
     event_id smallint,
     player_id smallint,
-    team varchar(4),
+    team char(4),
     bat_pos char(1),
     field_pos char(1),
     PRIMARY KEY(game_id, event_id)
@@ -354,7 +354,7 @@ allTables["event_sub"]="""CREATE TABLE event_sub (
 allTables["event_com"]="""CREATE TABLE event_com (
     game_id integer,
     event_id smallint,
-    com varchar(256),
+    com char(256),
     PRIMARY KEY(game_id, event_id)
 )"""
 
@@ -411,11 +411,11 @@ allTables["event_play"]="""CREATE TABLE event_play (
     game_id integer,
     event_id smallint,
     inning smallint,
-    team varchar(4),
+    team char(4),
     player_id smallint,
     batter_count char(2),
-    pitch_seq varchar(32),
-    play varchar(64),
+    pitch_seq char(32),
+    play char(64),
     PRIMARY KEY(game_id, event_id)
 )"""
 
@@ -435,7 +435,7 @@ allTables["event_player_adj"]="""CREATE TABLE event_player_adj (
 allTables["event_lineup_adj"]="""CREATE TABLE event_lineup_adj (
     game_id integer,
     event_id smallint,
-    team_id varchar(5),
+    team_id char(4),
     adj char(1),
     PRIMARY KEY(game_id, event_id)
 )
@@ -460,22 +460,18 @@ allTables["event_data_er"]="""CREATE TABLE event_data_er (
 # game_type R=regular E=exhibition P=preseason A=allstar P=playoff S=worldseries
 #   L=lcs D=divisionseries W=wildcard H=championship
 
+#flags  
+#flags = has_pitch_cnt & (has_pitch_seq << 1)
+#        & (htbf << 2) & (use_dh << 3) & (tiebreakbase << 4)
+
+# conditions
+# daynight fieldcond precip sky winddir windspeed temp
 allTables["game_info"]="""CREATE TABLE game_info (
     game_id integer PRIMARY KEY,
     time_start_mil smallint,
-    daynight char(1),
     innings_sched smallint,
-    tiebreak_base char(1),
-    use_dh boolean,
-    has_pitch_cnt boolean,
-    has_pitch_seq boolean,
-    home_team_bat_first boolean,
-    fieldcond char(1),
-    precip char(1),
-    sky char(1),
-    temp smallint,
-    winddir char(1),
-    windspeed smallint,
+    flags smallint,
+    cond char(7),
     game_len_mins smallint,
     attendance integer,
     scorer char(8),

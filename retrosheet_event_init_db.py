@@ -6,8 +6,8 @@ allTables["player_game_batting"] = """CREATE TABLE player_game_batting (
     game_id integer,
     player_num_id smallint,
     team varchar(4),
-    lineup char(1),
-    seq char(1),
+    lineup smallint,
+    seq smallint,
     pos char(1),
     AB smallint,
     R smallint,
@@ -34,7 +34,7 @@ allTables["player_game_fielding"] = """CREATE TABLE player_game_fielding (
     player_num_id smallint,
     team varchar(4),
     pos char(1),
-    seq char(1),
+    seq smallint,
     IF3 smallint,
     PO smallint,
     A smallint,
@@ -49,7 +49,7 @@ allTables["player_game_pitching"] = """CREATE TABLE player_game_pitching (
     game_id integer,
     player_num_id smallint,
     team varchar(4),
-    seq char(1),
+    seq smallint,
     IP3 smallint,
     NOOUT smallint,
     BFP smallint,
@@ -75,9 +75,9 @@ allTables["game_situation"] = """CREATE TABLE game_situation (
     event_id smallint,
     batter_id smallint,
     pitcher_id smallint,
-    inning char(1),
+    inning smallint,
     inning_half char(1),
-    outs char(1),
+    outs smallint,
     bat_team_score smallint,
     pitch_team_score smallint,
     bases_first smallint,
@@ -88,8 +88,8 @@ allTables["game_situation"] = """CREATE TABLE game_situation (
     bat_base char(1),
     hit_loc char(4),
     hit_type char(4),
-    outs_made char(1),
-    runs_scored char(1),
+    outs_made smallint,
+    runs_scored smallint,
     PRIMARY KEY(game_id, event_id)
 )"""
 
@@ -113,7 +113,7 @@ allTables["game_situation_fielder_assist"] = """CREATE TABLE game_situation_fiel
     game_id integer,
     event_id smallint,
     fielder_id smallint,
-    seq char(1),
+    seq smallint,
     PRIMARY KEY(game_id, event_id, fielder_id, seq)
 )"""
 
@@ -121,7 +121,7 @@ allTables["game_situation_fielder_putout"] = """CREATE TABLE game_situation_fiel
     game_id integer,
     event_id smallint,
     fielder_id smallint,
-    seq char(1),
+    seq smallint,
     PRIMARY KEY(game_id, event_id, fielder_id, seq)
 )"""
 
@@ -129,7 +129,7 @@ allTables["game_situation_fielder_error"] = """CREATE TABLE game_situation_field
     game_id integer,
     event_id smallint,
     fielder_id smallint,
-    seq char(1),
+    seq smallint,
     PRIMARY KEY(game_id, event_id, fielder_id, seq)
 )"""
 
@@ -137,14 +137,14 @@ allTables["game_situation_fielder_fielded"] = """CREATE TABLE game_situation_fie
     game_id integer,
     event_id smallint,
     fielder_id smallint,    
-    seq char(1),
+    seq smallint,
     PRIMARY KEY(game_id, event_id, fielder_id, seq)
 )"""
 
 allTables["game_situation_bat_mod"] = """CREATE TABLE game_situation_bat_mod (
     game_id integer,
     event_id smallint,
-    seq char(1),
+    seq smallint,
     mod char(4),
     prm char(2),
     PRIMARY KEY(game_id, event_id, seq)
@@ -164,7 +164,7 @@ allTables["game_situation_base_run_mod"] = """CREATE TABLE game_situation_base_r
     event_id smallint,
     base_src char(1),
     base_dst char(1),
-    seq char(1),
+    seq smallint,
     mod char(4),
     prm char(4),
     PRIMARY KEY(game_id, event_id, base_src, seq)
@@ -175,7 +175,7 @@ allTables["game_situation_base_run_sub_mod"] = """CREATE TABLE game_situation_ba
     event_id smallint,
     base_src char(1),
     base_dst char(1),
-    seq char(1),
+    seq seq smallint,
     mod char(4),
     submod char(4),
     prm char(4),
