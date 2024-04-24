@@ -6,9 +6,8 @@ allTables["player_game_batting"] = """CREATE TABLE player_game_batting (
     game_id integer,
     player_num_id smallint,
     team varchar(4),
-    lineup smallint,
+    pos smallint,
     seq smallint,
-    pos char(1),
     AB smallint,
     R smallint,
     H smallint,
@@ -52,7 +51,7 @@ allTables["player_game_pitching"] = """CREATE TABLE player_game_pitching (
     seq smallint,
     IP3 smallint,
     NOOUT smallint,
-    BFP smallint,
+    BF smallint,
     H smallint,
     n2B smallint,
     n3B smallint,
@@ -93,7 +92,7 @@ allTables["game_situation"] = """CREATE TABLE game_situation (
     PRIMARY KEY(game_id, event_id)
 )"""
 
-allTables["game_result2"] = """CREATE TABLE game_result2 (
+allTables["game_situation_result2"] = """CREATE TABLE game_situation_result2 (
     game_id integer,
     event_id smallint,
     bat_result2 char(4),
@@ -101,7 +100,7 @@ allTables["game_result2"] = """CREATE TABLE game_result2 (
     PRIMARY KEY(game_id, event_id)
 )"""
 
-allTables["game_result3"] = """CREATE TABLE game_result3 (
+allTables["game_situation_result3"] = """CREATE TABLE game_situation_result3 (
     game_id integer,
     event_id smallint,
     bat_result3 char(4),
@@ -141,10 +140,27 @@ allTables["game_situation_fielder_fielded"] = """CREATE TABLE game_situation_fie
     PRIMARY KEY(game_id, event_id, fielder_id, seq)
 )"""
 
-allTables["game_situation_bat_mod"] = """CREATE TABLE game_situation_bat_mod (
+allTables["game_situation_result1_mod"] = """CREATE TABLE game_situation_result1_mod (
     game_id integer,
     event_id smallint,
-    seq smallint,
+    seq smallint,    
+    mod char(4),
+    prm char(2),
+    PRIMARY KEY(game_id, event_id, seq)
+)"""
+
+allTables["game_situation_result2_mod"] = """CREATE TABLE game_situation_result2_mod (
+    game_id integer,
+    event_id smallint,
+    seq smallint,    
+    mod char(4),
+    prm char(2),
+    PRIMARY KEY(game_id, event_id, seq)
+)"""
+allTables["game_situation_result3_mod"] = """CREATE TABLE game_situation_result3_mod (
+    game_id integer,
+    event_id smallint,
+    seq smallint,    
     mod char(4),
     prm char(2),
     PRIMARY KEY(game_id, event_id, seq)

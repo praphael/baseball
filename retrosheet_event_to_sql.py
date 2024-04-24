@@ -45,7 +45,7 @@ SKYCOND["sunny"] = "S"
 
 WINDDIR = dict()
 WINDDIR["fromcf"] = "FC"
-WINDDIR["fromlf"] = "Fl"
+WINDDIR["fromlf"] = "FL"
 WINDDIR["fromrf"] = "FR"
 WINDDIR["ltor"] = "LR"
 WINDDIR["rtol"] = "RT"
@@ -71,10 +71,10 @@ class GameInfo:
         self.game_type = "R"
         self.daynight = "U"
         self.sky = "U"
-        self.winddir = "U"
+        self.winddir = "UN"
         self.precip = "U"
         self.fieldcond =  "U"
-        self.innings = "9"
+        self.innings = 9
         self.use_dh = False
         self.htbf = False
         self.windspeed = -1
@@ -86,73 +86,72 @@ class GameInfo:
     def add(self, vals):
         f = vals[0]
         v = vals[1]
-        if f in INFO_FIELDS:
-            if f == "date":
-                #self.year, self.month, self.day = v.split("/")
-                ymd = v.split("/")
-                self.date = "".join(ymd)
-            elif v not in ("unknown", "(none)"):
-                # boolean values
-                if f in ("useddh", "htbf"):
-                    if v in ("true"):
-                        setattr(self, f, True)
-                    elif v in ("false"):
-                        setattr(self, f, False)
-                    else:
-                        print(f"GameInfo: Unknown value for ", f, ": ", v)
-                        return
-                elif f in ("pitches"):
-                    if v == "pitches":
-                        setattr(self, "has_pitch_seq", True)
-                        setattr(self, "has_pitch_cnt", True)
-                    elif v == "count":
-                        setattr(self, "has_pitch_seq", False)
-                        setattr(self, "has_pitch_cnt", True)
-                elif f == "tiebreaker":
-                    if v not in ("1", "2", "3"):
-                        print(f"GameInfo: Unknown value for ", f, ": ", v)
-                        return
-                    self.tiebreak_base = int(v)
-                # integral values
-                elif f in ("innings", "windspeed", "temp", "timeofgame", "attendance"):
-                    try:
-                        val = int(v)
-                    except ValueError as e:
-                        #print(f"GameInfo: failure to parse integer field ", f, ",  v=", v)
-                        return
-                    setattr(self, f, val)
-                elif f == "starttime":  
-                    # parse start time to integer (military time)
-                    hr, rst = v.split(":")
-                    min = rst[0:2]
-                    ampm = rst[2:]
-                    try:
-                        hr = int(hr)
-                        min = int(min)
-                    except ValueError as e:
-                        #print(f"GameInfo: failure to parse starttime: v=", v)
-                        return
-                    offset = 0
-                    if ampm == "AM":
-                        pass
-                    elif ampm == "PM":
-                        if hr < 12:
-                            offset = 1200
-                    else:
-                        #print("GameInfo: Bad AM/PM for starttime v=", v)
-                        return
-                    self.starttime = offset + hr*100 + min
-                elif f in INFO_ENUM_DICT:
-                    en = INFO_ENUM_DICT[f]
-                    if v in en:
-                        setattr(self, f, en[v])
-                    else:
-                        print(f"GameInfo: Unknown value for ", f, ": ", v)
-                else:  # generic string value
-                    setattr(self, f, v)
-        else:
-            pass
-            #print(f"GameInfo: Unknown field ", f, " v=", v)
+        if f == "date":
+            #self.year, self.month, self.day = v.split("/")
+            ymd = v.split("/")
+            self.date = "".join(ymd)
+            return
+        if v in ("unknown", "(none)"):
+            return
+        
+        # boolean values
+        if f in ("useddh", "htbf"):
+            if v in ("true"):
+                setattr(self, f, True)
+            elif v in ("false"):
+                setattr(self, f, False)
+            else:
+                print(f"GameInfo: Unknown value for ", f, ": ", v)
+                return
+        elif f in ("pitches"):
+            if v == "pitches":
+                setattr(self, "has_pitch_seq", True)
+                setattr(self, "has_pitch_cnt", True)
+            elif v == "count":
+                setattr(self, "has_pitch_seq", False)
+                setattr(self, "has_pitch_cnt", True)
+        elif f == "tiebreaker":
+            if v not in ("1", "2", "3"):
+                print(f"GameInfo: Unknown value for ", f, ": ", v)
+                return
+            self.tiebreak_base = int(v)
+        # integral values
+        elif f in ("innings", "windspeed", "temp", "timeofgame", "attendance"):
+            try:
+                val = int(v)
+            except ValueError as e:
+                #print(f"GameInfo: failure to parse integer field ", f, ",  v=", v)
+                return
+            setattr(self, f, val)
+        elif f == "starttime":  
+            # parse start time to integer (military time)
+            hr, rst = v.split(":")
+            min = rst[0:2]
+            ampm = rst[2:]
+            try:
+                hr = int(hr)
+                min = int(min)
+            except ValueError as e:
+                #print(f"GameInfo: failure to parse starttime: v=", v)
+                return
+            offset = 0
+            if ampm == "AM":
+                pass
+            elif ampm == "PM":
+                if hr < 12:
+                    offset = 1200
+            else:
+                #print("GameInfo: Bad AM/PM for starttime v=", v)
+                return
+            self.starttime = offset + hr*100 + min
+        elif f in INFO_ENUM_DICT:
+            en = INFO_ENUM_DICT[f]
+            if v in en:
+                setattr(self, f, en[v])
+            else:
+                print(f"GameInfo: Unknown value for ", f, ": ", v)
+        else:  # generic string value
+            setattr(self, f, v)
 
     def getGameID(self, gameIDMap):
         # get the numeric id of the game
