@@ -455,12 +455,13 @@ class PlayEvent(Event):
                     self.bat.hit_loc = m.group(1)
                 return False, "HR", None, m.end()
             # error (fielding or catch)
-            m = re.match(r"^(\d)?[#!?]?E(\d)[#!?+-]?", bat0)
+            m = re.match(r"^(\d*)[#!?]?E(\d)[#!?+-]?", bat0)
             if m is not None:
                 grps = m.groups()
                 if grps[0] is not None:
                     DEBUG_PRINT("error - catch")
-                    self.fielding.fielded.append(int(grps[0]))
+                    for g in grps[0]:
+                        self.fielding.fielded.append(int(g))
                 else:
                     DEBUG_PRINT("fielding error")
                 self.fielding.errors.append(int(grps[1]))
@@ -481,6 +482,15 @@ class PlayEvent(Event):
             
             # triple play - ground ball, forceout, implied runner out at first
             m = re.match(r"^(\d.*)\(([123H])\)(\d.+)\(([123H])\)(\d.?)", bat0)
+            if m is not None:
+                DEBUG_PRINT("triple play")
+                grps = m.groups()
+                self.run.out.append(grps[1])
+                self.run.out.append(grps[3])
+                return False, "O", None, m.end()
+            
+            # triple play - ground ball, forceout, explicit runner out at first
+            m = re.match(r"^(\d.*)\(([B123H])\)(\d.*)\(([B123H])\)(\d.?)\(([B123H])\)", bat0)
             if m is not None:
                 DEBUG_PRINT("triple play")
                 grps = m.groups()
@@ -1171,7 +1181,7 @@ class GameState:
     def applyLineupAdj(self, lAdj):
         DEBUG_PRINT("***** LINEUP ADJUSTMENT ***** ")
         lAdj.print()
-        self.cur_batter[self.curBat] = lAdj.adj
+        self.cur_batter[self.curBat.team] = int(lAdj.adj)
 
     def applyPlayerAdj(self, pAdj):
         pAdj.print()
@@ -1597,16 +1607,16 @@ class GameState:
                     src = int(src)
                     #DEBUG_PRINT(src)
                     # base could already have been vacated due to stolen base
-                    if self.baseRunners[src] == None:
-                        if self.vacatedBases[src] is not None:
-                            (runIdx, runnerID) = self.vacatedBases[src]
-                        #elif self.vacatedBases[src] is not None:
-                        #    (runIdx, runnerID) = self.vacatedBases[src]
-                        else:
-                            DEBUG_PRINT("ERROR: Could not find runner on base", src)
-                            return None
-                    else:
+                    if self.vacatedBases[src] is not None:
+                        (runIdx, runnerID) = self.vacatedBases[src]
+                    elif self.baseRunners[src] is not None:
                         (runIdx, runnerID) = self.baseRunners[src]
+                    #elif self.vacatedBases[src] is not None:
+                    #    (runIdx, runnerID) = self.vacatedBases[src]
+                    else:
+                        DEBUG_PRINT("ERROR: Could not find runner on base", src)
+                        return None
+                    
                 basesAdv.add(src)
                     
                 dst = adv[1]
@@ -1795,6 +1805,24 @@ class GameState:
         if evt.field_pos == "1":  # pitcher
             stPitch = self.statsPitch[tm.team]
             stPitch.append((evt.player_id, PitcherStats()))
+        if evt.field_pos == "R":
+            DEBUG_PRINT("applySub: replacing runner on base")
+            runnerFound = False
+            for b in range(len(self.baseRunners)):
+                rn = self.baseRunners[b]
+                if rn is not None and rn[1] == rep_batter:
+                    self.baseRunners[b] = (int(evt.bat_pos), evt.player_id)
+                    runnerFound = True
+                    break
+            if not runnerFound:
+                DEBUG_PRINT("applySub: could not find replacement on base")
+                return True
+        return False
+
+
+
+            
+                    
         
 def compareStatsToBoxScore(game, htbf, conn, cur):
     for hOrV in ("home", "visiting"):
@@ -1820,9 +1848,14 @@ def deleteDBAfterEvent(gameID, savePtEventID):
                 "game_situation_result3", "game_situation_result1_mod",
                 "game_situation_result2_mod", "game_situation_result3_mod")
     
+    gameTables = ("player_game_batting", "player_game_pitching", "player_game_fielding")
     for tbl in allTables:
         stmt =  f"DELETE FROM {tbl} WHERE game_id={gameID}"
         stmt += f" AND event_id>{savePtEventID}"
+        DEBUG_PRINT(stmt)
+        cur.execute(stmt)
+    for tbl in gameTables:
+        stmt =  f"DELETE FROM {tbl} WHERE game_id={gameID}"
         DEBUG_PRINT(stmt)
         cur.execute(stmt)
 
@@ -1994,7 +2027,8 @@ def parseGame(gameID, plays, conn, cur):
                     posssiblySafeDueToErrorInInning = 1
             
         elif type(evt) == type(SubEvent()):
-            game.applySub(evt)
+            if game.applySub(evt):
+                return True
         elif type(evt) == type(PlayerAdjEvent()):
             game.applyPlayerAdj(evt)
         elif type(evt) == type(LineupAdjEvent()):
@@ -2116,6 +2150,9 @@ if __name__ == "__main__":
     if len(sys.argv) > 3:
         if sys.argv[3] in ("0", "F"):
             quit_on_err = False
+    if len(sys.argv) > 4:
+        if sys.argv[4] in ("1", "T"):
+            DEBUG = True
     print("gameRange", gameRange)
     print("quit_on_err", quit_on_err)
     if connectSqlite:
