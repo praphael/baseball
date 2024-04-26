@@ -70,6 +70,14 @@ int buildSQLQuery(std::string argstr,
                   std::string &qy, std::vector<field_val_t>& prms,
                   std::string &errMsg, args_t& args);
 
+int buildPlayerGameSQLQuery(std::string argstr,
+                            std::string &qy, std::vector<field_val_t>& prms,
+                            std::string &errMsg, args_t& args);
+
+int buildSituationSQLQuery(std::string argstr,
+                           std::string &qy, std::vector<field_val_t>& prms,
+                           std::string &errMsg, args_t& args);
+
 std::vector<std::string> splitStr(const std::string& input, char delimiter);
 
 std::string renderHTMLTable(std::vector<std::string> headers, query_result_t result,

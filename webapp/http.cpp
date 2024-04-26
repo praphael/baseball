@@ -30,7 +30,7 @@
 #include <curl/curl.h>
 
 #include "db.h"
-
+#include "trie.h"
 
 using std::string;
 using std::vector;
@@ -207,7 +207,13 @@ handle_request(
        
     string resp_body;
     auto mime_type = string("text/plain");
+    // map from team code (three chars) to team name
     static unordered_map<string, string> teamsMap;
+    // map from player names to IDs and ID to full name
+    static NameTrie playerLastTrie;
+    static NameTrie playerOtherTrie;
+    static unordered_map<int, string> playerIDMap;
+
 
     if (!err) {
         cout << endl << "rt_qy= ";
@@ -231,7 +237,21 @@ handle_request(
             else if(rt == "box") {
                 if(req.method() == http::verb::get)
                     err = handleBoxRequest(pdb, qy, resp_body, mime_type, teamsMap);
-            } else {
+            }
+            else if(rt == "player") {
+                if(req.method() == http::verb::get)
+                    err = handlePlayerRequest(pdb, qy, resp_body, mime_type,
+                            playerLastTrie, playerOtherTrie, playerIDMap);
+            }
+            else if(rt == "playergame") {
+                if(req.method() == http::verb::get)
+                    err = handlePlayerGameRequest(pdb, qy, resp_body, mime_type, teamsMap);
+            }
+            else if(rt == "situation") {
+                if(req.method() == http::verb::get)
+                    err = handleSituationRequest(pdb, qy, resp_body, mime_type, teamsMap);
+            }
+            else {
                 return not_found(req.target());
             }
         } catch (std::exception e) {

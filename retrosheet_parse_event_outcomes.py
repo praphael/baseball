@@ -17,7 +17,8 @@ def DEBUG_PRINT(*args,end="\n"):
     if DEBUG:        
         print(*args, end=end)
     else:
-        DEBUG_OUT.append((args, end))
+        pass
+        #DEBUG_OUT.append((args, end))
 
 def PRINT_DEBUG_OUT():
     for l in DEBUG_OUT:

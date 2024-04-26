@@ -13,11 +13,15 @@ project(httpd)
 #GroupSources(include/boost/beast beast)
 #GroupSources(example/http/server/async "/")
 
-#find_package(boost)
+if(APPLE)
+    find_package(boost)
+else()
+    set(Boost_INCLUDE_DIRS "/usr/local/include")
+endif()
 
 find_package(CURL REQUIRED)
 
-set(Boost_INCLUDE_DIRS "/usr/local/include")
+
 #set(Boost_LIBRARY_DIRS "/boost_1_84_0/stage/lib")
 include_directories(${Boost_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS})
 #link_directories(${Boost_LIBRARY_DIRS})
@@ -28,12 +32,14 @@ add_executable (httpd
     sqlite3.c
     queries.cpp
     baseball_tables.cpp
+    trie.cpp
     db.cpp
 )
 
 add_executable (test_qy
     test_queries.cpp
     queries.cpp
+    trie.cpp
 )
 
 add_executable (test_db
@@ -42,6 +48,7 @@ add_executable (test_db
     queries.cpp
     baseball_tables.cpp
     test_db.cpp
+    trie.cpp
 )
 
 target_compile_features(httpd PRIVATE cxx_std_17)

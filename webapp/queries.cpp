@@ -17,10 +17,18 @@ using std::pair;
 // for 's' suffix
 using namespace std::string_literals;
 
-const auto MONTH_FIELD = string("CAST(substr(game_date,6,2) AS INTEGER)");
-const auto YEAR_FIELD = string("CAST(substr(game_date,0,5) AS INTEGER)");
+const auto MONTH_FIELD = "CAST(substr(game_date,6,2) AS INTEGER)"s;
+const auto YEAR_FIELD = "CAST(substr(game_date,0,5) AS INTEGER)"s;
+// field conditions
+const auto TEMP_FIELD = "CAST(substr(cond,0,5) AS INTEGER)"s;
+const auto WINDSPEED_FIELD = "CAST(substr(cond,0,5) AS INTEGER)"s;
+const auto WINDDIR_FiELD = "substr(cond,0,5)"s;
+const auto PRECIP_FIElD = "substr(cond,0,5)"s;
+const auto SKY_FIELD = "substr(cond,0,5)"s;
+const auto FIELDCOND_FIELD = "substr(cond,0,5)"s;
 
-const auto VALID_AGG = unordered_set<string>{"no", "sum", "avg", "max", "min"};
+
+const auto VALID_AGG = unordered_set<string>{"no", "sum", "avg", "max", "min", "count"};
 
 const unordered_map<string, string> FIELD_NAME_MAP =     
                 { {"R", "score"},
@@ -65,7 +73,18 @@ const unordered_map<string, string> FIELD_NAME_MAP =
 auto QUERY_PARAMS = unordered_map<string, q_params_t>();
 
 // Note: Home/Away split not a query parameter because it has special handling
-vector<string> QUERY_PARAMS_ORDER = {"year", "team", "_team", "league", "_league", "month", "dow", "park_id", "park"};
+vector<string> QUERY_PARAMS_ORDER = {"year", "team", "_team", "league", "_league", 
+                                     "month", "dow", "park_id", "park", "game",
+                                     "game_type", "day_night", "temp", "windspeed",
+                                     "winddir", "precip", "sky", "fieldcond", "batter",
+                                     "pitcher", "sit_inn", "sit_innhalf", "sit_outs",
+                                     "sit_bat_tm_sco", "sit_pit_tm_sco", "sit_sco_diff", 
+                                     "sit_base_1", "sit_base_2", "sit_base_3", 
+                                     "sit_pit_cnt", "sit_bat_res", "sit_bat_res2",
+                                     "sit_bat_res3", "sit_bat_base", "sit_bat_base2",
+                                     "sit_bat_base3", "sit_hit_loc", "sit_hit_type",
+                                     "sit_outs_made", "sit_runs_sco"};
+
 unordered_map<string, q_params_t>& initQueryParams() {
     QUERY_PARAMS.clear();
     QUERY_PARAMS["team"] = q_params_t{"team", valType::STR, true};
@@ -76,6 +95,54 @@ unordered_map<string, q_params_t>& initQueryParams() {
     QUERY_PARAMS["league"] = q_params_t{"league", valType::STR, true};
     QUERY_PARAMS["_league"] = q_params_t{"league", valType::STR, true};
     QUERY_PARAMS["park_id"] = q_params_t{"park", valType::STR, false};
+    
+    // game number (regular or post season series)
+    // note to be confunsed with "game_num" which is the double header number
+    QUERY_PARAMS["game"] = q_params_t{"game_num", valType::INT, true};
+    // R = regular season, W=wildcard, D=division serie, L=league championship S=world series
+    QUERY_PARAMS["game_type"] = q_params_t{"game_type", valType::STR, false};
+    // D for day, N for neight
+    QUERY_PARAMS["day_night"] = q_params_t{"day_night", valType::STR, false};
+    // conditions
+    QUERY_PARAMS["temp"] = q_params_t{TEMP_FIELD, valType::INT_RANGE, false};
+    QUERY_PARAMS["windspeed"] = q_params_t{WINDSPEED_FIELD, valType::INT_RANGE, false};
+    QUERY_PARAMS["winddir"] = q_params_t{WINDDIR_FiELD, valType::INT_RANGE, false};
+    QUERY_PARAMS["precip"] = q_params_t{PRECIP_FIElD, valType::STR, false};
+    QUERY_PARAMS["sky"] = q_params_t{SKY_FIELD, valType::STR, false};
+    QUERY_PARAMS["fieldcond"] = q_params_t{FIELDCOND_FIELD, valType::STR, false};
+
+    // numeric ids for players
+    QUERY_PARAMS["batter"] = q_params_t{"batter_id", valType::INT, false};
+    QUERY_PARAMS["pitcher"] = q_params_t{"pitcher_id", valType::INT, false};
+    // 1-25
+    QUERY_PARAMS["sit_inn"] = q_params_t{"inning", valType::INT_RANGE, false};
+    // B=bottom, T=top
+    QUERY_PARAMS["sit_innhalf"] = q_params_t{"inning_half", valType::STR, false};
+    // 0-2
+    QUERY_PARAMS["sit_outs"] = q_params_t{"outs", valType::INT_RANGE, false};
+    QUERY_PARAMS["sit_bat_tm_sco"] = q_params_t{"bat_team_score", valType::INT_RANGE, false};
+    QUERY_PARAMS["sit_pit_tm_sco"] = q_params_t{"pitch_team_score", valType::INT_RANGE, false};
+    // batter team score - pitcher team score
+    QUERY_PARAMS["sit_sco_diff"] = q_params_t{"score_diff", valType::INT_RANGE, false};
+    
+    // either player ID, 0 for empty, -1 for occupied by any player 
+    QUERY_PARAMS["sit_base_1"] = q_params_t{"bases_first", valType::INT, false};
+    QUERY_PARAMS["sit_base_2"] = q_params_t{"bases_second", valType::INT, false};
+    QUERY_PARAMS["sit_base_3"] = q_params_t{"bases_third", valType::INT, false};
+
+    QUERY_PARAMS["sit_pit_cnt"] = q_params_t{"pitch_cnt", valType::STR, false};
+    QUERY_PARAMS["sit_bat_res"] = q_params_t{"bat_result", valType::STR, false};
+    QUERY_PARAMS["sit_bat_res2"] = q_params_t{"bat_result2", valType::STR, false};
+    QUERY_PARAMS["sit_bat_res3"] = q_params_t{"bat_result3", valType::STR, false};
+    QUERY_PARAMS["sit_bat_base"] = q_params_t{"bat_base", valType::STR, false};
+    QUERY_PARAMS["sit_bat_base2"] = q_params_t{"bat_base2", valType::STR, false};
+    QUERY_PARAMS["sit_bat_base3"] = q_params_t{"bat_base3", valType::STR, false};
+    QUERY_PARAMS["sit_hit_loc"] = q_params_t{"hit_loc", valType::STR, false};
+    QUERY_PARAMS["sit_hit_type"] = q_params_t{"hit_type", valType::STR, false};
+    // 0-3
+    QUERY_PARAMS["sit_outs_made"] = q_params_t{"outs_made", valType::INT_RANGE, false};
+    // 0-4
+    QUERY_PARAMS["sit_runs_sco"] = q_params_t{"runs_scored", valType::INT_RANGE, false};
     
     /*
                {"inn1", {"score_by_inning_1", "inn1", 0, true},
@@ -144,7 +211,6 @@ const char* field_val_t::asCharPtr() const {
     return nullptr;
 }
 
-
 void field_val_t::setInt(int val) {
     vType = valType::INT;
     v.i = val;
@@ -164,7 +230,6 @@ void field_val_t::setIntRange(int low, int high) {
     v.rng.high = high;
     vType = valType::INT_RANGE;
 }
-
 
 // build SQL query string from fields provided
 string buildStatQueryStr(const vector<string>& stats, bool isHome, const string& agg, vector<string>& statList) {
@@ -784,4 +849,26 @@ string renderHTMLTable(vector<string> headers, query_result_t result,
     if(result.size() > rn)
         ss << "<span>(reached limit) more records available</span>";
     return ss.str();
+}
+
+int buildPlayerGameSQLQuery(string argstr,
+                            string &qy, vector<field_val_t>& prms,
+                            string &errMsg, args_t& args) 
+{
+    json j_args;
+    auto err = getArgs(argstr, args, j_args, errMsg);
+    if(err) return err;
+
+    return 0;
+}
+
+int buildSituationSQLQuery(string argstr,
+                           string &qy, vector<field_val_t>& prms,
+                           string &errMsg, args_t& args)
+{
+    json j_args;
+    auto err = getArgs(argstr, args, j_args, errMsg);
+    if(err) return err;
+
+    return 0;
 }

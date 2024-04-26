@@ -513,7 +513,7 @@ int handleParksRequest(sqlite3 *pdb, const string &qy, string& resp, string& mim
     int err = doQuery(pdb, qry, prms, result, columnNames, resp);
     if (err) return err;
     resp = makeJSONresponse(columnNames, result, result.size());
-    mimeType = "application/json";
+    mimeType = MIME_JSON;
     return 0;
 }
 
@@ -542,12 +542,13 @@ int handleTeamsRequest(sqlite3 *pdb, const string &qy, string& resp, string& mim
     }
     if (err) return err;
     resp = makeJSONresponse(columnNames, result, result.size());
-    mimeType = "application/json";
+    mimeType = MIME_JSON;
     return 0;
 }
 
 int handleBoxRequest(sqlite3 *pdb, const string &qy, string& resp, string &mimeType,
-                    const unordered_map<string, string>& teamsMap) {
+                    const unordered_map<string, string>& teamsMap)
+{
     string box_qry;
     vector<field_val_t> prms;
     args_t args;
@@ -557,6 +558,7 @@ int handleBoxRequest(sqlite3 *pdb, const string &qy, string& resp, string &mimeT
     if(err) { 
         cerr << endl << "handleBoxRequest( " << __LINE__ << "): buildSQLQuery failed err=";
         cerr << err;
+        mimeType = MIME_TEXT;
         return 400;
     }
     query_result_t result;
@@ -567,6 +569,7 @@ int handleBoxRequest(sqlite3 *pdb, const string &qy, string& resp, string &mimeT
     if (err) {
          cerr << endl << "handleBoxRequest( " << __LINE__ << "): doQuery failed err=";
          cerr << err;
+         mimeType = MIME_TEXT;
          return 500;
     }
     
@@ -588,11 +591,174 @@ int handleBoxRequest(sqlite3 *pdb, const string &qy, string& resp, string &mimeT
     cout << endl << "handleBoxRequest( " << __LINE__ << "): retType=" << retType;
     if(retType == "json") {
         resp = makeJSONresponse(columnNames, result, args.limit);
+        mimeType = MIME_JSON;
     }
     else if(retType == "html") {
         resp = renderHTMLTable(columnNames, result, args.retopts, args.limit);
+        mimeType = MIME_HTML;
+    } else {
+        resp = "invalid ret '" + retType + "'";
+        mimeType = MIME_TEXT;
+        return 400;
     } 
-    mimeType = "application/json";
 
     return 0;
+}
+
+int handlePlayerRequest(sqlite3 *pdb, const string &qy,
+                        string& resp, string &mimeType,
+                        NameTrie& playerLastTrie,
+                        NameTrie& playerOtherTrie,
+                        unordered_map<int, string>& playerIDMap)
+{
+    // initialize
+    query_result_t result;
+    vector<string> columnNames;
+    int err = 0;
+    resp.clear();
+    if (playerIDMap.size() == 0) {
+        auto qy = "SELECT name_last, name_other, player_num_id FROM player";
+        err = doQuery(pdb, qy, {}, result, columnNames, resp);
+        if(err) { 
+            cerr << endl << "handlePlayerRequest( " << __LINE__ << "): doQuery failed err=";
+            cerr << err;
+            mimeType = MIME_TEXT;
+            return 400;
+        }
+        for (const auto& row : result) {
+            int id = stoi(row[2]);
+            addToTrie(playerLastTrie, row[0], id);
+            addToTrie(playerOtherTrie, row[1], id);
+            playerIDMap[id] = row[0] + ", " + row[1];
+        }
+    }
+    // simple REST, use param given
+    auto ids1 = findInTrie(playerLastTrie, qy);
+    auto ids2 = findInTrie(playerLastTrie, qy);
+
+    // build JSON response
+    resp += "{ \"names\":[";
+    for(auto id : ids1) resp += "\"" + playerIDMap[id] + "\",";
+    for(auto id : ids2) resp += "\"" + playerIDMap[id] + "\",";
+    // remove last comma
+    resp.pop_back();
+    resp += "]}";
+    mimeType = MIME_JSON;
+
+    return 0;
+}
+
+int handlePlayerGameRequest(sqlite3 *pdb, const std::string &qy, std::string& resp, std::string &mimeType,
+                            const std::unordered_map<std::string, std::string>& teamsMap )
+{
+    string player_qry;
+    vector<field_val_t> prms;
+    args_t args;
+    cout << endl << "handlePlayerGameRequest( " << __LINE__ << "): calling buildPlayerGameSQLQuery() qy=" << qy;
+    auto err = buildPlayerGameSQLQuery(qy, player_qry, prms, resp, args);
+    cout << endl << "handlePlayerGameRequest( " << __LINE__ << "): player_qry=" << player_qry;
+    if(err) { 
+        cerr << endl << "handlePlayerGameRequest( " << __LINE__ << "): buildPlayerGameSQLQuery failed err=";
+        cerr << err;
+        return 400;
+    }
+    query_result_t result;
+    vector<string> columnNames;
+    resp.clear();
+    err = doQuery(pdb, player_qry, prms, result, columnNames, resp);
+    cout << endl << "handlePlayerGameRequest( " << __LINE__ << "): doQuery err=" << err;
+    if (err) {
+         cerr << endl << "handlePlayerGameRequest( " << __LINE__ << "): doQuery failed err=";
+         cerr << err;
+         mimeType = MIME_TEXT;
+         return 500;
+    }
+    
+    cout << endl << "handlePlayerGameRequest( " << __LINE__ << "): doQuery returned " << result.size() << " rows";
+
+    auto retType = args.ret;
+    try { 
+        cout << endl << "handlePlayerGameRequest( " << __LINE__ << "): fixing results";
+        fixResults(columnNames, result, teamsMap);
+    } catch (std::exception e) {
+        cerr << endl << "exception fixing results: " << e.what();
+    }
+    try {
+        cout << endl << "handlePlayerGameRequest( " << __LINE__ << "): fixing column names";
+        fixColumnNames(columnNames);
+    } catch (std::exception e) {
+        cerr << endl << "exception fixing column names: " << e.what();
+    }
+    cout << endl << "handlePlayerGameRequest( " << __LINE__ << "): retType=" << retType;
+    if(retType == "json") {
+        resp = makeJSONresponse(columnNames, result, args.limit);
+        mimeType = MIME_JSON;
+    }
+    else if(retType == "html") {
+        resp = renderHTMLTable(columnNames, result, args.retopts, args.limit);
+        mimeType = MIME_HTML;
+    } else {
+        resp = "invalid ret '" + retType + "'";
+        mimeType = MIME_TEXT;
+        return 400;
+    } 
+
+    return 0;
+}
+
+int handleSituationRequest(sqlite3 *pdb, const std::string &qy, std::string& resp, std::string &mimeType,
+                          const std::unordered_map<std::string, std::string>& teamsMap )
+{
+    string situation_qry;
+    vector<field_val_t> prms;
+    args_t args;
+    cout << endl << "handleSituationRequest( " << __LINE__ << "): calling buildSituationSQLQuery() qy=" << qy;
+    auto err = buildSituationSQLQuery(qy, situation_qry, prms, resp, args);
+    cout << endl << "handleSituationRequest( " << __LINE__ << "): situation_qry=" << situation_qry;
+    if(err) { 
+        cerr << endl << "handleSituationRequest( " << __LINE__ << "): buildSituationSQLQuery failed err=";
+        cerr << err;
+        return 400;
+    }
+    query_result_t result;
+    vector<string> columnNames;
+    resp.clear();
+    err = doQuery(pdb, situation_qry, prms, result, columnNames, resp);
+    cout << endl << "handleSituationRequest( " << __LINE__ << "): doQuery err=" << err;
+    if (err) {
+         cerr << endl << "handleSituationRequest( " << __LINE__ << "): doQuery failed err=";
+         cerr << err;
+         return 500;
+    }
+    
+    cout << endl << "handleSituationRequest( " << __LINE__ << "): doQuery returned " << result.size() << " rows";
+
+    auto retType = args.ret;
+    try { 
+        cout << endl << "handleSituationRequest( " << __LINE__ << "): fixing results";
+        fixResults(columnNames, result, teamsMap);
+    } catch (std::exception e) {
+        cerr << endl << "exception fixing results: " << e.what();
+    }
+    try {
+        cout << endl << "handleSituationRequest( " << __LINE__ << "): fixing column names";
+        fixColumnNames(columnNames);
+    } catch (std::exception e) {
+        cerr << endl << "exception fixing column names: " << e.what();
+    }
+    cout << endl << "handleSituationRequest( " << __LINE__ << "): retType=" << retType;
+    if(retType == "json") {
+        resp = makeJSONresponse(columnNames, result, args.limit);
+        mimeType = MIME_JSON;
+    }
+    else if(retType == "html") {
+        resp = renderHTMLTable(columnNames, result, args.retopts, args.limit);
+        mimeType = MIME_HTML;
+    } else {
+        resp = "invalid ret '" + retType + "'";
+        mimeType = MIME_TEXT;
+        return 400;
+    }
+
+    return 0;                        
 }

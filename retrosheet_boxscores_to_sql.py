@@ -145,298 +145,299 @@ import sys
 # 
 
 
+# game_id integer PRIMARY KEY,
+# away_score smallint NOT NULL,
+# home_score smallint NOT NULL,
+# game_len_outs smallint NOT NULL,
+# away_score_inning_12345 integer NOT NULL, 
+# away_score_inning_6789 integer NOT NULL, 
+# home_score_inning_12345 integer NOT NULL, 
+# home_score_inning_6789 integer NOT NULL,     
+# away_at_bats_hits smallint NOT NULL,
+# away_doubles_triples smallint NOT NULL, 
+# away_home_runs_rbi smallint NOT NULL,
+# away_sac_hit_sac_fly smallint NOT NULL,
+# away_hit_by_pitch_walks smallint NOT NULL,
+# away_int_walks_strikeouts smallint NOT NULL,
+# away_stolen_bases_caught_stealing smallint NOT NULL,
+# away_gidp_catcher_interference smallint NOT NULL,
+# away_left_on_base_pitchers_used smallint NOT NULL,
+# away_indiv_earned_runs_team_earned_runs smallint NOT NULL,
+# away_wild_pitches_balks smallint NOT NULL,
+# away_putouts_assists smallint NOT NULL,
+# away_errors_passed_balls smallint NOT NULL,
+# away_double_plays_triple_plays smallint NOT NULL,
+# home_at_bats_hits smallint NOT NULL, 
+# home_doubles_triples smallint NOT NULL, 
+# home_home_runs_rbi smallint NOT NULL,
+# home_sac_hit_sac_fly smallint NOT NULL,
+# home_hit_by_pitch_walks smallint NOT NULL,
+# home_int_walks_strikeouts smallint NOT NULL,
+# home_stolen_bases_caught_stealing smallint NOT NULL,
+# home_gidp_catcher_interference smallint NOT NULL,
+# home_left_on_base_pitchers_used smallint NOT NULL,
+# home_indiv_earned_runs_team_earned_runs smallint NOT NULL,
+# home_wild_pitches_balks smallint NOT NULL,
+# home_putouts_assists smallint NOT NULL,
+# home_error_passed_balls smallint NOT NULL,
+# home_double_plays_triple_plays
+
 dateIdx = [0]
 strIdx = [1, 2, 3, 4, 6, 7, 12, 14, 15, 16]
 strIdx.extend(list(range(77, 161)))
 posStrIdx = list(range(107, 159, 3))
 baseDir = os.path.join("alldata", "gamelogs")
 
-def getYear(s, isEnd=False):
-    typ = 'start'
-    if isEnd:
-        typ = 'end'
-    try:
-        year = int(s)
-        return year
-    except:
-        print(f"could not parse {typ} year '{s}'")
-    return None    
-
-def parseCompletionInfo(r): 
-    s = "NULL"
-    return s 
-
 def parseLineScore(r):
     i = 0
     inn = 1
-    extras = ""
-    s = ""
+    scoreByInn = [0]*27
     # keep iteratingg for at least nine innings
     # and use all chars
-    isExtra = False
-    while inn < 10 or i < len(r):
-        if inn == 10:
-            isExtra = True
-            firstNine = s
-            #print('extra inning game ', end="")
-            s = ""
-        if inn > 1 and inn != 10:
-            s += ", "
-        if inn > 9:
-            pass
-            #print(f"{inn} ", end="")
-        # run out of innings, so keep appending NULL    
-        if i >= len(r):
-            s += "NULL"
-            inn += 1
-            continue
-
-        runStr = "NULL"
+    while i < len(r):
         if r[i] != "x":
+            # more than 9 runs in the inning
             if r[i] == '(':
                 i += 1
-                runStr = r[i:i+2]
+                scoreByInn[inn-1] = int(r[i:i+2])
                 i += 2
                 if r[i] != ")":
                     print(f"ERROR: attempting to parse line score {r}")
                     print(f"       expected ')' got {r[i]}")
-                    runStr = "NULL"
             else:
-                runStr = r[i:i+1]           
-            # ensure runs is an interger
-            if runStr != "NULL":
-                try:
-                    runs = int(runStr)
-                except:
-                    print(f"ERROR: attempting to parse line score {r}")
-                    print(f"       expected intger value got {runStr}")
-                    runStr = "NULL"
-        #if isExtra:
-        #    print(f"runs {runStr} ", end="")
-        s += runStr
+                scoreByInn[inn-1] = int(r[i:i+1])
         i += 1
         inn += 1
-    if isExtra:
-        extras = s
-        #print(f"    extras= {extras}")  
-        #print(f"    firstNine= {firstNine}")                
-    else:
-        firstNine = s
-    return (firstNine, extras)
+    
+    extras = scoreByInn[9:]
+    return (scoreByInn[:9], extras)
 
-def getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur, includePayoffs=True):
-    s = ""
-    numFields = 0
-    # games which went to extra innings
-    extras = []
-    # completions for games scheduled at a later date
-    completions = []
-    useDB = conn is not None
-
-    tbl = "boxscore"
+def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True):
+    tbl = "gamelog"
     extra_tbl = "extra"
     comp_tbl = "completion"
     
     playoffs = ("wc", "dv", "lc", "ws")
     rng = list(range(yearStart, yearEnd+1))
     rng.extend(playoffs)
-    playoffGTMap = {"wc": "C", "dv":"D", "lc":"L", "ws":"S"}
-    game_num_id = 0
+    playoffGTMap = {"wc": 1, "dv":2, "lc":3, "ws":4}
+    # game ids for games which do not have corresponding IDs in game_info
+    # make very large number to avoid conflicts with normal games
+    game_id_next = (1 << 28)
+    cur = conn.cursor()
+    MONTHS = dict()
+    stmt = "SELECT num, desc FROM month"
+    cur.execute(stmt)
+    tups = cur.fetchall()
+    for t in tups:
+        MONTHS[t[0]] = t[1]
     # map of date/hometeam/number the integer game id
-    gameIDMap = dict()
+    #gameIDMap = dict()
+    teamIDMap = dict()
+    cur.execute("SELECT team_id, team_nickname FROM team")
+    tups = cur.fetchall()
+    for t in tups:
+        teamIDMap[t[0]] = t[1]
+
+    # clear tables
+    del_stmt = f"DELETE FROM {tbl}"
+    del_ex_stmt = f"DELETE FROM {extra_tbl}"
+    del_comp_stmt = f"DELETE FROM {comp_tbl}"
+
+    cur.execute(del_stmt)
+    cur.execute(del_ex_stmt)
+    cur.execute(del_comp_stmt)
+
+    
     for f in rng:
         fName = f"gl{f}.txt"
         fPath = os.path.join(baseDir, fName)
         print(f"processing file {fPath}")
-        game_type = "R"
-        if f in playoffs:
-            game_type = playoffGTMap[f]
         
+        game_type = 0
+        if f in playoffs:
+            game_type = 1
+            playoff_type = playoffGTMap[f]
+
+        gameIDMap = dict()
+        
+        missing_teams = []
         with open(fPath, "r") as fIn:
             rdr = csv.reader(fIn, delimiter=',', quotechar='"')
+            st_i = 0  # stat counter used for packing two stats into single 16-bit integer
             for row in rdr:
-                ext_visit = None   # score for visitor in extra innints
+                ext_visit = None   # score for visitor in extra innings
                 i = 0
-                # clear string to save space if we aren't writing out query
-                if not writeFiles:
-                    s = ""
                     
-                ln = "INSERT INTO " + tbl + " VALUES("
-                ln += str(game_num_id) + ", "
-                ln += "'" + game_type + "', "
-                
                 for v in row:
-                    if i > 76:
+                    if i > 76:  # don't read all data
                         break
                     x = "NULL"
                     if i == 0:
-                        game_date = v
-                        x = f"DATE('{v[0:4]}-{v[4:6]}-{v[6:]}')"
+                        game_year = int(v[0:4])
+                        game_month = int(v[4:6])
+                        game_day = int(v[6:])
+                        # x = f"DATE('{v[0:4]}-{v[4:6]}-{v[6:]}')"
                     elif i == 1:
-                        game_num = v
-                        x = game_num
-                    elif i == 6:
+                        dh_game_num = int(v)
+                    elif i == 2:
+                        dow = v
+                    elif i == 3:
+                        away_team = v
+                        if away_team not in teamIDMap and away_team not in missing_teams:
+                            print(teamIDMap)                            
+                            print("Could not find team ", away_team)
+                            missing_teams.append(away_team)
+
+                    elif i == 6:  # enough info to get gameID
                         home_team = v
-                        x = "'" + home_team + "'"
+
+                        # fetch game IDs for this year if we have not already done so
+                        if game_year not in gameIDMap:
+                            stmt = "SELECT game_id, month, day, home_team, dh_num FROM game_info_view WHERE"
+                            stmt += f" year={game_year}"
+                            #print(stmt)
+                            cur.execute(stmt)
+                            tups = cur.fetchall()
+                            gameIDMap[game_year] = dict()
+                            for t in tups:
+                                game_id = int(t[0])
+                                month = t[1]
+                                day = int(t[2])
+                                ht = t[3]
+                                dh_num = int(t[4])
+                                if month not in gameIDMap[game_year]:
+                                    gameIDMap[game_year][month] = dict()
+                                if day not in gameIDMap[game_year][month]:
+                                    gameIDMap[game_year][month][day] = dict()
+                                if ht not in gameIDMap[game_year][month][day]:
+                                    gameIDMap[game_year][month][day][ht] = dict()
+                                gameIDMap[game_year][month][day][ht][dh_num] = game_id
+
+                        if home_team in teamIDMap:
+                            home_team_name = teamIDMap[home_team]
+                            #home_team_name = home_team_name.replace("'", "''")
+                        else:
+                            print(teamIDMap)
+                            print("Could not find team ", home_team)
+                            home_team_name = home_team
+                            missing_teams.append(home_team)
+                        game_id = -1
+                        try: 
+                            game_id = gameIDMap[game_year][MONTHS[game_month]][game_day][home_team_name][dh_game_num]
+                        except: 
+                            pass
+                        if game_id == -1:
+                            print("could not find gameID in gameIDMap game_year=", game_year)
+                            game_id = game_id_next
+                            game_id_next += 1
+                        
+                        #print("game_year=", game_year, "game_id=", game_id)
+                        
+                        # start statment
+                        stmt = f"INSERT INTO {tbl} VALUES({game_id}"                        
+                    elif i == 9:
+                        away_score = int(v)
+                        stmt += f", {away_score}"
+                    elif i == 10:
+                        home_score = int(v)
+                        stmt += f", {home_score}"
+                    elif i == 11:
+                        game_len_outs = 0
+                        if v != "":
+                            game_len_outs = int(v)
+                        stmt += f", {game_len_outs}"
                     elif i == 13:  # completion
-                        x = "TRUE"
                         # completion info, including date on which game was completed
                         if len(v) > 0:  
-                            x = "FALSE"
-                            completions.append((game_num_id, v))
+                            v.split(",")
+                            # yyyymmdd,park,vs,hs,len
+                            c_stmt = f"INSERT INTO {comp_tbl} VALUES({game_id}"
+                            c_stmt += f", DATE({v[0:4]}-{v[4:6]}-{v[6:8]})"
+                            c_stmt += f", {v[1]}, {v[2]}, {v[3]}, {v[4]})"
+                            cur.execute(c_stmt)                            
+                    elif i == 14:
+                        forfeit = v
+                    elif i == 15:
+                        protest = v
+                    elif i == 18:
+                        game_len_min = 0
+                        if v != "":
+                            game_len_min = int(v)
                     elif i in (19, 20):  # score by inning
-                        (x, ext) = parseLineScore(v)
-                        if(len(ext) > 0):
+                        (firstNine, ext) = parseLineScore(v)
+                        # convert to bit packed 16-bit integer
+                        # for each 3 innings
+                        # with 5 bits per inning (possible scores 0-31)
+                        inn_packed = 0
+                        for j in range(0, 3):
+                            for k in range(0, 3):
+                                inn_packed = inn_packed + (firstNine[3*j+k] << (10-(5*k)))
+                            stmt += f", {inn_packed}"
+
+                        if(ext is not None):
                             if i == 19:
                                 ext_visit = ext
                             else:
-                                extras.append((game_num_id, ext_visit, ext))
-                    elif i in posStrIdx:
-                        if v == '':
-                            x = "'U'"
+                                # insert into extra 
+                                ext_stmt = f"INSERT INTO extra VALUES({game_id}"
+                                for j in range(0, 6):
+                                    for k in range(0, 3):
+                                        inn_packed = inn_packed + (ext_visit[3*j+k] << (10-(5*k)))
+                                    ext_stmt += f", {inn_packed}"
+                                for j in range(0, 6):
+                                    for k in range(0, 3):
+                                        inn_packed = inn_packed + (ext[3*j+k] << (10-(5*k)))
+                                    ext_stmt += f", {inn_packed}"
+                                ext_stmt += ")"
+                                cur.execute(ext_stmt)
+                    elif i in range(21, 77):  # stats
+                        # for every pair of stats, pack into 16-bit integer
+                        if st_i == 1:
+                            st_i = 0
+                            st2 = 0
+                            if v != '':
+                                st2 = int(v)
+                            stmt += f", {(st << 8) + st}"
                         else:
-                            x = int(v)
-                            if x == 10:
-                                x = "'D'"
-                            elif x > 10:
-                                print(f"ERROR, listed position {v} > 10")
-                                exit(1)
-                            else:
-                                x= f"'{str(x)}'"
-                    else:
-                        x = v
-                        if i in strIdx:
-                            vr = v
-                            if "'" in v:
-                                vr = v.replace("'", "''")
-                            x = f"'{vr}'"
-                            
-                    if len(x) == 0:
-                        x = "NULL"             
-
-                    ln += x
+                            st_i = 1
+                            st = 0
+                            if v != '':
+                                st = int(v)
                     i += 1
-                    ln += ", "
-                # remove last comma
-                ln = ln[:-2]
-                ln += ")"
-                if useDB:
-                    cur.execute(ln)
-                ln += "\n"
-                numFields = ln.count(",") + 1
-                s += ln
-
-                if game_date not in gameIDMap:
-                    gameIDMap[game_date] = dict()
-                if home_team not in gameIDMap[game_date]:
-                    gameIDMap[game_date][home_team] = dict()                
-
-                gameIDMap[game_date][home_team][game_num] = game_num_id
-                game_num_id += 1
-        if useDB:
-            conn.commit()
-
-    s += "\n"
-    # extra inning infor
-    for g in extras:
-        # clear string to save space if we aren't writing out query
-        if not writeFiles:
-            s = ""
-        ln = f"INSERT INTO {extra_tbl} VALUES({g[0]}"
-        for ext in (g[1], g[2]):
-            r = re.split(",", ext)
-            for i in range(10, 26):
-                ln += ", "
-                if i-10 < len(r):
-                    ln += r[i-10]
-                else:
-                    ln += "NULL"
-                
-        ln += ")"
-        if useDB:
-            cur.execute(ln)
-        ln += ";\n"
-        s += ln
-
-    if useDB:
+                # end for row
+                stmt += ")"
+                cur.execute(stmt)
+                # TODO update game info with protest, forfeit game len, etc.
         conn.commit()
-
-    s += "\n"
-    # completion info
-    for g in completions:    
-        # clear string to save space if we aren't writing out query
-        if not writeFiles:
-            s = ""
-        ln = f"INSERT INTO {comp_tbl} VALUES({g[0]}, "
-        r = re.split(",",  g[1])
-        dt = r[0]
-        #print(f"dt= {dt}")
-        ln += f"DATE('{dt[0:4]}-{dt[4:6]}-{dt[6:8]}'), "
-        ln += f"'{r[1]}', "
-        ln += f"{r[2]}, "
-        ln += f"{r[3]}, "
-        ln += f"{r[4]}"
-        ln += ")"
-        if useDB:
-            cur.execute(ln)
-        ln += ";\n"
-        s += ln
-
-    if useDB:
-        conn.commit()
-
-    #           yyyymmdd -- the date the game was completed
-    #           park -- the park ID where the game was completed
-    #           vs -- the visitor score at the time of interruption
-    #           hs -- the home score at the time of interruption
-    #           len -- the length of the game in outs at time of interruption
-
-    print(f'numFields= {numFields}')        
-
-    if writeFiles:
-        fPath = f"boxscores_{rng[0]}_to_{rng[-1]}.sql"
-        fout = open(fPath, "w")
-        if fout is None:
-            print(f"ERROR: cannot open '{fPath}' for writing")
-            exit(1)     
-        fout.write("BEGIN;\n")           
-        fout.write(s)
-        fout.write("COMMIT;\n")
-        fout.close()
-
-    return gameIDMap
 
 if __name__=="__main__":
     connectPG = False
     connectSqlite = True
-    useDB = connectPG or connectSqlite
-    writeFiles = False
 
     conn = None
-    cur = None
     if connectSqlite:
         import sqlite3
         conn = sqlite3.connect("baseball.db")
-        cur = conn.cursor()
 
     if connectPG:
         import psycopg
         # Connect to an existing database
         conn = psycopg.connect("dbname=postgres user=postgres")
-        cur = conn.cursor()
 
     narg = len(sys.argv)
     yearStart = 1871
-    yearEnd = 2022
+    yearEnd = 2023
     if narg > 3:
         print(f"Too many arguments, encountered {narg}  expected between 0 and 2")
         exit(1)
     if narg > 1:
-        yearStart = getYear(sys.argv[1])
+        yearStart = int(sys.argv[1])
     if narg > 2:
-        yearEnd = getYear(sys.argv[2], True)    
-    if yearStart == None or yearEnd == None:
-        print("bad years")
-        exit(1)
-    getBoxScoreData(yearStart, yearEnd, writeFiles, conn, cur)
+        yearEnd = int(sys.argv[2])    
+    # map team id to team name
+    cur = conn.cursor()
+    
+    #print(teamIDMap)
+    getBoxScoreData(yearStart, yearEnd, conn, True)
 
