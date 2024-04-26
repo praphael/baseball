@@ -81,7 +81,7 @@ allTables["game_situation_fielder_putout"] = """CREATE TABLE game_situation_fiel
     game_id_event_id integer,
     fielder_id smallint,
     seq smallint,
-    PRIMARY KEY(game_id, event_id, fielder_id, seq)
+    PRIMARY KEY(game_id_event_id, fielder_id, seq)
 )"""
 
 allTables["game_situation_fielder_error"] = """CREATE TABLE game_situation_fielder_error (

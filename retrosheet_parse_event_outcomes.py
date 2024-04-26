@@ -668,8 +668,8 @@ class PlayEvent(Event):
     def __init__(self, p=None):
         if p is not None:
             # destructure
-            self.game_id, self.event_id, self.inning, self.team = p[0:4]
-            self.player_id, self.pitch_cnt, self.pitch_seq, self.play = p[4:]
+            self.game_id, self.event_id, self.team_id, self.team, self.player_id = p[0:5]
+            self.inning, self.batter_count, self.pitch_seq, self.play = p[5:]
             self.pitchSeq = None
             self.bat = Event() # dummy value
             # results (see playCodeMap)
@@ -705,14 +705,14 @@ class PlayEvent(Event):
 class SubEvent(Event):
     def __init__(self, s=None):
         if s is not None:
-            self.game_id, self.event_id, self.player_id = s[0:3]
-            self.team, self.bat_pos, self.field_pos = s[3:]
+            self.game_id_event_id, self.player_id = s[0:2]
+            self.team, self.bat_pos_field_pos = s[2:]
 
 class PlayerAdjEvent(Event):
     def __init__(self, p=None):
         if p is not None:
             # destructure
-            self.game_id, self.event_id, self.player_id, self.adjType, self.adj = p
+            self.game_id_event_id, self.player_id, self.adjType, self.adj = p
 
     def print(self):
         DEBUG_PRINT(f"**** Player adjustment: {self.player_id}  {self.adjType} {self.adj}")
@@ -721,7 +721,7 @@ class LineupAdjEvent(Event):
     def __init__(self, l=None):
         if l is not None:
             # destructure
-            self.game_id, self.event_id, self.team, self.adj = l
+            self.game_id_event_id, self.team, self.adj = l
 
     def print(self):
         DEBUG_PRINT(f"***** Lineup adjustment: {self.team} {self.adj}")
@@ -767,9 +767,9 @@ class Lineup:
         rep_fielder = None
         newPos = None
         DEBUG_PRINT("applySub: sub=", sub.player_id,  "bat_pos=", sub.bat_pos, " field_pos=", sub.field_pos )
-        if sub.field_pos == "1":
+        if sub.field_pos == 1:
             self.pitchersUsed.append(sub.player_id)
-        if sub.bat_pos != "P":
+        if sub.bat_pos != 0:
             idx = int(sub.bat_pos)
             rep_batter = self.battingOrder[idx]
             if rep_batter != sub.player_id:         
@@ -961,7 +961,7 @@ class TeamStats:
         stmt += f", {hOrV}_pitchers_used, {hOrV}_indiv_earned_runs, {hOrV}_team_earned_runs"
         stmt += f", {hOrV}_wild_pitches, {hOrV}_balks, {hOrV}_putouts, {hOrV}_assists"
         stmt += f", {hOrV}_errors, {hOrV}_passed_balls, {hOrV}_double_plays, {hOrV}_triple_plays"
-        stmt += f" FROM boxscore WHERE game_id={gameID}"
+        stmt += f" FROM game_log_view WHERE game_id={gameID}"
         #print(stmt)
         cur.execute(stmt)
         tups = cur.fetchall()
@@ -1794,16 +1794,16 @@ class GameState:
         DEBUG_PRINT("applySub: ", tm.team, subID, " replaces ", repBatterID, " playing ", evt.field_pos, " batting", evt.bat_pos)
         if rep_fielder is not None:
             DEBUG_PRINT("    ", repFielderID, " moves to ", newPos)
-        if evt.bat_pos != "P":
-            stBat = self.statsBat[tm.team][int(evt.bat_pos)]
+        if evt.bat_pos != 0:
+            stBat = self.statsBat[tm.team][evt.bat_pos]
             if subID != repBatterID:
                 stBat.append((evt.player_id, BatterStats()))
             else:
                 DEBUG_PRINT("applySub: not appending to batting stats, replacing self (field pos change)")
         if evt.field_pos in FIELD_POS_NUM:
-            stField = self.statsField[tm.team][int(evt.field_pos)]
+            stField = self.statsField[tm.team][evt.field_pos]
             stField.append((evt.player_id, FielderStats()))
-        if evt.field_pos == "1":  # pitcher
+        if evt.field_pos == 1:  # pitcher
             stPitch = self.statsPitch[tm.team]
             stPitch.append((evt.player_id, PitcherStats()))
         if evt.field_pos == "R":
@@ -1812,7 +1812,7 @@ class GameState:
             for b in range(len(self.baseRunners)):
                 rn = self.baseRunners[b]
                 if rn is not None and rn[1] == rep_batter:
-                    self.baseRunners[b] = (int(evt.bat_pos), evt.player_id)
+                    self.baseRunners[b] = (evt.bat_pos, evt.player_id)
                     runnerFound = True
                     break
             if not runnerFound:
@@ -1843,7 +1843,7 @@ def compareStatsToBoxScore(game, htbf, conn, cur):
 def deleteDBAfterEvent(gameID, savePtEventID):
     allTables = ("game_situation", "game_situation_fielder_assist",
                 "game_situation_fielder_putout", "game_situation_fielder_error",
-                "game_situation_fielder_fielded", "game_situation_bat_mod", 
+                "game_situation_fielder_fielded", "game_situation_result1_mod", 
                 "game_situation_base_run", "game_situation_base_run_mod",
                 "game_situation_base_run_sub_mod", "game_situation_result2",
                 "game_situation_result3", "game_situation_result1_mod",
@@ -1851,8 +1851,8 @@ def deleteDBAfterEvent(gameID, savePtEventID):
     
     gameTables = ("player_game_batting", "player_game_pitching", "player_game_fielding")
     for tbl in allTables:
-        stmt =  f"DELETE FROM {tbl} WHERE game_id={gameID}"
-        stmt += f" AND event_id>{savePtEventID}"
+        stmt =  f"DELETE FROM {tbl} WHERE (game_id_event_id >> 10)={gameID}"
+        stmt += f" AND (game_id_event_id & 1023) > {savePtEventID}"
         DEBUG_PRINT(stmt)
         cur.execute(stmt)
     for tbl in gameTables:
@@ -1862,37 +1862,40 @@ def deleteDBAfterEvent(gameID, savePtEventID):
 
 def parseGame(gameID, plays, conn, cur):
     # detect if already parsed game
-    stmt = f"SELECT * from game_situation WHERE game_id={gameID}"
+    stmt = f"SELECT * from game_situation WHERE (game_id_event_id >> 10)={gameID}"
     cur.execute(stmt)
     tups = cur.fetchall()    
     if len(tups) > 0:
         print(f"skipping {gameID}")
         return False
 
-    stmt = "SELECT flags, win_pitcher, loss_pitcher, save_pitcher, gw_rbi"
-    stmt += f" FROM game_info WHERE game_id={gameID}"
+    stmt = "SELECT home_team_bat_first, win_pitcher, loss_pitcher, save_pitcher, gw_rbi"
+    stmt += f" FROM game_info_view WHERE game_id={gameID}"
+    DEBUG_PRINT(stmt)
     cur.execute(stmt)
-    flags, win_p, lose_p, save_p, gw_rbi = cur.fetchall()[0]
-    htbf = bool(flags & (1 << 2))
-    stmt = f"SELECT home_team, visiting_team, game_date FROM boxscore WHERE game_id={gameID}"
+    htbf, win_p, lose_p, save_p, gw_rbi = cur.fetchall()[0]
+    htbf = bool(htbf)
+    stmt = f"SELECT home_team, away_team, year, month, day FROM game_info_view WHERE game_id={gameID}"
+    DEBUG_PRINT(stmt)
     cur.execute(stmt)
-    home_team, away_team, game_date = cur.fetchall()[0]
-    stmt = f"SELECT * FROM event_start WHERE game_id={gameID} ORDER BY event_id"
+    home_team, away_team, year, month, day = cur.fetchall()[0]
+    game_date = (year, month, day)
+    stmt = f"SELECT * FROM event_start_view WHERE game_id={gameID} ORDER BY event_id"
     cur.execute(stmt)
     starts = cur.fetchall()
-    stmt = f"SELECT * FROM event_sub WHERE game_id={gameID} ORDER BY event_id"
+    stmt = f"SELECT * FROM event_sub_view WHERE game_id={gameID} ORDER BY event_id"
     cur.execute(stmt)
     subs = cur.fetchall()
 
-    stmt = f"SELECT * FROM event_lineup_adj WHERE game_id={gameID} ORDER BY event_id"
+    stmt = f"SELECT * FROM event_lineup_adj_view WHERE game_id={gameID} ORDER BY event_id"
     cur.execute(stmt)
     lineupAdjs = cur.fetchall()
 
-    stmt = f"SELECT * FROM event_player_adj WHERE game_id={gameID} ORDER BY event_id"
+    stmt = f"SELECT * FROM event_player_adj_view WHERE game_id={gameID} ORDER BY event_id"
     cur.execute(stmt)
     playerAdjs = cur.fetchall()
 
-    stmt = f"SELECT * FROM event_data_er WHERE game_id={gameID} ORDER BY event_id"
+    stmt = f"SELECT * FROM event_data_er_view WHERE game_id={gameID} ORDER BY event_id"
     cur.execute(stmt)
     dataER = cur.fetchall()
 
@@ -1902,7 +1905,9 @@ def parseGame(gameID, plays, conn, cur):
     for st in starts:
         #DEBUG_PRINT("st=", st)
         # destructure
-        game_id, event_id, player_id, team, bat_pos, field_pos = st
+        print(st)
+        game_id, event_id, team_id, team, player_id, player_name = st[0:6]
+        bat_pos, field_pos = st[6:]
         
         if team == home_team:
             lineup = home
@@ -1913,13 +1918,11 @@ def parseGame(gameID, plays, conn, cur):
             return True
         pID = playerIDMap[player_id][0] 
 
-        #DEBUG_PRINT(pID, team, " starting at ", field_pos, " batting order ", bat_pos)
-        if bat_pos != "P":
-            bat_pos = int(bat_pos)
+        DEBUG_PRINT(pID, team, " starting at ", field_pos, " batting order ", bat_pos)
+        if bat_pos != 0:
             lineup.battingOrder[bat_pos] = player_id
             lineup.battingOrderStart[bat_pos] = player_id
-        if field_pos != "D":
-            field_pos = int(field_pos)
+        if field_pos != 0:
             lineup.fieldPos[field_pos] = player_id
         if field_pos == 1:
             lineup.pitchersUsed.append(player_id)
@@ -2053,7 +2056,7 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=None, quit_on_err=True):
     if gameRange is not None:
         print("gameRange= ", gameRange)
         whereClause = f"WHERE game_id >= {gameRange[0]} AND game_id <= {gameRange[1]}"
-    stmt = f"SELECT * FROM event_play {whereClause} ORDER BY game_id, event_id"
+    stmt = f"SELECT * FROM event_play_view {whereClause} ORDER BY event_id"
     cur.execute(stmt)
     tups = cur.fetchall()
     DEBUG_PRINT("len(tups)= ", len(tups))
@@ -2064,7 +2067,8 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=None, quit_on_err=True):
     total = 0
     try:
         for tup in tups:
-            if tup[0] != gameID:  # new game
+            game_id = (tup[0] >> 10)
+            if game_id != gameID:  # new game
                 if gameID != None:
                     print(f"parsing game {gameID}")
                     total += 1
@@ -2091,7 +2095,7 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=None, quit_on_err=True):
                         conn.commit()
                     # clear debugging output to save mem/CPU
                     DEBUG_OUT = []
-                gameID = tup[0]
+                gameID = game_id
                 plays = []
             plays.append(tup)
     except KeyboardInterrupt as e:

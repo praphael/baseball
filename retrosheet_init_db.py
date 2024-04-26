@@ -448,8 +448,10 @@ allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
         seas.desc AS season,
         post.desc AS post_series,
         (3 & (game_type_num >> 6)) AS dh_num,
+        i.away_team AS away_team_id,
         atm.team_nickname AS away_team, 
         i.away_game_num,
+        i.home_team AS home_team_id,
         htm.team_nickname AS home_team, 
         i.home_game_num,
         prk.park_name AS park,
@@ -462,6 +464,11 @@ allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
         wd.desc AS winddir,
         31 & (cond >> 14) AS windspeed,
         255 & (cond >> 20) AS temp,
+        (1 & (flags >> 2)) AS home_team_bat_first,
+        (1 & (flags >> 3)) AS use_dh,
+        (1 & (flags >> 6)) AS complete,
+        forf.desc AS forfeit,
+        prot.desc AS protest, 
         wpit.name_last AS win_pitcher,
         lpit.name_last AS loss_pitcher,
         spit.name_last AS save_pitcher,
@@ -499,6 +506,10 @@ allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
     ON gwr.player_num_id=i.gw_rbi
     INNER JOIN (SELECT * FROM park) prk
     ON prk.park_num_id=i.park
+    INNER JOIN (SELECT * FROM forfeit) forf
+    ON forf.num=(3 & (i.flags >> 7))
+    INNER JOIN (SELECT * FROM protest) prot
+    ON prot.num=(7 & (i.flags >> 9))
 """
 
 allViews["gamelog_view"] = """CREATE VIEW gamelog_view AS SELECT
@@ -644,6 +655,97 @@ allViews["gamelog_view"] = """CREATE VIEW gamelog_view AS SELECT
     ON e.game_id=v.game_id
 """
 
+# team smallint,
+# player_id smallint,
+# inning_batter_count smallint,
+# pitch_seq char(32),
+# play char(64),
+allViews["event_play_view"] = """CREATE VIEW event_play_view AS SELECT
+        e.game_id_event_id >> 10 AS game_id,
+        e.game_id_event_id & 255 AS event_id,
+        e.team AS team_id,
+        tm.team_nickname AS team, 
+        e.player_id,
+        p.name_last AS player_name,
+        e.inning_batter_count >> 8 AS inning,
+        e.inning_batter_count & 255 AS batter_count,
+        e.pitch_seq,
+        e.play
+        FROM event_play e
+        INNER JOIN (SELECT * FROM team) tm
+        ON tm.team_num_id=e.team
+        INNER JOIN (SELECT * FROM player) p
+        ON e.player_id=p.player_num_id
+"""
+
+
+allViews["event_start_view"] = """CREATE VIEW event_start_view AS SELECT
+        e.game_id_event_id >> 10 AS game_id,
+        e.game_id_event_id & 255 AS event_id,
+        e.team AS team_id,
+        tm.team_nickname AS team, 
+        e.player_id,
+        p.name_last AS player_name,
+        (e.bat_pos_field_pos >> 4) AS bat_pos,
+        e.bat_pos_field_pos & 15 AS field_pos
+        FROM event_start e
+        INNER JOIN (SELECT * FROM team) tm
+        ON tm.team_num_id=e.team
+        INNER JOIN (SELECT * FROM player) p
+        ON e.player_id=p.player_num_id
+"""
+
+allViews["event_sub_view"] = """CREATE VIEW event_sub_view AS SELECT
+        e.game_id_event_id >> 10 AS game_id,
+        e.game_id_event_id & 255 AS event_id,
+        e.team AS team_id,
+        tm.team_nickname AS team, 
+        e.player_id,
+        p.name_last AS player_name,        
+        (e.bat_pos_field_pos >> 4) AS bat_pos,
+        e.bat_pos_field_pos & 15 AS field_pos
+        FROM event_sub e
+        INNER JOIN (SELECT * FROM team) tm
+        ON tm.team_num_id=e.team
+        INNER JOIN (SELECT * FROM player) p
+        ON e.player_id=p.player_num_id
+"""
+
+allViews["event_player_adj_view"]="""CREATE VIEW event_player_adj_view AS SELECT
+        e.game_id_event_id >> 10 AS game_id,
+        e.game_id_event_id & 255 AS event_id,
+        e.player_id,
+        p.name_last AS player_name,
+        e.adj_type,
+        e.adj
+        FROM event_player_adj e
+        INNER JOIN (SELECT * FROM player) p
+        ON e.player_id=p.player_num_id
+"""
+
+
+allViews["event_lineup_adj_view"]="""CREATE VIEW event_lineup_adj_view AS SELECT
+        e.game_id_event_id >> 10 AS game_id,
+        e.game_id_event_id & 255 AS event_id,
+        e.team_id,
+        tm.team_nickname AS team,
+        e.adj
+        FROM event_lineup_adj e
+        INNER JOIN (SELECT * FROM team) tm
+        ON tm.team_num_id=e.team_id
+"""
+
+allViews["event_data_er_view"]="""CREATE VIEW event_data_er_view AS SELECT
+        e.game_id_event_id >> 10 AS game_id,
+        e.game_id_event_id & 255 AS event_id,
+        e.player_id,
+        p.name_last AS player_name,
+        e.er
+        FROM event_data_er e
+        INNER JOIN (SELECT * FROM player) p
+        ON e.player_id=p.player_num_id
+"""
+        
 allValues = dict()
 allValues["day_in_week"] = ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
 allValues["month"] = ("", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
