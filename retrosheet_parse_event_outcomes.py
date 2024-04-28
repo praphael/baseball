@@ -105,11 +105,11 @@ odd_locations= { # pitchers mound area
                 "9DW":"9", "9LDW":"9",
                 "9M":"9", "9LM":"9", "9LMF":"9" }
 
-playCodeNumMap = {"S":0, "D":1, "CI":2, "DGR":3, "T":4, "HR":5, 
-                  "WP":6, "BB":7, "FC":8, "PB":9, "E":10, "O":11,
-                  "HBP":12, "IBB":13, "K":14, "SB":15, "CS":16, "BK":17,
-                  "PO":18, "POCS":19, "POE":20, "OA":21, "DI":22, "NP":23,
-                   "FLE":24, "FO":25}
+# playCodeNumMap = {"S":0, "D":1, "CI":2, "DGR":3, "T":4, "HR":5, 
+#                   "WP":6, "BB":7, "FC":8, "PB":9, "E":10, "O":11,
+#                   "HBP":12, "IBB":13, "K":14, "SB":15, "CS":16, "BK":17,
+#                   "PO":18, "POCS":19, "POE":20, "OA":21, "DI":22, "NP":23,
+#                    "FLE":24, "FO":25}
 
 playCodeMap = {"S": "single", "D":"double", "CI":"catcher interference", 
                "DGR":"ground rule double", "T":"triple", "HR":"home run", 
@@ -185,23 +185,23 @@ modCodeMap = {"AP": "appeal play",
 "UINT": "umpire interference",
 "UREV": "umpire review of call on the field" }
 
-modCodeNumMap = {"H":0, "B":0, "1":1, "2":2, "3":3, "4":4, "5":5, "6":6, "7":7,
-                 "8":8, "9":9, "AP": 10, "BP": 11, "BF": 12, 
-                 "BG": 13, "BGDP": 14,
-    "BINT": 15, "BL": 16, "BOOT": 17, "BPDP": 18, "BR": 19, "C": 20, 
-    "COUB": 21, "COUF": 22, "COUR": 23, "DP": 24, "DGR": 25, 
-    "E": 26, "F": 27, "FDP": 28, "FINT": 29, "FL": 30, "FO": 31, 
-    "G": 32, "GDP": 33, "GTP": 34, "IF": 35, "INT": 36, "IPHR": 37,
-    "L": 38, "LDP": 39, "LTP": 40, "MREV": 41, "NDP": 42, "OBS": 43,
-    "P": 44, "PASS": 45, "R$": 46, "RINT": 47, "SF": 48, "SH": 49,
-    "TH": 50, "TP": 51, "UINT": 52, "UREV": 53, "T":54 }
+# modCodeNumMap = {"H":0, "B":0, "1":1, "2":2, "3":3, "4":4, "5":5, "6":6, "7":7,
+#                  "8":8, "9":9, "AP": 10, "BP": 11, "BF": 12, 
+#                  "BG": 13, "BGDP": 14,
+#     "BINT": 15, "BL": 16, "BOOT": 17, "BPDP": 18, "BR": 19, "C": 20, 
+#     "COUB": 21, "COUF": 22, "COUR": 23, "DP": 24, "DGR": 25, 
+#     "E": 26, "F": 27, "FDP": 28, "FINT": 29, "FL": 30, "FO": 31, 
+#     "G": 32, "GDP": 33, "GTP": 34, "IF": 35, "INT": 36, "IPHR": 37,
+#     "L": 38, "LDP": 39, "LTP": 40, "MREV": 41, "NDP": 42, "OBS": 43,
+#     "P": 44, "PASS": 45, "R$": 46, "RINT": 47, "SF": 48, "SH": 49,
+#     "TH": 50, "TP": 51, "UINT": 52, "UREV": 53, "T":54 }
 
-for m in list(modCodeNumMap.keys()):
-    modCodeNumMap[m + "!"] = modCodeNumMap[m]
-    modCodeNumMap[m + "#"] = modCodeNumMap[m]
-    modCodeNumMap[m + "?"] = modCodeNumMap[m]
-    modCodeNumMap[m + "+"] = modCodeNumMap[m]
-    modCodeNumMap[m + "-"] = modCodeNumMap[m]
+# for m in list(modCodeNumMap.keys()):
+#     modCodeNumMap[m + "!"] = modCodeNumMap[m]
+#     modCodeNumMap[m + "#"] = modCodeNumMap[m]
+#     modCodeNumMap[m + "?"] = modCodeNumMap[m]
+#     modCodeNumMap[m + "+"] = modCodeNumMap[m]
+#     modCodeNumMap[m + "-"] = modCodeNumMap[m]
 
 for m in list(modCodeMap.keys()):
     modCodeMap[m + "!"] = modCodeMap[m]
@@ -701,8 +701,9 @@ class PlayEvent(Event):
     def __init__(self, p=None):
         if p is not None:
             # destructure
-            self.game_id, self.event_id, self.team_id, self.team, self.team_name = p[0:5]
-            self.player_id, self.player_name, self.inning, self.batter_count, self.pitch_seq, self.play = p[5:]
+            self.game_id, self.event_id, self.team_id, self.player_id = p[0:4]
+            self.inning, self.batter_count, self.pitch_seq, self.play = p[4:]
+            self.team = self.team_id
             #print("team=", self.team)
             self.pitchSeq = None
             self.bat = Event() # dummy value
@@ -739,17 +740,18 @@ class PlayEvent(Event):
 class SubEvent(Event):
     def __init__(self, s=None):
         if s is not None:
-            self.game_id, self.event_id, self.team_id, self.team = s[0:4]
-            self.team_name, self.player_id, self.player_name, self.bat_pos, self.field_pos = s[4:]
+            self.game_id, self.event_id, self.player_id = s[0:3]
+            self.team_id, self.bat_pos, self.field_pos = s[3:]
             self.bat_pos = int(self.bat_pos)
             self.field_pos = int(self.field_pos)
+            self.team = self.team_id
 
 class PlayerAdjEvent(Event):
     def __init__(self, p=None):
         if p is not None:
             # destructure
             self.game_id, self.event_id, self.player_id = p[0:3]
-            self.player_name, self.adjType, self.adj = p[3:]
+            self.adjType, self.adj = p[3:]
 
     def print(self):
         DEBUG_PRINT(f"**** Player adjustment: {self.player_id}  {self.adjType} {self.adj}")
@@ -759,7 +761,7 @@ class LineupAdjEvent(Event):
         if l is not None:
             # destructure
             self.game_id, self.event_id, self.team_id = l[0:3]
-            self.team, self.team_name, self.adj = l[3:]
+            self.adj = l[3:]
             self.adj = int(chr(self.adj))
     def print(self):
         DEBUG_PRINT(f"***** Lineup adjustment: {self.team} {self.adj}")
@@ -769,15 +771,15 @@ class DataEREvent(Event):
         if d is not None:
             # destructure
             self.game_id, self.event_id, self.player_id = d[0:3]
-            self.player_name, self.er = d[3:]
+            self.er = int(d[3])
     
     def print(self):
         DEBUG_PRINT(f"ER: {self.player_id} {self.er}")
 
 class Lineup:
-    def __init__(self, team, team_id):
-        self.team = team
+    def __init__(self, team_id):
         self.team_id = team_id
+        self.team = team_id
         # map between order in batting (1..9)
         # order 0 has no meaning, or could be interpted as the P when using a DH
         self.battingOrder = [None]*10
@@ -855,10 +857,10 @@ class FielderStats:
         self.TP += st.TP
         self.PB += st.PB
 
-    def insertIntoDB(self, cur, game_id, player_num_id, team_id, pos, seq):
-        stmt = f"INSERT INTO player_game_fielding VALUES ({game_id}, {player_num_id}"
-        stmt += f", {team_id}, {(pos<<8)+seq}, {self.IF3}, {(self.PO<<10)+(self.A<<5) + self.E}"
-        stmt += f",{(self.DP << 10) + (self.TP<<5)+self.PB})"
+    def insertIntoDB(self, cur, game_id, player_id, team_id, pos, seq):
+        stmt = f"INSERT INTO player_game_fielding VALUES ({game_id}, '{player_id}'"
+        stmt += f", '{team_id}', {pos}, {seq}, {self.IF3}, {self.PO}, {self.A}, {self.E}"
+        stmt += f", {self.DP}, {self.TP}, {self.PB})"
         DEBUG_PRINT(stmt)
         cur.execute(stmt)
 
@@ -913,11 +915,11 @@ class PitcherStats:
     def print(self):
         DEBUG_PRINT(f"{self.IP3:4}{self.BF:3}{self.H:3}{self.K:3}{self.R:3}{self.ER:3}{self.BB+self.IBB:3}{self.n2B:3}{self.n3B:3}{self.HR:3}")
 
-    def insertIntoDB(self, cur, game_id, player_num_id, team_id, seq):
-        stmt = f"INSERT INTO player_game_pitching VALUES ({game_id}, {player_num_id}"
-        stmt += f", {(team_id<<8)+seq}, {(self.IP3<<8)+self.NOOUT}, {(self.BF<<8)+self.H}"
-        stmt += f", {(self.n2B<<10)+(self.n3B<<5)+self.HR}, {(self.R<<10)+(self.ER<<5)+self.BB}"
-        stmt += f", {(self.IBB<<10)+(self.K<<5)+self.HBP}, {(self.WP<<10)+(self.BK<<5)+self.SH}"
+    def insertIntoDB(self, cur, game_id, player_id, team_id, seq):
+        stmt = f"INSERT INTO player_game_pitching VALUES ({game_id}, '{player_id}'"
+        stmt += f", '{team_id}', {seq}, {self.IP3}, {self.NOOUT}, {self.BF}, {self.H}"
+        stmt += f", {self.n2B}, {self.n3B}, {self.HR}, {self.R}, {self.ER}, {self.BB}"
+        stmt += f", {self.IBB}, {self.K}, {self.HBP}, {self.WP}, {self.BK}, {self.SH}"
         stmt += f", {self.SF})"
         DEBUG_PRINT(stmt)
         cur.execute(stmt)
@@ -969,12 +971,12 @@ class BatterStats:
     def print(self):
         DEBUG_PRINT(f"{self.AB:3}{self.H:3}{self.K:3}{self.R:3}{self.BB+self.IBB:3}{self.n2B:3}{self.n3B:3}{self.HR:3}{self.SB:3}{self.CS:3}")
 
-    def insertIntoDB(self, cur, game_id, player_num_id, team_id, pos, seq):
-        stmt = f"INSERT INTO player_game_batting VALUES ({game_id}, {player_num_id}"
-        stmt += f", {team_id}, {(pos<<8)+seq}, {(self.AB<<10)+(self.R<<5)+self.H}"
-        stmt += f", {(self.n2B<<10)+(self.n3B<<5)+self.HR}, {(self.RBI<<10)+ (self.SH<<5)+self.SF}"
-        stmt += f", {(self.HBP<<10)+(self.BB<<5)+self.IBB}, {(self.K<<10)+(self.SB<<5)+self.CS}"
-        stmt += f", {(self.GIDP<<10)+(self.INTF<<5)})"
+    def insertIntoDB(self, cur, game_id, player_id, team_id, pos, seq):
+        stmt = f"INSERT INTO player_game_batting VALUES ({game_id}, '{player_id}'"
+        stmt += f", '{team_id}', {pos}, {seq}, {self.AB}, {self.R}, {self.H}"
+        stmt += f", {self.n2B}, {self.n3B}, {self.HR}, {self.RBI}, {self.SH}, {self.SF}"
+        stmt += f", {self.HBP}, {self.BB}, {self.IBB}, {self.K}, {self.SB}, {self.CS}"
+        stmt += f", {self.GIDP}, {self.INTF})"
         DEBUG_PRINT(stmt)
         cur.execute(stmt)
 
@@ -1058,26 +1060,26 @@ class GameState:
         self.gameID = gameID
         # score for each team
         self.score = dict()
-        self.score[batsTop.team] = 0
-        self.score[batsBot.team] = 0
+        self.score[batsTop.team_id] = 0
+        self.score[batsBot.team_id] = 0
 
         self.teamStats = dict()
-        self.teamStats[batsTop.team] = TeamStats()
-        self.teamStats[batsBot.team] = TeamStats()
+        self.teamStats[batsTop.team_id] = TeamStats()
+        self.teamStats[batsBot.team_id] = TeamStats()
 
         self.batsTop = batsTop
         self.batsBot = batsBot
 
         # map to stats by team, with last player being the current player
         self.statsBat = dict()
-        self.statsBat[batsTop.team] = [[] for i in range(10)]
-        self.statsBat[batsBot.team] = [[] for i in range(10)]
+        self.statsBat[batsTop.team_id] = [[] for i in range(10)]
+        self.statsBat[batsBot.team_id] = [[] for i in range(10)]
         self.statsField = dict()
-        self.statsField[batsTop.team] = [[] for i in range(10)]
-        self.statsField[batsBot.team] = [[] for i in range(10)]        
+        self.statsField[batsTop.team_id] = [[] for i in range(10)]
+        self.statsField[batsBot.team_id] = [[] for i in range(10)]        
         self.statsPitch = dict()
-        self.statsPitch[batsTop.team] = []
-        self.statsPitch[batsBot.team] = []
+        self.statsPitch[batsTop.team_id] = []
+        self.statsPitch[batsBot.team_id] = []
         i = 0
         for (p1, p2) in zip(batsTop.battingOrder, batsBot.battingOrder):
             #DEBUG_PRINT("i=", i, " p1=", p1, " p2=", p2)
@@ -1112,6 +1114,7 @@ class GameState:
             lob = sum(map(lambda x: x is not None, self.baseRunners))
             self.teamStats[self.curBat.team].LOB += lob
             for s in self.SQLstmts:
+                DEBUG_PRINT(s)
                 cur.execute(s)
         
         self.SQLstmts = []
@@ -1316,27 +1319,27 @@ class GameState:
         DEBUG_PRINT()
         DEBUG_PRINT("play= ", p.play)
         
-        inn_out_bat_cnt = (self.inning << 8) 
-        if self.inningHalf == "B":
-            inn_out_bat_cnt += (1 << 7)
-        inn_out_bat_cnt += (self.outs << 5)
-        inn_out_bat_cnt += p.batter_count
-
-        gs_stmt = f"INSERT INTO game_situation VALUES({(gameID << 10) + eventID}, {batterID}"
-        gs_stmt += f", {pitcherID}, {inn_out_bat_cnt}, {(scBat << 8) + scField}"
-        
+        # inn_out_bat_cnt = (self.inning << 8) 
+        # if self.inningHalf == "B":
+        #     inn_out_bat_cnt += (1 << 7)
+        # inn_out_bat_cnt += (self.outs << 5)
+        # inn_out_bat_cnt += p.batter_count
         pitch_cnt = p.batter_count
         if pitch_cnt == "??":
             pitch_cnt = None
+        gs_stmt = f"INSERT INTO game_situation VALUES({gameID}, {eventID}, '{batterID}'"
+        gs_stmt += f", '{pitcherID}', {self.inning}, '{self.inningHalf}', {self.outs}"
+        gs_stmt += f", {valOrNULL(pitch_cnt)}, {scBat}, {scField}"
+        
         DEBUG_PRINT("results=", p.bat.results)
         DEBUG_PRINT("bases=", p.bat.bases)
         DEBUG_PRINT("mods=", p.bat.mods)
         
         # baserunners in separate table to save space (over half of plays do not have baserunners)
-        bases_stmt = f"INSERT INTO game_situation_bases VALUES({(gameID << 10) + eventID}"
+        bases_stmt = f"INSERT INTO game_situation_bases VALUES({gameID}, {eventID}"
         for b in self.baseRunners[1:4]:
             if b is None:
-                bases_stmt +=f", 0"
+                bases_stmt +=f", NULL"
             else:
                 bases_stmt +=f", {b[0]}"
         bases_stmt += ")"
@@ -1344,19 +1347,21 @@ class GameState:
 
         # split multiple result plays into different relation
         if len(p.bat.results) > 1:
-            gs2_stmt = f"INSERT INTO game_situation_result2 VALUES({(gameID << 10) + eventID}"
-            result_base = (playCodeNumMap[p.bat.results[1]] << 8)
+            gs2_stmt = f"INSERT INTO game_situation_result2 VALUES({gameID}, {eventID}"
+            r2 = p.bat.results[1]
+            b2 = "NULL"
             if p.bat.bases[1] is not None:
-                result_base += baseToNum(p.bat.bases[1])
-            gs2_stmt += f", {result_base})"
+               b2 = baseToNum(p.bat.bases[1])
+            gs2_stmt += f", '{r2}', {b2})"
             DEBUG_PRINT(gs2_stmt)
             self.SQLstmts.append(gs2_stmt)
         if len(p.bat.results) > 2:
-            gs3_stmt = f"INSERT INTO game_situation_result3 VALUES({(gameID << 10) + eventID}"
-            result_base = (playCodeNumMap[p.bat.results[2]] << 8)
+            gs3_stmt = f"INSERT INTO game_situation_result3 VALUES({gameID}, {eventID}"
+            r3 = p.bat.results[2]
+            b3 = "NULL"
             if p.bat.bases[2] is not None:
-                result_base += baseToNum(p.bat.bases[2])
-            gs3_stmt += f", {result_base})"
+               b2 = baseToNum(p.bat.bases[2])
+            gs3_stmt += f", '{r3}', {b3})"
             DEBUG_PRINT(gs3_stmt)
             self.SQLstmts.append(gs3_stmt)
         
@@ -1571,8 +1576,8 @@ class GameState:
                         prm = 0
                     mod = mod[0]                    
                 stmt = f"INSERT INTO game_situation_result{rNum}_mod"
-                stmt += f" VALUES({(gameID << 10) + eventID}"
-                stmt += f", {(seq << 12) + (modCodeNumMap[mod] << 6) + int(prm)})"
+                stmt += f" VALUES({gameID}, {eventID}"
+                stmt += f", {seq}, '{mod}', '{prm}')"
                 DEBUG_PRINT(stmt)
                 if mod in modCodeMap:
                     DEBUG_PRINT(modCodeMap[mod])
@@ -1599,17 +1604,17 @@ class GameState:
         # may need to increment outs
         if p.possiblySafeDueToError and treatBaserunModErrorAsOut:
             outs += 1
-        stmt_fldr_ass = f"INSERT INTO game_situation_fielder_assist VALUES({(gameID << 10) + eventID}"
-        stmt_fldr_po = f"INSERT INTO game_situation_fielder_putout VALUES({(gameID << 10) + eventID}"
-        stmt_fldr_err = f"INSERT INTO game_situation_fielder_error VALUES({(gameID << 10) + eventID}"
-        stmt_fldr_fld = f"INSERT INTO game_situation_fielder_fielded VALUES({(gameID << 10) + eventID}"
+        stmt_fldr_ass = f"INSERT INTO game_situation_fielder_assist VALUES({gameID}, {eventID}"
+        stmt_fldr_po = f"INSERT INTO game_situation_fielder_putout VALUES({gameID}, {eventID}"
+        stmt_fldr_err = f"INSERT INTO game_situation_fielder_error VALUES({gameID}, {eventID}"
+        stmt_fldr_fld = f"INSERT INTO game_situation_fielder_fielded VALUES({gameID}, {eventID}"
         seq = 1
         for f in p.fielding.errors:
             fldr_id = self.curField.fieldPos[f]
             DEBUG_PRINT("fielding error on ", f, playerIDMap[fldr_id])
             self.statsField[curFieldTeam][f][-1][1].E += 1
             self.teamStats[curFieldTeam].E += 1
-            stmt_err = stmt_fldr_err + f", {fldr_id}, {seq})"
+            stmt_err = stmt_fldr_err + f", '{fldr_id}', {seq})"
             self.SQLstmts.append(stmt_err)
             seq += 1
         seq = 1
@@ -1618,7 +1623,7 @@ class GameState:
             DEBUG_PRINT("putout for ", f, playerIDMap[fldr_id])
             self.statsField[curFieldTeam][f][-1][1].PO += 1
             self.teamStats[curFieldTeam].PO += 1
-            stmt_po = stmt_fldr_po + f", {fldr_id}, {seq})"
+            stmt_po = stmt_fldr_po + f", '{fldr_id}', {seq})"
             self.SQLstmts.append(stmt_po)
             seq += 1
         seq = 1
@@ -1627,14 +1632,14 @@ class GameState:
             DEBUG_PRINT("assist for ", f, playerIDMap[fldr_id])
             self.statsField[curFieldTeam][f][-1][1].A += 1
             self.teamStats[curFieldTeam].A += 1
-            stmt_ass = stmt_fldr_ass + f", {fldr_id}, {seq})"
+            stmt_ass = stmt_fldr_ass + f", '{fldr_id}', {seq})"
             self.SQLstmts.append(stmt_ass)
             seq += 1
         seq = 1
         for f in p.fielding.fielded:
             fldr_id = self.curField.fieldPos[f]
             DEBUG_PRINT("fielded by ", f, playerIDMap[fldr_id])
-            stmt_fld = stmt_fldr_fld + f", {fldr_id}, {seq})"
+            stmt_fld = stmt_fldr_fld + f", '{fldr_id}', {seq})"
             self.SQLstmts.append(stmt_fld)
             seq += 1
         
@@ -1650,7 +1655,7 @@ class GameState:
                 if b not in ("B", "H"):                
                     baseRunNxt[int(b)] = None  # clear base runner
                 outs += 1
-            stmt_base_run = f"INSERT INTO game_situation_base_run VALUES({(gameID << 10) + eventID}"
+            stmt_base_run = f"INSERT INTO game_situation_base_run VALUES({gameID}, {eventID}"
             strikeOutAdv = False
             for adv in p.run.adv:
                 DEBUG_PRINT("adv=", adv)
@@ -1731,7 +1736,7 @@ class GameState:
                      a2 = treatBaserunModErrorAsOut
                 a0 = baseToNum(adv[0])
                 a1 = baseToNum(adv[1])
-                stmt = stmt_base_run + f", {(a0<<6) + (a1<<3) + a2})"
+                stmt = stmt_base_run + f", {a0}, {a1}, {a2})"
                 DEBUG_PRINT(stmt)
                 self.SQLstmts.append(stmt)
             if self.batterBase is not None:
@@ -1761,7 +1766,7 @@ class GameState:
             return True, self.possiblySafeDueToError, False
 
 
-        stmt_base_run_mod = f"INSERT INTO game_situation_base_run_mod VALUES({(gameID << 10) + eventID}"
+        stmt_base_run_mod = f"INSERT INTO game_situation_base_run_mod VALUES({gameID}, {eventID}"
         for base_mod, adv in zip(p.run.mods, p.run.adv):
             src = baseToNum(adv[0])
             dst = baseToNum(adv[1])
@@ -1775,36 +1780,37 @@ class GameState:
                     continue
                 sub_mod0 = mods[0]                
                 #DEBUG_PRINT("mod[0]=", sub_mod0)
-                src_dst_out = (src << 6) + (dst << 3) + isOut
-                stmt = stmt_base_run_mod + f", {src_dst_out}"
-                seq_mod_prm = (seq << 10) + (modCodeNumMap[sub_mod0[0]] << 5)
+                #src_dst_out = (src << 6) + (dst << 3) + isOut
+                #seq_mod_prm = (seq << 10) + (modCodeNumMap[sub_mod0[0]] << 5)
+                mod_prm = None
                 if type(sub_mod0) == type(tuple()):
                     sub_mod0_0 = sub_mod0[0]
                     mod_prm = sub_mod0[1]
-                    if type(mod_prm) == type(""):
-                        mod_prm = modCodeNumMap[mod_prm]
+                    # if type(mod_prm) == type(""):
+                    #     mod_prm = modCodeNumMap[mod_prm]
                    
-                    seq_mod_prm += mod_prm
+                    #seq_mod_prm += mod_prm
                 else:
                     sub_mod0_0 = sub_mod0
                     
-                stmt += f", {seq_mod_prm})"
+                stmt = stmt_base_run_mod + f", {src}"
+                stmt += f", {seq}, '{sub_mod0_0}', '{mod_prm}')"
                 DEBUG_PRINT(stmt)
                 self.SQLstmts.append(stmt)
-                stmt_br_smod = f"INSERT INTO game_situation_base_run_sub_mod"
-                stmt_br_smod += f" VALUES({(gameID << 10) + eventID}, {src_dst_out}"
-                stmt_br_smod += f", {seq_mod_prm}"
+                #stmt_br_smod = f"INSERT INTO game_situation_base_run_sub_mod"
+                #stmt_br_smod += f" VALUES({(gameID << 10) + eventID}, {src_dst_out}"
+                #stmt_br_smod += f", {seq_mod_prm}"
                 for sub_mod in mods[1:]:
                     DEBUG_PRINT("sub_mod=", sub_mod)
                     
-                    if type(sub_mod) == type(tuple()):
-                        sub_mod_packed = (modCodeNumMap[sub_mod[0]] << 10)
-                        sub_mod_packed += (modCodeNumMap[sub_mod[1]] << 5)
-                    else:
-                        sub_mod_packed = (modCodeNumMap[sub_mod] << 10)
-                    stmt_br_smod += f", {sub_mod_packed})"
-                    DEBUG_PRINT(stmt_br_smod)
-                    self.SQLstmts.append(stmt_br_smod)
+                    #if type(sub_mod) == type(tuple()):
+                        #sub_mod_packed = (modCodeNumMap[sub_mod[0]] << 10)
+                        #sub_mod_packed += (modCodeNumMap[sub_mod[1]] << 5)
+                    #else:
+                        #sub_mod_packed = (modCodeNumMap[sub_mod] << 10)
+                    #stmt_br_smod += f", {sub_mod_packed})"
+                    #DEBUG_PRINT(stmt_br_smod)
+                    #self.SQLstmts.append(stmt_br_smod)
                 seq += 1
             
         # base_src char(1),
@@ -1812,18 +1818,18 @@ class GameState:
         # mod char(4),
         # prm char(2),
 
-        hit_loc_hit_type_outs_made_runs_scored = 0
-        if p.bat.hit_loc is not None:
-            hit_loc_hit_type_outs_made_runs_scored = (locations[p.bat.hit_loc] << 9)
-        if p.bat.hit_type is not None:
-            hit_loc_hit_type_outs_made_runs_scored += (HIT_TYPES[p.bat.hit_type] << 6)
-        hit_loc_hit_type_outs_made_runs_scored += (outs << 3)
-        hit_loc_hit_type_outs_made_runs_scored += runs
-        result_base = (playCodeNumMap[p.bat.results[0]] << 8)
-        if p.bat.bases[0] is not None:
-            result_base += baseToNum(p.bat.bases[0])
-        gs_stmt += f", {result_base}"
-        gs_stmt += f", {hit_loc_hit_type_outs_made_runs_scored})" 
+        # hit_loc_hit_type_outs_made_runs_scored = 0
+        # if p.bat.hit_loc is not None:
+        #     hit_loc_hit_type_outs_made_runs_scored = (locations[p.bat.hit_loc] << 9)
+        # if p.bat.hit_type is not None:
+        #     hit_loc_hit_type_outs_made_runs_scored += (HIT_TYPES[p.bat.hit_type] << 6)
+        # hit_loc_hit_type_outs_made_runs_scored += (outs << 3)
+        # hit_loc_hit_type_outs_made_runs_scored += runs
+        # result_base = (playCodeNumMap[p.bat.results[0]] << 8)
+        # if p.bat.bases[0] is not None:
+        #     result_base += baseToNum(p.bat.bases[0])
+        gs_stmt += f", '{p.bat.results[0]}', {valOrNULL(p.bat.bases[0])}"
+        gs_stmt += f", {valOrNULL(p.bat.hit_loc)}, {valOrNULL(p.bat.hit_type)}, {outs}, {runs})" 
         
         # finish game situation statement
         #gs_stmt += f", {outs}, {runs})"
@@ -1867,10 +1873,13 @@ class GameState:
         return False, self.possiblySafeDueToError, isNextHalfInning
 
     def applySub(self, evt):
-        if evt.team == self.batsTop.team:
+        if evt.team_id == self.batsTop.team_id:
             tm = self.batsTop
-        elif evt.team == self.batsBot.team:
+        elif evt.team_id == self.batsBot.team_id:
             tm = self.batsBot
+        else:
+            print("applySub: bad team", evt.team_id)
+            return None
 
         rep_batter, (rep_fielder, newPos) = tm.applySub(evt)
         DEBUG_PRINT("applySub: rep_batter=", rep_batter, " rep_fielder= ", rep_fielder, " newPos=", newPos)
@@ -1933,15 +1942,15 @@ def deleteDBAfterEvent(gameID, savePtEventID):
                 "game_situation_fielder_putout", "game_situation_fielder_error",
                 "game_situation_fielder_fielded", "game_situation_result1_mod", 
                 "game_situation_base_run", "game_situation_base_run_mod",
-                "game_situation_base_run_sub_mod", "game_situation_result2",
+                "game_situation_result2",
                 "game_situation_result3", "game_situation_result1_mod",
                 "game_situation_result2_mod", "game_situation_result3_mod", 
                 "game_situation_bases" )
     
     gameTables = ("player_game_batting", "player_game_pitching", "player_game_fielding")
     for tbl in allTables:
-        stmt =  f"DELETE FROM {tbl} WHERE (game_id_event_id >> 10)={gameID}"
-        stmt += f" AND (game_id_event_id & 1023) > {savePtEventID}"
+        stmt =  f"DELETE FROM {tbl} WHERE game_id={gameID}"
+        stmt += f" AND event_id > {savePtEventID}"
         DEBUG_PRINT(stmt)
         cur.execute(stmt)
     for tbl in gameTables:
@@ -1951,7 +1960,7 @@ def deleteDBAfterEvent(gameID, savePtEventID):
 
 def parseGame(gameID, plays, conn, cur):
     # detect if already parsed game
-    stmt = f"SELECT * from game_situation WHERE (game_id_event_id >> 10)={gameID}"
+    stmt = f"SELECT * from game_situation WHERE game_id={gameID}"
     cur.execute(stmt)
     tups = cur.fetchall()    
     if len(tups) > 0:
@@ -1962,52 +1971,59 @@ def parseGame(gameID, plays, conn, cur):
     stmt += f" FROM game_info_view WHERE game_id={gameID}"
     DEBUG_PRINT(stmt)
     cur.execute(stmt)
-    htbf, win_p, lose_p, save_p, gw_rbi = cur.fetchall()[0]
+    tups = cur.fetchall()
+    if len(tups) != 1:
+        print("got more than one result from SELECT")
+        return False
+    htbf, win_p, lose_p, save_p, gw_rbi = tups[0]
     htbf = bool(htbf)
-    stmt = f"SELECT home_team, home_team_id, away_team, away_team_id, year, month, day FROM game_info_view WHERE game_id={gameID}"
+    stmt = f"SELECT home_team, away_team, game_date FROM game_info_view WHERE game_id={gameID}"
     DEBUG_PRINT(stmt)
     cur.execute(stmt)
-    home_team, home_team_id, away_team, away_team_id, year, month, day = cur.fetchall()[0]
-    game_date = (year, month, day)
-    stmt = f"SELECT * FROM event_start_view WHERE game_id={gameID} ORDER BY event_id"
+    tups = cur.fetchall()
+    if len(tups) != 1:
+        print("got more than one result from SELECT")
+        return False
+    home_team, away_team, game_date = tups[0]    
+    stmt = f"SELECT * FROM event_start WHERE game_id={gameID} ORDER BY event_id"
     cur.execute(stmt)
     starts = cur.fetchall()
-    stmt = f"SELECT * FROM event_sub_view WHERE game_id={gameID} ORDER BY event_id"
+    stmt = f"SELECT * FROM event_sub WHERE game_id={gameID} ORDER BY event_id"
     cur.execute(stmt)
     subs = cur.fetchall()
 
-    stmt = f"SELECT * FROM event_lineup_adj_view WHERE game_id={gameID} ORDER BY event_id"
+    stmt = f"SELECT * FROM event_lineup_adj WHERE game_id={gameID} ORDER BY event_id"
     cur.execute(stmt)
     lineupAdjs = cur.fetchall()
 
-    stmt = f"SELECT * FROM event_player_adj_view WHERE game_id={gameID} ORDER BY event_id"
+    stmt = f"SELECT * FROM event_player_adj WHERE game_id={gameID} ORDER BY event_id"
     cur.execute(stmt)
     playerAdjs = cur.fetchall()
 
-    stmt = f"SELECT * FROM event_data_er_view WHERE game_id={gameID} ORDER BY event_id"
+    stmt = f"SELECT * FROM event_data_er WHERE game_id={gameID} ORDER BY event_id"
     cur.execute(stmt)
     dataER = cur.fetchall()
 
     DEBUG_PRINT("home= ", home_team, " away=", away_team, " date=", game_date)
-    home = Lineup(home_team, home_team_id)
-    away = Lineup(away_team, away_team_id)
+    home = Lineup(home_team)
+    away = Lineup(away_team)
     for st in starts:
         #DEBUG_PRINT("st=", st)
         # destructure
         #print(st)
-        game_id, event_id, team_id, team, team_name = st[0:5]
-        player_id, player_name, bat_pos, field_pos = st[5:]
+        game_id, event_id, player_id = st[0:3]
+        team_id, bat_pos, field_pos = st[3:]
         
-        if team == home_team:
+        if team_id == home_team:
             lineup = home
-        elif team == away_team:
+        elif team_id == away_team:
             lineup = away
         else:
-            DEBUG_PRINT(f"parseGame ERROR: team=", team, " is neither home=", home_team, " or away=", away_team)
+            DEBUG_PRINT(f"parseGame ERROR: team=", team_id, " is neither home=", home_team, " or away=", away_team)
             return True
         pID = playerIDMap[player_id][0] 
 
-        DEBUG_PRINT(pID, team, " starting at ", field_pos, " batting order ", bat_pos)
+        DEBUG_PRINT(pID, team_id, " starting at ", field_pos, " batting order ", bat_pos)
         if bat_pos != 0:
             lineup.battingOrder[bat_pos] = player_id
             lineup.battingOrderStart[bat_pos] = player_id
@@ -2145,7 +2161,7 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=None, quit_on_err=True):
     if gameRange is not None:
         print("gameRange= ", gameRange)
         whereClause = f"WHERE game_id >= {gameRange[0]} AND game_id <= {gameRange[1]}"
-    stmt = f"SELECT * FROM event_play_view {whereClause} ORDER BY game_id"
+    stmt = f"SELECT * FROM event_play {whereClause} ORDER BY game_id"
     cur.execute(stmt)
     tups = cur.fetchall()
     DEBUG_PRINT("num_plays= ", len(tups))
@@ -2260,11 +2276,11 @@ if __name__ == "__main__":
         conn = psycopg.connect("dbname=postgres user=postgres")
         cur = conn.cursor()
     
-    stmt = f"SELECT player_num_id, player_id, name_last, name_other FROM player"
+    stmt = f"SELECT  player_id, name_last, name_other FROM player"
     cur.execute(stmt)
     tups = cur.fetchall()
     for tup in tups:
-        playerIDMap[tup[0]] = (tup[1], tup[2], tup[3])
+        playerIDMap[tup[0]] = (tup[1], tup[2])
 
     parseEventOutcomesGatherStats(conn, cur, gameRange, quit_on_err)
     conn.commit()

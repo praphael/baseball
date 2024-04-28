@@ -370,7 +370,7 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                             v.split(",")
                             # yyyymmdd,park,vs,hs,len
                             c_stmt = f"INSERT INTO {comp_tbl} VALUES({game_id}"
-                            c_stmt += f", DATE({v[0:4]}-{v[4:6]}-{v[6:8]})"
+                            c_stmt += f", DATE('{v[0:4]}-{v[4:6]}-{v[6:8]}')"
                             c_stmt += f", {v[1]}, {v[2]}, {v[3]}, {v[4]})"
                             print(c_stmt)
                             cur.execute(c_stmt)                            

@@ -40,9 +40,9 @@ class GameID:
         if(v is not None):
             id = v
             self.team = id[0:3]
-            self.year = int(id[3:7])
-            self.month = int(id[7:9])
-            self.day = int(id[9:11])
+            self.year = id[3:7]
+            self.month = id[7:9]
+            self.day = id[9:11]
             self.num = int(id[11])
 
             #print(self.team, self.year, self.month, self.day, self.num)
@@ -227,7 +227,7 @@ class GameInfo:
             print(f"unknown game type '{self.gametype}'")
 
         dt = self.game_date
-        game_date = f"DATE({dt[0]}-{dt[1]}-{dt[2]})"
+        game_date = f"DATE('{dt[0]}-{dt[1]}-{dt[2]}')"
         stmt += f"{self.gameNumID}, {game_date}, 0, {self.starttime}, {game_num_type}"
         stmt += f", '{away}', 0, '{home}', 0"
         

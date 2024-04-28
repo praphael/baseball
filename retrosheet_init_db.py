@@ -794,6 +794,7 @@ allTables["game_situation"] = """CREATE TABLE game_situation (
     batter_id char(8) NOT NULL,
     pitcher_id char(8) NOT NULL,
     inning smallint NOT NULL,
+    inning_half char(1) NOT NULL,
     outs smallint NOT NULL,
     pitch_cnt char(2),
     bat_team_score smallint NOT NULL,
