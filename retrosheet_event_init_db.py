@@ -31,15 +31,14 @@ allTables["player_game_fielding"] = """CREATE TABLE player_game_fielding (
 allTables["player_game_pitching"] = """CREATE TABLE player_game_pitching (
     game_id integer,
     pitcher_id smallint,
-    team smallint,
-    seq smallint,
-    IP3 smallint,
-    NOOUT_BF_H smallint,
+    team_seq smallint,
+    IP3_NOOUT smallint,
+    BF_H smallint,
     n2B_3B_HR smallint,
     R_ER_BB smallint,
     IBB_K_HBP smallint,
     WP_BK_SH smallint,
-    SH smallint,
+    SF smallint,
     PRIMARY KEY(game_id, pitcher_id)
 )"""
 
@@ -50,11 +49,16 @@ allTables["game_situation"] = """CREATE TABLE game_situation (
     pitcher_id smallint,
     inning_outs_pitch_cnt smallint,    
     team_scores smallint,
+    bat_result_base smallint,
+    hit_loc_hit_type_outs_made_runs_scored smallint,
+    PRIMARY KEY(game_id_event_id)
+)"""
+
+allTables["game_situation_bases"] = """CREATE TABLE game_situation_bases (
+    game_id_event_id integer,   
     bases_first smallint,
     bases_second smallint,
     bases_third smallint,
-    bat_result_base smallint,
-    hit_loc_hit_type_outs_made_runs_scored smallint,
     PRIMARY KEY(game_id_event_id)
 )"""
 

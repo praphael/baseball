@@ -114,7 +114,7 @@ allTables["game_info"]="""CREATE TABLE game_info (
     game_id integer PRIMARY KEY,
     game_datetime integer NOT NULL,
     game_type_num smallint NOT NULL,    
-    away_team smallint NOT NULL,
+    home_team smallint NOT NULL,
     away_game_num smallint NOT NULL,
     home_team smallint NOT NULL,    
     home_game_num smallint NOT NULL,
@@ -193,7 +193,7 @@ allTables["gamelog"] = """CREATE TABLE gamelog (
     home_indiv_earned_runs_team_earned_runs smallint NOT NULL,
     home_wild_pitches_balks smallint NOT NULL,
     home_putouts_assists smallint NOT NULL,
-    home_error_passed_balls smallint NOT NULL,
+    home_errors_passed_balls smallint NOT NULL,
     home_double_plays_triple_plays smallint NOT NULL
 ) WITHOUT ROWID"""
 
@@ -449,10 +449,14 @@ allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
         post.desc AS post_series,
         (3 & (game_type_num >> 6)) AS dh_num,
         i.away_team AS away_team_id,
-        atm.team_nickname AS away_team, 
+        atm.team_id AS away_team, 
+        atm.team_nickname AS away_team_name, 
+        atm.team_league AS away_league,
         i.away_game_num,
         i.home_team AS home_team_id,
-        htm.team_nickname AS home_team, 
+        htm.team_id AS home_team, 
+        htm.team_nickname AS home_team_name,
+        htm.team_league AS home_league,
         i.home_game_num,
         prk.park_name AS park,
         i.attendance,
@@ -468,47 +472,47 @@ allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
         (1 & (flags >> 3)) AS use_dh,
         (1 & (flags >> 6)) AS complete,
         forf.desc AS forfeit,
-        prot.desc AS protest, 
-        wpit.name_last AS win_pitcher,
-        lpit.name_last AS loss_pitcher,
-        spit.name_last AS save_pitcher,
-        gwr.name_last AS gw_rbi
+        prot.desc AS protest,
+        wpit.name_last||', '||SUBSTR(wpit.name_other, 0, 2) AS win_pitcher,
+         lpit.name_last||', '||SUBSTR(lpit.name_other, 0, 2) AS loss_pitcher,
+         spit.name_last||', '||SUBSTR(spit.name_other, 0, 2) AS save_pitcher,
+         gwr.name_last||', '||SUBSTR(gwr.name_other, 0, 2) AS gw_rbi
     FROM game_info i
-    INNER JOIN (SELECT * FROM month) mn
+    LEFT JOIN (SELECT * FROM month) mn
     ON mn.num=(15 & (i.game_datetime >> 20))
-    INNER JOIN (SELECT * FROM day_in_week) dinw
+    LEFT JOIN (SELECT * FROM day_in_week) dinw
     ON dinw.num=(7 & (i.game_datetime >> 16) )
-    INNER JOIN (SELECT * FROM season) seas
+    LEFT JOIN (SELECT * FROM season) seas
     ON seas.num=(7 & i.game_type_num)
-    INNER JOIN (SELECT * FROM postseason_series) post
+    LEFT JOIN (SELECT * FROM postseason_series) post
     ON post.num=(7 & (i.game_type_num >> 3) )
-    INNER JOIN (SELECT * FROM daynight) dn
+    LEFT JOIN (SELECT * FROM daynight) dn
     ON dn.num=(1 & i.cond) 
-    INNER JOIN (SELECT * FROM fieldcond) fc
+    LEFT JOIN (SELECT * FROM fieldcond) fc
     ON fc.num=(7 & i.cond >> 1)
-    INNER JOIN (SELECT * FROM precip) pr
+    LEFT JOIN (SELECT * FROM precip) pr
     ON pr.num=(7 & i.cond >> 4)
-    INNER JOIN (SELECT * FROM sky) sk
+    LEFT JOIN (SELECT * FROM sky) sk
     ON sk.num=(7 & (i.cond >> 7) )
-    INNER JOIN (SELECT * FROM winddir) wd
+    LEFT JOIN (SELECT * FROM winddir) wd
     ON wd.num=(7 & (i.cond >> 10) )
-    INNER JOIN (SELECT * FROM team) htm
+    LEFT JOIN (SELECT * FROM team) htm
     ON htm.team_num_id=home_team
-    INNER JOIN (SELECT * FROM team) atm
+    LEFT JOIN (SELECT * FROM team) atm
     ON atm.team_num_id=away_team
-    INNER JOIN (SELECT * FROM player) wpit
+    LEFT JOIN (SELECT * FROM player) wpit
     ON wpit.player_num_id=i.win_pitcher
-    INNER JOIN (SELECT * FROM player) lpit
+    LEFT JOIN (SELECT * FROM player) lpit
     ON lpit.player_num_id=i.loss_pitcher
-    INNER JOIN (SELECT * FROM player) spit
+    LEFT JOIN (SELECT * FROM player) spit
     ON spit.player_num_id=i.save_pitcher
-    INNER JOIN (SELECT * FROM player) gwr
+    LEFT JOIN (SELECT * FROM player) gwr
     ON gwr.player_num_id=i.gw_rbi
-    INNER JOIN (SELECT * FROM park) prk
+    LEFT JOIN (SELECT * FROM park) prk
     ON prk.park_num_id=i.park
-    INNER JOIN (SELECT * FROM forfeit) forf
+    LEFT JOIN (SELECT * FROM forfeit) forf
     ON forf.num=(3 & (i.flags >> 7))
-    INNER JOIN (SELECT * FROM protest) prot
+    LEFT JOIN (SELECT * FROM protest) prot
     ON prot.num=(7 & (i.flags >> 9))
 """
 
@@ -544,114 +548,120 @@ allViews["gamelog_view"] = """CREATE VIEW gamelog_view AS SELECT
     v.loss_pitcher,
     v.save_pitcher,
     v.gw_rbi,
-    31 & l.away_score_inning_12345 AS away_score_inning_1,
-    (31 << 5) & l.away_score_inning_12345 AS away_score_inning_2,
-    (31 << 10) & l.away_score_inning_12345 AS away_score_inning_3,
-    (31 << 15) & l.away_score_inning_12345 AS away_score_inning_4,
-    (31 << 20) & l.away_score_inning_12345 AS away_score_inning_5,
-    31 & l.away_score_inning_6789 AS away_score_inning_6,
-    (31 << 5) & l.away_score_inning_6789 AS away_score_inning_7,
-    (31 << 10) & l.away_score_inning_6789 AS away_score_inning_8,
-    (31 << 15) & l.away_score_inning_6789 AS away_score_inning_9,
-    15 & e.away_score_inning_101112 AS away_score_inning_10,
-    (15 << 4) & e.away_score_inning_101112 AS away_score_inning_11,
-    (15 << 8) & e.away_score_inning_101112 AS away_score_inning_12,
-    15 & e.away_score_inning_131415 AS away_score_inning_13,
-    (15 << 4) & e.away_score_inning_131415 AS away_score_inning_14,
-    (15 << 8) & e.away_score_inning_131415 AS away_score_inning_15,
-    15 & e.away_score_inning_161718 AS away_score_inning_16,
-    (15 << 4) & l.away_score_inning_161718 AS away_score_inning_17,
-    (15 << 8) & l.away_score_inning_161718 AS away_score_inning_18,
-    15 & e.away_score_inning_192021 AS away_score_inning_19,
-    (15 << 4) & e.away_score_inning_192021 AS away_score_inning_20,
-    (15 << 8) & e.away_score_inning_192021 AS away_score_inning_21,
-    15 & e.away_score_inning_222324 AS away_score_inning_22,
-    (15 << 4) & e.away_score_inning_222324 AS away_score_inning_23,
-    (15 << 8) & e.away_score_inning_222324 AS away_score_inning_24,
-    255 & l.away_at_bats_hits AS away_at_bats,
-    (255 << 8) & l.away_at_bats_hits AS away_hits,
-    255 & l.away_doubles_triples AS away_doubles,
-    (255 << 8) & l.away_doubles_triples AS away_triples,
-    255 & l.away_home_runs_rbi AS away_home_runs,
-    (255 << 8) & l.away_home_runs_rbi AS away_home_rbi,
-    255 & l.away_sac_hit_sac_fly AS away_sac_hit,
-    (255 << 8) & l.away_sac_hit_sac_fly AS away_sac_fly,
-    255 & l.away_hit_by_pitch_walks AS away_hit_by_pitch,
-    (255 << 8) & l.away_hit_by_pitch_walks AS away_walks,
-    255 & l.away_int_walks_strikeouts AS away_int_walks,
-    (255 << 8) & l.away_int_walks_strikeouts AS away_strikeouts,
-    255 & l.away_stolen_bases_caught_stealing AS away_stolen_bases,
-    (255 << 8) & l.away_stolen_bases_caught_stealing AS away_caught_stealing,
+    31 & (l.away_score_inning_123 >> 10) AS away_score_inning_1,
+    31 & (l.away_score_inning_123 >> 5) AS away_score_inning_2,
+    31 & l.away_score_inning_123 AS away_score_inning_3,
+    31 & (l.away_score_inning_456 >> 10) AS away_score_inning_4,
+    31 & (l.away_score_inning_456 >> 5) AS away_score_inning_5,
+    31 & l.away_score_inning_456 AS away_score_inning_6,
+    31 & (l.away_score_inning_789 >> 10) AS away_score_inning_7,
+    31 & (l.away_score_inning_789 >> 5) AS away_score_inning_8,
+    31 & l.away_score_inning_789 AS away_score_inning_9,
+    31 & (e.away_score_inning_101112 >> 10) AS away_score_inning_10,
+    31 & (e.away_score_inning_101112 >> 5) AS away_score_inning_11,
+    31 & e.away_score_inning_101112 AS away_score_inning_12,
+    31 & (e.away_score_inning_131415 >> 10) AS away_score_inning_13,
+    31 & (e.away_score_inning_131415 >> 5) AS away_score_inning_14,
+    31 & e.away_score_inning_131415 AS away_score_inning_15,
+    31 & (e.away_score_inning_161718 >> 10) AS away_score_inning_16,
+    31 & (e.away_score_inning_161718 >> 5) AS away_score_inning_17,
+    31 & e.away_score_inning_161718 AS away_score_inning_18,
+    31 & (e.away_score_inning_192021 >> 10) AS away_score_inning_19,
+    31 & (e.away_score_inning_192021 >> 5) AS away_score_inning_20,
+    31 & e.away_score_inning_192021 AS away_score_inning_21,
+    31 & (e.away_score_inning_222324 >> 10) AS away_score_inning_22,
+    31 & (e.away_score_inning_222324 >> 5) AS away_score_inning_23,
+    31 & e.away_score_inning_222324 AS away_score_inning_24,
+    31 & (e.away_score_inning_252627 >> 10) AS away_score_inning_25,
+    31 & (e.away_score_inning_252627 >> 5) AS away_score_inning_26,
+    31 & e.away_score_inning_252627 AS away_score_inning_27,
+    255 & (l.away_at_bats_hits >> 8) AS away_at_bats,
+    255 & l.away_at_bats_hits AS away_hits,
+    255 & (l.away_doubles_triples >> 8) AS away_doubles,
+    255 & l.away_doubles_triples AS away_triples,
+    255 & (l.away_home_runs_rbi >> 8) AS away_home_runs,
+    255 & l.away_home_runs_rbi AS away_rbi,
+    255 & (l.away_sac_hit_sac_fly >> 8) AS away_sac_hit,
+    255 & l.away_sac_hit_sac_fly AS away_sac_fly,
+    255 & (l.away_hit_by_pitch_walks >> 8) AS away_hit_by_pitch,
+    255 & l.away_hit_by_pitch_walks AS away_walks,
+    255 & (l.away_int_walks_strikeouts >> 8) AS away_int_walks,
+    255 & l.away_int_walks_strikeouts AS away_strikeouts,
+    255 & (l.away_stolen_bases_caught_stealing >> 8) AS away_stolen_bases,
+    255 & l.away_stolen_bases_caught_stealing AS away_caught_stealing,
+    255 & (l.away_gidp_catcher_interference >> 8) AS away_catcher_interference,
     255 & l.away_gidp_catcher_interference AS away_gidp,
-    (255 << 8) & l.away_gidp_catcher_interference AS away_gidp,
-    255 & l.away_left_on_base_pitchers_used AS away_left_on_base,
-    (255 << 8) & l.away_left_on_base_pitchers_used AS away_pitchers_used,
-    255 & l.away_indiv_earned_runs_team_earned_runs AS away_indiv_earned_runs,
-    (255 << 8) & l.away_indiv_earned_runs_team_earned_runs AS away_team_earned_runs,
-    255 & l.away_wild_pitches_balks AS away_wild_pitches,
-    (255 << 8) & l.away_wild_pitches_balks AS away_balks,
-    255 & l.away_putouts_assists AS away_putouts,
-    (255 << 8) & l.away_putouts_assists AS away_assists,
-    255 & l.away_errors_passed_balls AS away_errors,
-    (255 << 8) & l.away_errors_passed_balls AS away_passed_balls,
-    255 & l.away_double_plays_triple_plays AS away_double_plays, 
-    (255 << 8) & l.away_double_plays_triple_plays AS away_triple_plays, 
-    31 & l.home_score_inning_12345 AS home_score_inning_1,
-    (31 << 5) & l.home_score_inning_12345 AS home_score_inning_2,
-    (31 << 10) & l.home_score_inning_12345 AS home_score_inning_3,
-    (31 << 15) & l.home_score_inning_12345 AS home_score_inning_4,
-    (31 << 20) & l.home_score_inning_12345 AS home_score_inning_5,
-    31 & l.home_score_inning_6789 AS home_score_inning_6,
-    (31 << 5) & l.home_score_inning_6789 AS home_score_inning_7,
-    (31 << 10) & l.home_score_inning_6789 AS home_score_inning_8,
-    (31 << 15) & l.home_score_inning_6789 AS home_score_inning_9,
-    15 & e.home_score_inning_101112 AS home_score_inning_10,
-    (15 << 4) & e.home_score_inning_101112 AS home_score_inning_11,
-    (15 << 8) & e.home_score_inning_101112 AS home_score_inning_12,
-    15 & e.home_score_inning_131415 AS home_score_inning_13,
-    (15 << 4) & e.home_score_inning_131415 AS home_score_inning_14,
-    (15 << 8) & e.home_score_inning_131415 AS home_score_inning_15,
-    15 & e.home_score_inning_161718 AS home_score_inning_16,
-    (15 << 4) & e.home_score_inning_161718 AS home_score_inning_17,
-    (15 << 8) & e.home_score_inning_161718 AS home_score_inning_18,
-    15 & e.home_score_inning_192021 AS home_score_inning_19,
-    (15 << 4) & e.home_score_inning_192021 AS home_score_inning_20,
-    (15 << 8) & e.home_score_inning_192021 AS home_score_inning_21,
-    15 & e.home_score_inning_222324 AS home_score_inning_22,
-    (15 << 4) & e.home_score_inning_222324 AS home_score_inning_23,
-    (15 << 8) & e.home_score_inning_222324 AS home_score_inning_24,
-    255 & l.home_at_bats_hits AS home_at_bats,
-    (255 << 8) & l.home_at_bats_hits AS home_hits,
-    255 & l.home_doubles_triples AS home_doubles,
-    (255 << 8) & l.home_doubles_triples AS home_triples,
-    255 & l.home_home_runs_rbi AS home_home_runs,
-    (255 << 8) & l.home_home_runs_rbi AS home_home_rbi,
-    255 & l.home_sac_hit_sac_fly AS home_sac_hit,
-    (255 << 8) & l.home_sac_hit_sac_fly AS home_sac_fly,
-    255 & l.home_hit_by_pitch_walks AS home_hit_by_pitch,
-    (255 << 8) & l.home_hit_by_pitch_walks AS home_walks,
-    255 & l.home_int_walks_strikeouts AS home_int_walks,
-    (255 << 8) & l.home_int_walks_strikeouts AS home_strikeouts,
-    255 & l.home_stolen_bases_caught_stealing AS home_stolen_bases,
-    (255 << 8) & l.home_stolen_bases_caught_stealing AS home_caught_stealing,
-    255 & l.home_gidp_catcher_interference AS home_gidp,
-    (255 << 8) & l.home_gidp_catcher_interference AS home_gidp,
-    255 & l.home_left_on_base_pitchers_used AS home_left_on_base,
-    (255 << 8) & l.home_left_on_base_pitchers_used AS home_pitchers_used,
-    255 & l.home_indiv_earned_runs_team_earned_runs AS home_indiv_earned_runs,
-    (255 << 8) & l.home_indiv_earned_runs_team_earned_runs AS home_team_earned_runs,
-    255 & l.home_wild_pitches_balks AS home_wild_pitches,
-    (255 << 8) & l.home_wild_pitches_balks AS home_balks,
-    255 & l.home_putouts_assists AS home_putouts,
-    (255 << 8) & l.home_putouts_assists AS home_assists,
-    255 & l.home_errors_passed_balls AS home_errors,
-    (255 << 8) & l.home_errors_passed_balls AS home_passed_balls,
-    255 & l.home_double_plays_triple_plays AS home_double_plays, 
-    (255 << 8) & l.home_double_plays_triple_plays AS home_triple_plays
+    255 & (l.away_left_on_base_pitchers_used >> 8) AS away_left_on_base,
+    255 & l.away_left_on_base_pitchers_used AS away_pitchers_used,
+    255 & (l.away_indiv_earned_runs_team_earned_runs >> 8) AS away_indiv_earned_runs,
+    255 & l.away_indiv_earned_runs_team_earned_runs AS away_team_earned_runs,
+    255 & (l.away_wild_pitches_balks >> 8) AS away_wild_pitches,
+    255 & l.away_wild_pitches_balks AS away_balks,
+    255 & (l.away_putouts_assists >> 8) AS away_putouts,
+    255 & l.away_putouts_assists AS away_assists,
+    255 & (l.away_errors_passed_balls >> 8) AS away_errors,
+    255 & l.away_errors_passed_balls AS away_passed_balls,
+    255 & (l.away_double_plays_triple_plays >> 8) AS away_double_plays, 
+    255 & l.away_double_plays_triple_plays AS away_triple_plays, 
+    31 & (l.home_score_inning_123 >> 10) AS home_score_inning_1,
+    31 & (l.home_score_inning_123 >> 5) AS home_score_inning_2,
+    31 & l.home_score_inning_123 AS home_score_inning_3,
+    31 & (l.home_score_inning_456 >> 10) AS home_score_inning_4,
+    31 & (l.home_score_inning_456 >> 5) AS home_score_inning_5,
+    31 & l.home_score_inning_456 AS home_score_inning_6,
+    31 & (l.home_score_inning_789 >> 10) AS home_score_inning_7,
+    31 & (l.home_score_inning_789 >> 5) AS home_score_inning_8,
+    31 & l.home_score_inning_789 AS home_score_inning_9,
+    31 & (e.home_score_inning_101112 >> 10) AS home_score_inning_10,
+    31 & (e.home_score_inning_101112 >> 5) AS home_score_inning_11,
+    31 & e.home_score_inning_101112 AS home_score_inning_12,
+    31 & (e.home_score_inning_131415 >> 10) AS home_score_inning_13,
+    31 & (e.home_score_inning_131415 >> 5) AS home_score_inning_14,
+    31 & e.home_score_inning_131415 AS home_score_inning_15,
+    31 & (e.home_score_inning_161718 >> 10) AS home_score_inning_16,
+    31 & (e.home_score_inning_161718 >> 5) AS home_score_inning_17,
+    31 & e.home_score_inning_161718 AS home_score_inning_18,
+    31 & (e.home_score_inning_192021 >> 10) AS home_score_inning_19,
+    31 & (e.home_score_inning_192021 >> 5) AS home_score_inning_20,
+    31 & e.home_score_inning_192021 AS home_score_inning_21,
+    31 & (e.home_score_inning_222324 >> 10) AS home_score_inning_22,
+    31 & (e.home_score_inning_222324 >> 5) AS home_score_inning_23,
+    31 & e.home_score_inning_222324 AS home_score_inning_24,
+    31 & (e.home_score_inning_252627 >> 10) AS home_score_inning_25,
+    31 & (e.home_score_inning_252627 >> 5) AS home_score_inning_26,
+    31 & e.home_score_inning_252627 AS home_score_inning_27,
+    255 & (l.home_at_bats_hits >> 8) AS home_at_bats,
+    255 & l.home_at_bats_hits AS home_hits,
+    255 & (l.home_doubles_triples >> 8) AS home_doubles,
+    255 & l.home_doubles_triples AS home_triples,
+    255 & (l.home_home_runs_rbi >> 8) AS home_home_runs,
+    255 & l.home_home_runs_rbi AS home_rbi,
+    255 & (l.home_sac_hit_sac_fly >> 8) AS home_sac_hit,
+    255 & l.home_sac_hit_sac_fly AS home_sac_fly,
+    255 & (l.home_hit_by_pitch_walks >> 8) AS home_hit_by_pitch,
+    255 & l.home_hit_by_pitch_walks AS home_walks,
+    255 & (l.home_int_walks_strikeouts >> 8) AS home_int_walks,
+    255 & l.home_int_walks_strikeouts AS home_strikeouts,
+    255 & (l.home_stolen_bases_caught_stealing >> 8) AS home_stolen_bases,
+    255 & l.home_stolen_bases_caught_stealing AS home_caught_stealing,
+    255 & (l.home_gidp_catcher_interference >> 8) AS home_gidp,
+    255 & l.home_gidp_catcher_interference AS home_catcher_interference,
+    255 & (l.home_left_on_base_pitchers_used >> 8) AS home_left_on_base,
+    255 & l.home_left_on_base_pitchers_used AS home_pitchers_used,
+    255 & (l.home_indiv_earned_runs_team_earned_runs >> 8) AS home_indiv_earned_runs,
+    255 & l.home_indiv_earned_runs_team_earned_runs AS home_team_earned_runs,
+    255 & (l.home_wild_pitches_balks >> 8) AS home_wild_pitches,
+    255 & l.home_wild_pitches_balks AS home_balks,
+    255 & (l.home_putouts_assists >> 8) AS home_putouts,
+    255 & l.home_putouts_assists AS home_assists,
+    255 & (l.home_errors_passed_balls >> 8) AS home_errors,
+    255 & l.home_errors_passed_balls AS home_passed_balls,
+    255 & (l.home_double_plays_triple_plays >> 8) AS home_double_plays, 
+    255 & l.home_double_plays_triple_plays AS home_triple_plays 
     FROM gamelog l
-    INNER JOIN (SELECT * FROM extra) e
+    LEFT JOIN (SELECT * FROM extra) e
     ON l.game_id=e.game_id
-    INNER JOIN (SELECT * FROM game_info_view) v
+    LEFT JOIN (SELECT * FROM game_info_view) v
     ON e.game_id=v.game_id
 """
 
@@ -661,14 +671,15 @@ allViews["gamelog_view"] = """CREATE VIEW gamelog_view AS SELECT
 # pitch_seq char(32),
 # play char(64),
 allViews["event_play_view"] = """CREATE VIEW event_play_view AS SELECT
-        e.game_id_event_id >> 10 AS game_id,
+        (e.game_id_event_id >> 10) AS game_id,
         e.game_id_event_id & 255 AS event_id,
         e.team AS team_id,
-        tm.team_nickname AS team, 
+        tm.team_id AS team,
+        tm.team_nickname AS team_name,
         e.player_id,
-        p.name_last AS player_name,
-        e.inning_batter_count >> 8 AS inning,
-        e.inning_batter_count & 255 AS batter_count,
+        p.name_last||', '||SUBSTR(p.name_other, 0, 2) AS player_name,
+        (e.inning_batter_count >> 5) AS inning,
+        (e.inning_batter_count & 31) AS batter_count,
         e.pitch_seq,
         e.play
         FROM event_play e
@@ -683,9 +694,10 @@ allViews["event_start_view"] = """CREATE VIEW event_start_view AS SELECT
         e.game_id_event_id >> 10 AS game_id,
         e.game_id_event_id & 255 AS event_id,
         e.team AS team_id,
-        tm.team_nickname AS team, 
+        tm.team_id AS team,
+        tm.team_nickname AS team_name, 
         e.player_id,
-        p.name_last AS player_name,
+        p.name_last||', '||SUBSTR(p.name_other, 0, 2) AS player_name,
         (e.bat_pos_field_pos >> 4) AS bat_pos,
         e.bat_pos_field_pos & 15 AS field_pos
         FROM event_start e
@@ -699,9 +711,10 @@ allViews["event_sub_view"] = """CREATE VIEW event_sub_view AS SELECT
         e.game_id_event_id >> 10 AS game_id,
         e.game_id_event_id & 255 AS event_id,
         e.team AS team_id,
-        tm.team_nickname AS team, 
+        tm.team_id AS team,
+        tm.team_nickname AS team_name,
         e.player_id,
-        p.name_last AS player_name,        
+        p.name_last||', '||SUBSTR(p.name_other, 0, 2) AS player_name,        
         (e.bat_pos_field_pos >> 4) AS bat_pos,
         e.bat_pos_field_pos & 15 AS field_pos
         FROM event_sub e
@@ -715,7 +728,7 @@ allViews["event_player_adj_view"]="""CREATE VIEW event_player_adj_view AS SELECT
         e.game_id_event_id >> 10 AS game_id,
         e.game_id_event_id & 255 AS event_id,
         e.player_id,
-        p.name_last AS player_name,
+        p.name_last||', '||SUBSTR(p.name_other, 0, 2) AS player_name,
         e.adj_type,
         e.adj
         FROM event_player_adj e
@@ -728,7 +741,8 @@ allViews["event_lineup_adj_view"]="""CREATE VIEW event_lineup_adj_view AS SELECT
         e.game_id_event_id >> 10 AS game_id,
         e.game_id_event_id & 255 AS event_id,
         e.team_id,
-        tm.team_nickname AS team,
+        tm.team_id AS team,
+        tm.team_nickname AS team_name,
         e.adj
         FROM event_lineup_adj e
         INNER JOIN (SELECT * FROM team) tm
@@ -739,7 +753,7 @@ allViews["event_data_er_view"]="""CREATE VIEW event_data_er_view AS SELECT
         e.game_id_event_id >> 10 AS game_id,
         e.game_id_event_id & 255 AS event_id,
         e.player_id,
-        p.name_last AS player_name,
+        p.name_last||', '||SUBSTR(p.name_other, 0, 2) AS player_name,
         e.er
         FROM event_data_er e
         INNER JOIN (SELECT * FROM player) p
@@ -751,7 +765,7 @@ allValues["day_in_week"] = ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
 allValues["month"] = ("", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 allValues["season"] = ("Reg", "Post", "Pre", "Other")
 # 0=not postseason 1:wildcard, 2=division, 3=league champsionship, 4=world series
-allValues["postseason_series"] = ("", "Wildcard", "Division", "League", "World Series")
+allValues["postseason_series"] = ("", "Wildcard", "Division", "League", "World Series", "Playoff (tiebreak)")
 
 allValues["daynight"] = ("Day", "Night")
 allValues["fieldcond"] = ("", "Dry", "Damp", "Wet", "Soaked")
@@ -780,7 +794,7 @@ if __name__ == "__main__":
     connectPG = False
     connectSqlite = True
     useDB = connectPG or connectSqlite
-
+    
     if connectSqlite:
         import sqlite3
         conn = sqlite3.connect("baseball.db")

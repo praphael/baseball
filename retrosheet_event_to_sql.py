@@ -9,7 +9,7 @@ baseDir2 = "alldata/postseason"
 
 
 # fields present in EVX 
-INFO_FIELDS = ( "date", "number", "type", 
+INFO_FIELDS = ( "date", "number", "gametype",
                 "visteam", "hometeam", "daynight",
                 "usedh", "howscored", "pitches", 
                 "temp", "fieldcond", "winddir", 
@@ -195,6 +195,22 @@ class GameInfo:
         self.hometeam_id = home
         self.visteam_id = away
         game_num_type = (self.game_num_type << 6) + (self.innings << 8)
+        # tiebreaker playoff games considered part of the regular season
+        if self.gametype=="playoff":
+            game_num_type = game_num_type | (5 << 3)
+        elif self.gametype in ("wildcard", "divisionseries", "lcs", "worldseries"):
+            game_num_type = game_num_type | 1
+            if self.gametype == "wildcard":
+                game_num_type = game_num_type | (1 << 3)
+            elif self.gametype == "divisionseries":
+                game_num_type = game_num_type | (2 << 3)
+            elif self.gametype == "lcs":
+                game_num_type = game_num_type | (3 << 3)
+            elif self.gametype == "worldseries":
+                game_num_type = game_num_type | (4 << 3)
+        elif self.gametype not in ('regular', None):
+            print(f"unknown game type '{self.gametype}'")
+
         game_dt = self.game_datetime + self.starttime
         stmt += f"{self.gameNumID}, {game_dt}, {game_num_type}"
         stmt += f", {away}, 0, {home}, 0"
@@ -244,8 +260,8 @@ class GameInfo:
         if self.gwrbi in playerCodeToIDMap:
             gwrbi = playerCodeToIDMap[self.gwrbi]
         stmt += f", {win_pitcher}, {loss_pitcher}, {save_pitcher}, {gwrbi})"
-
         return stmt
+    
 class Event:
     pass
 
@@ -265,10 +281,13 @@ class EventStart(Event):
             self.player_name = vals[1]
             self.side = int(vals[2])
             self.bat_pos = int(vals[3])
-
+            if self.bat_pos > 9:
+                print("bat_pos > 10", self.bat_pos)
             self.field_pos = int(vals[4])
             if self.field_pos == 10:  # DH
                 self.field_pos = 0
+            if self.field_pos > 10:
+                print("field_pos > 10", self.field_pos)
 
     def toSQLIns(self, game_id_event_id, gameInfo, playerIDMap):
         playerID = playerIDMap[self.player_id]
@@ -276,7 +295,7 @@ class EventStart(Event):
         team = gameInfo.hometeam_id
         if self.side == 0:
             team = gameInfo.visteam_id
-        stmt += f"{playerID}, {team},  {self.bat_pos << 4 + self.field_pos})"
+        stmt += f"{playerID}, {team},  {(self.bat_pos << 4) + self.field_pos})"
         return stmt
 
 class EventSub(Event):
@@ -285,10 +304,14 @@ class EventSub(Event):
         # ignore player name for how (should be in player table)
         self.side = int(vals[2])
         self.bat_pos = int(vals[3])
+        if self.bat_pos > 9:
+            print("bat_pos > 9", self.bat_pos)
         self.field_pos = int(vals[4]) 
         # 11 = pinch hitter, 12 = pinch runner
         if self.field_pos == 10:  # DH
             self.field_pos = 0
+        if self.field_pos > 12:
+            print("field_pos > 12", self.field_pos)
 
         
     def toSQLIns(self, game_id_event_id, gameInfo, playerIDMap):
@@ -297,7 +320,7 @@ class EventSub(Event):
         team = gameInfo.hometeam_id
         if self.side == 0:
             team = gameInfo.visteam_id
-        stmt += f"{playerID}, {team}, {self.bat_pos << 4 + self.field_pos})"
+        stmt += f"{playerID}, {team}, {(self.bat_pos << 4) + self.field_pos})"
         return stmt
 
 class EventPlay(Event):
@@ -306,9 +329,12 @@ class EventPlay(Event):
         self.side = int(vals[1])
         self.player_id = vals[2]
         self.batter_count = 31
+        #print("inning", self.inning)
         if vals[3] not in ("", "??"):
             try:
                 self.batter_count = (int(vals[3][1]) << 2) + int(vals[3][0])
+                if self.batter_count > 31:
+                    print("batter count", self.batter_count, " > 31")
             except Exception as e:
                 pass
         self.pitch_seq = vals[4]
@@ -321,7 +347,7 @@ class EventPlay(Event):
         team = gameInfo.hometeam_id
         if self.side == 0:
             team = gameInfo.visteam_id
-        stmt += f"{team}, {playerID}, {self.inning << 5 + self.batter_count},"
+        stmt += f"{team}, {playerID}, {(self.inning << 5) + self.batter_count},"
         stmt += f"'{self.pitch_seq}', '{self.play}')"
         return stmt 
 
@@ -461,6 +487,7 @@ def processEventFiles(startYear, endYear, playerCodeToIDMap, teamCodeToIDMap,
     #playoffGTMap = {"wc": "C", "dv":"D", "lc":"L", "ws":"S"}
     # map of date/hometeam/number the integer game id
     fList = os.listdir(baseDir)
+    fList.sort()
     gameIDMap = dict()
     umpCodeToIDMap = dict()
     scorerCodeToIDMap = dict()
@@ -481,6 +508,7 @@ def processEventFiles(startYear, endYear, playerCodeToIDMap, teamCodeToIDMap,
                 print(e)
     # postseason
     fList = os.listdir(baseDir2)
+    fList.sort()
     for fPath in fList:
         [fDir, fName] = os.path.split(fPath)
         [fBase, fExt] = fName.split(".")

@@ -324,7 +324,7 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True):
                             missing_teams.append(home_team)
                         game_id = -1
                         try: 
-                            game_id = gameIDMap[game_year][MONTHS[game_month]][game_day][home_team_name][dh_game_num]
+                            game_id = gameIDMap[game_year][MONTHS[game_month]][game_day][home_team][dh_game_num]
                         except: 
                             pass
                         if game_id == -1:
@@ -398,7 +398,7 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True):
                             st2 = 0
                             if v != '':
                                 st2 = int(v)
-                            stmt += f", {(st << 8) + st}"
+                            stmt += f", {(st << 8) + st2}"
                         else:
                             st_i = 1
                             st = 0
