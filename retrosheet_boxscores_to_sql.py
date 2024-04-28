@@ -182,6 +182,18 @@ import sys
 # home_error_passed_balls smallint NOT NULL,
 # home_double_plays_triple_plays
 
+def valOrNULL(v):
+    if v == None:
+        return "NULL"
+    # wrap in single quotes
+    if type(v) == type(""):
+        return "'" + v + "'"
+    elif type(v) == type(True):
+        if v:
+            return "0"
+        return "1"
+    return v
+
 dateIdx = [0]
 strIdx = [1, 2, 3, 4, 6, 7, 12, 14, 15, 16]
 strIdx.extend(list(range(77, 161)))
@@ -191,7 +203,7 @@ baseDir = os.path.join("alldata", "gamelogs")
 def parseLineScore(r):
     i = 0
     inn = 1
-    scoreByInn = [0]*27
+    scoreByInn = [None]*27
     # keep iteratingg for at least nine innings
     # and use all chars
     while i < len(r):
@@ -212,11 +224,12 @@ def parseLineScore(r):
     extras = scoreByInn[9:]
     return (scoreByInn[:9], extras)
 
-def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True):
+def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
     tbl = "gamelog"
     extra_tbl = "extra"
     comp_tbl = "completion"
-    
+    innings_tbl = "score_by_inning"
+
     playoffs = ("wc", "dv", "lc", "ws")
     rng = list(range(yearStart, yearEnd+1))
     rng.extend(playoffs)
@@ -226,7 +239,7 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True):
     game_id_next = (1 << 28)
     cur = conn.cursor()
     MONTHS = dict()
-    stmt = "SELECT num, desc FROM month"
+    stmt = "SELECT num, d FROM month"
     cur.execute(stmt)
     tups = cur.fetchall()
     for t in tups:
@@ -243,6 +256,7 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True):
     del_stmt = f"DELETE FROM {tbl}"
     del_ex_stmt = f"DELETE FROM {extra_tbl}"
     del_comp_stmt = f"DELETE FROM {comp_tbl}"
+    del_comp_stmt = f"DELETE FROM {innings_tbl}"
 
     cur.execute(del_stmt)
     cur.execute(del_ex_stmt)
@@ -264,7 +278,6 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True):
         missing_teams = []
         with open(fPath, "r") as fIn:
             rdr = csv.reader(fIn, delimiter=',', quotechar='"')
-            st_i = 0  # stat counter used for packing two stats into single 16-bit integer
             for row in rdr:
                 ext_visit = None   # score for visitor in extra innings
                 i = 0
@@ -272,7 +285,6 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True):
                 for v in row:
                     if i > 76:  # don't read all data
                         break
-                    x = "NULL"
                     if i == 0:
                         game_year = int(v[0:4])
                         game_month = int(v[4:6])
@@ -294,25 +306,29 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True):
 
                         # fetch game IDs for this year if we have not already done so
                         if game_year not in gameIDMap:
-                            stmt = "SELECT game_id, month, day, home_team, dh_num FROM game_info_view WHERE"
-                            stmt += f" year={game_year}"
+                            stmt = "SELECT game_id, game_date, home_team, dh_num FROM game_info_view WHERE"
+                            #stmt += f" year={game_year}"
+                            if db == "sqlite":
+                                stmt += f" CAST(SUBSTR(game_date,6,2) AS INTEGER)={game_year}"
+                            elif db == "postgres":
+                                stmt += f" EXTRACT(year from game_date)={game_year}"
+
                             #print(stmt)
                             cur.execute(stmt)
                             tups = cur.fetchall()
+                            #print(len(tups))
                             gameIDMap[game_year] = dict()
                             for t in tups:
+                                print(t)
                                 game_id = int(t[0])
-                                month = t[1]
-                                day = int(t[2])
+                                game_date = t[1]
                                 ht = t[3]
                                 dh_num = int(t[4])
-                                if month not in gameIDMap[game_year]:
-                                    gameIDMap[game_year][month] = dict()
-                                if day not in gameIDMap[game_year][month]:
-                                    gameIDMap[game_year][month][day] = dict()
-                                if ht not in gameIDMap[game_year][month][day]:
-                                    gameIDMap[game_year][month][day][ht] = dict()
-                                gameIDMap[game_year][month][day][ht][dh_num] = game_id
+                                if game_date not in gameIDMap[game_year]:
+                                    gameIDMap[game_year][game_date] = dict()
+                                if ht not in gameIDMap[game_year][game_date]:
+                                    gameIDMap[game_year][game_date][ht] = dict()
+                                gameIDMap[game_year][game_date][ht][dh_num] = game_id
 
                         if home_team in teamIDMap:
                             home_team_name = teamIDMap[home_team]
@@ -324,11 +340,11 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True):
                             missing_teams.append(home_team)
                         game_id = -1
                         try: 
-                            game_id = gameIDMap[game_year][MONTHS[game_month]][game_day][home_team][dh_game_num]
+                            game_id = gameIDMap[game_year][game_date][home_team][dh_game_num]
                         except: 
                             pass
                         if game_id == -1:
-                            print("could not find gameID in gameIDMap game_year=", game_year)
+                            #print("could not find gameID in gameIDMap game_year=", game_year)
                             game_id = game_id_next
                             game_id_next += 1
                         
@@ -348,6 +364,7 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True):
                             game_len_outs = int(v)
                         stmt += f", {game_len_outs}"
                     elif i == 13:  # completion
+                        #stmt += f", '{v}'"
                         # completion info, including date on which game was completed
                         if len(v) > 0:  
                             v.split(",")
@@ -355,6 +372,7 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True):
                             c_stmt = f"INSERT INTO {comp_tbl} VALUES({game_id}"
                             c_stmt += f", DATE({v[0:4]}-{v[4:6]}-{v[6:8]})"
                             c_stmt += f", {v[1]}, {v[2]}, {v[3]}, {v[4]})"
+                            print(c_stmt)
                             cur.execute(c_stmt)                            
                     elif i == 14:
                         forfeit = v
@@ -365,79 +383,68 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True):
                         if v != "":
                             game_len_min = int(v)
                     elif i in (19, 20):  # score by inning
-                        (firstNine, ext) = parseLineScore(v)
-                        # convert to bit packed 16-bit integer
-                        # for each 3 innings
-                        # with 5 bits per inning (possible scores 0-31)
-                        inn_packed = 0
-                        for j in range(0, 3):
-                            for k in range(0, 3):
-                                inn_packed = inn_packed + (firstNine[3*j+k] << (10-(5*k)))
-                            stmt += f", {inn_packed}"
-
-                        if(ext is not None):
-                            if i == 19:
-                                ext_visit = ext
-                            else:
-                                # insert into extra 
-                                ext_stmt = f"INSERT INTO extra VALUES({game_id}"
-                                for j in range(0, 6):
-                                    for k in range(0, 3):
-                                        inn_packed = inn_packed + (ext_visit[3*j+k] << (10-(5*k)))
-                                    ext_stmt += f", {inn_packed}"
-                                for j in range(0, 6):
-                                    for k in range(0, 3):
-                                        inn_packed = inn_packed + (ext[3*j+k] << (10-(5*k)))
-                                    ext_stmt += f", {inn_packed}"
-                                ext_stmt += ")"
-                                cur.execute(ext_stmt)
-                    elif i in range(21, 77):  # stats
-                        # for every pair of stats, pack into 16-bit integer
-                        if st_i == 1:
-                            st_i = 0
-                            st2 = 0
-                            if v != '':
-                                st2 = int(v)
-                            stmt += f", {(st << 8) + st2}"
+                        (oneTo9, ext) = parseLineScore(v)
+                        if (i == 19):
+                            awayOneTo9 = list(oneTo9)
+                            awayExt = list(ext)
                         else:
-                            st_i = 1
-                            st = 0
-                            if v != '':
-                                st = int(v)
+                            for inn in range(0, 9):
+                                if awayOneTo9[inn] == None:
+                                    break
+                                inn_stmt = f"INSERT INTO {innings_tbl} VALUES({game_id}, {inn+1}"
+                                inn_stmt += f", {valOrNULL(oneTo9[inn])}, {valOrNULL(awayOneTo9[inn])})"
+                                cur.execute(inn_stmt)
+                            inn = 10
+                            while ext[inn] != None:
+                                inn_stmt = f"INSERT INTO {innings_tbl}  VALUES({game_id}, {inn+1}"
+                                inn_stmt += f", {valOrNULL(ext[inn])}, {valOrNULL(awayExt[inn])})"
+                                cur.execute(inn_stmt)
+                                inn += 1
+                    elif i in range(21, 77):  # stats
+                        if v == "":
+                            stmt += f", NULL"    
+                        else:
+                            stmt += f", {int(v)}"
+
                     i += 1
                 # end for row
                 stmt += ")"
+                #print(stmt)
                 cur.execute(stmt)
-                # TODO update game info with protest, forfeit game len, etc.
+                # TODO update game info with protest, forfeit, day of week, etc.
+                #forfeit, protest, dow
         conn.commit()
 
 if __name__=="__main__":
-    connectPG = False
-    connectSqlite = True
-
-    conn = None
-    if connectSqlite:
-        import sqlite3
-        conn = sqlite3.connect("baseball.db")
-
-    if connectPG:
-        import psycopg
-        # Connect to an existing database
-        conn = psycopg.connect("dbname=postgres user=postgres")
 
     narg = len(sys.argv)
     yearStart = 1871
     yearEnd = 2023
-    if narg > 3:
+    db = "sqlite"
+    if narg > 4:
         print(f"Too many arguments, encountered {narg}  expected between 0 and 2")
         exit(1)
     if narg > 1:
         yearStart = int(sys.argv[1])
     if narg > 2:
         yearEnd = int(sys.argv[2])    
-    # map team id to team name
+    if narg > 3:
+        db = sys.argv[3]
+    
+    conn = None
+    if db == "sqlite":
+        import sqlite3
+        conn = sqlite3.connect("baseball.db")
+    elif db == "postgres":
+        import psycopg
+        # Connect to an existing database
+        conn = psycopg.connect("dbname=postgres user=postgres")
+    else:
+        print("unsupported DB", db)
+        exit(1)
+
     cur = conn.cursor()
     
     #print(teamIDMap)
-    getBoxScoreData(yearStart, yearEnd, conn, True)
+    getBoxScoreData(yearStart, yearEnd, conn, True, db)
 

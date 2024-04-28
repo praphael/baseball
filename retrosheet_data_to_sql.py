@@ -65,27 +65,21 @@ def fromCSV(fPath, tableName, conn, rowIDFirst=False, rowIDMapField=None):
 def parks(conn):
     fName = "ballparks.csv"
     fPath = os.path.join(baseDir, fName)
-    return fromCSV(fPath, "park", conn, True, 0)
+    return fromCSV(fPath, "park", conn)
 
 def teams(conn):
     fName = "teams.csv"
     fPath = os.path.join(baseDir, fName)
 
-    teamIDMap = fromCSV(fPath, "team", conn, True, 0)
+    fromCSV(fPath, "team", conn)
 
     # insert all-star for each league as a team
     cur = conn.cursor()
-    stmt = "SELECT max(team_num_id) FROM team"    
-    cur.execute(stmt)
-    tups = cur.fetchall()
-    team_num_id = int(tups[0][0])
 
     # this team appears in boxscores but there is no info about them 
     # probably team from Baltimore
-    team_num_id += 1
-    stmt = f"INSERT INTO team VALUES({team_num_id}, 'BL5', '', 'Baltimore', 'BL5', '', 1882, 1882)"
-    teamIDMap[team_num_id] = "BL5"
-
+    stmt = f"INSERT INTO team VALUES('BL5', '', 'Baltimore', 'BL5', 1882, 1882)"
+    cur.execute(stmt)
     # leagues = ("AL", "NL", "NA", "AA", "UA", "FL", "PL")
     # for l in leagues:
     #     team_num_id += 1
@@ -94,12 +88,10 @@ def teams(conn):
     #     stmt = f"INSERT INTO team VALUES({team_num_id}, '{l}', '', '{team_name}', '', '', '')"
     #     cur.execute(stmt)
 
-    return teamIDMap
-
 def players(conn):
     fName = "biofile.csv"
     fPath = os.path.join(baseDir, fName)
-    return fromCSV(fPath, "player", conn, True, 0)
+    return fromCSV(fPath, "player", conn)
 
 
 if __name__ == "__main__":
