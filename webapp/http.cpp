@@ -26,6 +26,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <set>
 
 #include <curl/curl.h>
 
@@ -41,12 +42,15 @@ using std::endl;
 
 //const std::vector<string> API_ROOT = {"baseball", "api"};
 
+const auto routes = std::set{"parks", "teams", "box", "player", "playergame", "situation"};
+
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http = beast::http;           // from <boost/beast/http.hpp>
 namespace net = boost::asio;            // from <boost/asio.hpp>
 using tcp = boost::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
 
 // sqlite3* pdb;
+
 
 // Return a reasonable mime type based on the extension of a file.
 beast::string_view
@@ -220,36 +224,36 @@ handle_request(
         printVec(rt_qy);
         string qy = "";
         auto rt = rt_qy[0];
+        if (routes.count(rt) == 0)
+            return not_found(rt + " not found");
+
         if (rt_qy.size() > 2)
             return bad_request("Bad query string");
 
         if (rt_qy.size() > 1)
             qy = rt_qy[1];
         try {
+            if(req.method() != http::verb::get)
+                return bad_request("Unknown HTTP-method for route");
+
             if(rt == "parks") {
-                if(req.method() == http::verb::get)
-                    err = handleParksRequest(pdb, qy, resp_body, mime_type);
+                err = handleParksRequest(pdb, qy, resp_body, mime_type);
             }
             else if (rt == "teams") {
-                if(req.method() == http::verb::get)
-                    err = handleTeamsRequest(pdb, qy, resp_body, mime_type, teamsMap);
+                err = handleTeamsRequest(pdb, qy, resp_body, mime_type, teamsMap);
             }
             else if(rt == "box") {
-                if(req.method() == http::verb::get)
-                    err = handleBoxRequest(pdb, qy, resp_body, mime_type, teamsMap);
+                err = handleBoxRequest(pdb, qy, resp_body, mime_type, teamsMap);
             }
             else if(rt == "player") {
-                if(req.method() == http::verb::get)
-                    err = handlePlayerRequest(pdb, qy, resp_body, mime_type,
-                            playerLastTrie, playerOtherTrie, playerIDMap);
+                err = handlePlayerRequest(pdb, qy, resp_body, mime_type,
+                        playerLastTrie, playerOtherTrie, playerIDMap);
             }
             else if(rt == "playergame") {
-                if(req.method() == http::verb::get)
-                    err = handlePlayerGameRequest(pdb, qy, resp_body, mime_type, teamsMap);
+                err = handlePlayerGameRequest(pdb, qy, resp_body, mime_type, teamsMap);
             }
             else if(rt == "situation") {
-                if(req.method() == http::verb::get)
-                    err = handleSituationRequest(pdb, qy, resp_body, mime_type, teamsMap);
+                err = handleSituationRequest(pdb, qy, resp_body, mime_type, teamsMap);
             }
             else {
                 return not_found(req.target());

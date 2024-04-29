@@ -93,6 +93,15 @@ def players(conn):
     fPath = os.path.join(baseDir, fName)
     return fromCSV(fPath, "player", conn)
 
+def player_num_ids(conn):
+    cur = conn.cursor()
+    cur.execute("SELECT player_id FROM player")
+    tups = cur.fetchall()
+    player_num = 1
+    for t in tups:
+        player_id = t[0]
+        cur.execute(f"INSERT INTO player_num_id VALUES({player_num}, '{player_id}')")
+        player_num += 1
 
 if __name__ == "__main__":
     connectPG = False
@@ -114,11 +123,30 @@ if __name__ == "__main__":
         import psycopg
         # Connect to an existing database
         conn = psycopg.connect("dbname=postgres user=postgres")
-        
-    teamIDMap = teams(conn)
-    parkIDMap = parks(conn)
-    playerIDMap = players(conn)    
-    gameIDMap = processEventFiles(startYear, endYear, playerIDMap, teamIDMap, parkIDMap, conn, True)
+
+    cur = conn.cursor()
+    idxs = (("event_play_idx", "event_play(game_id)"),
+            ("event_start_idx", "event_start(game_id)"),
+            ("event_sub_idx", "event_sub(game_id)"),
+            ("game_info_idx", "game_info(game_id)"),
+            ("game_info_home_idx", "game_info(home_team)"),
+            ("game_info_away_idx", "game_info(away_team)"),
+            ("player_num_id_idx", "player_num_id(player_num_id)"))
+    for idx in idxs:
+        try:
+            cur.execute(f"DROP INDEX {idx[0]}")    
+        except:
+            pass
+    teams(conn)
+    parks(conn)
+    players(conn)
+    player_num_ids(conn)
+    processEventFiles(startYear, endYear, conn, True)
+    print("creating indices")
+    # these indices significantly speeds up parsing event outcomes
+    # also helps in later view joins when querying on specific params (e.g. team name)
+    for idx in idxs:
+        cur.execute(f"CREATE INDEX {idx[0]} ON {idx[1]}")
     #getBoxScoreData(startYear, endYear, conn, True)
     #if endYear > 1968:
     #    endYear = 1968

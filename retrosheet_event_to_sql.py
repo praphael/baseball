@@ -201,7 +201,7 @@ class GameInfo:
         # get the numeric id of the game
         gameIDMap[self.date][self.hometeam][self.number] = self.gameNumID
     
-    def toSQLIns(self, playerCodeToIDMap, parkCodeToIDMap, teamCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap):
+    def toSQLIns(self, umpCodeToIDMap, scorerCodeToIDMap):
         stmt = "INSERT INTO game_info VALUES("
         
         away = self.visteam
@@ -272,7 +272,7 @@ class EventCom(Event):
     def __init__(self, vals=None) -> None:
         self.com = vals[0]
 
-    def toSQLIns(self, game_id, event_id, gameInfo, playerIDMap):
+    def toSQLIns(self, game_id, event_id, gameInfo):
         stmt = f"INSERT INTO event_com VALUES({game_id}, {event_id}, "
         stmt += "'" + self.com.replace("'", "''") + "')"
         return stmt
@@ -292,7 +292,7 @@ class EventStart(Event):
             if self.field_pos > 10:
                 print("field_pos > 10", self.field_pos)
 
-    def toSQLIns(self, game_id, event_id, gameInfo, playerIDMap):
+    def toSQLIns(self, game_id, event_id, gameInfo):
         playerID = self.player_id
         stmt = f"INSERT INTO event_start VALUES({game_id}, {event_id}, "
         team = gameInfo.hometeam_id
@@ -317,7 +317,7 @@ class EventSub(Event):
             print("field_pos > 12", self.field_pos)
 
         
-    def toSQLIns(self, game_id, event_id, gameInfo, playerIDMap):
+    def toSQLIns(self, game_id, event_id, gameInfo):
         stmt = f"INSERT INTO event_sub VALUES({game_id}, {event_id}, "
         playerID = self.player_id
         team = gameInfo.hometeam_id
@@ -336,7 +336,7 @@ class EventPlay(Event):
         self.pitch_seq = vals[4]
         self.play = vals[5]
 
-    def toSQLIns(self, game_id, event_id, gameInfo, playerIDMap):
+    def toSQLIns(self, game_id, event_id, gameInfo):
         stmt = f"INSERT INTO event_play VALUES({game_id}, {event_id}, "
         playerID = self.player_id
         
@@ -358,7 +358,7 @@ class EventAdjustment(Event):
                 self.player_id = vals[0]
             self.adj = vals[1]
 
-    def toSQLIns(self, game_id, event_id, gameInfo, playerIDMap):
+    def toSQLIns(self, game_id, event_id, gameInfo):
         tbl = "event_player_adj"
         if self.adjType == "ladj":
             tbl = "event_lineup_adj"
@@ -383,7 +383,7 @@ class EventData(Event):
             self.player_id = vals[1]
             self.amt = int(vals[2])
 
-    def toSQLIns(self, game_id, event_id, gameInfo, playerIDMap):
+    def toSQLIns(self, game_id, event_id, gameInfo):
         stmt = f"INSERT INTO event_data_er VALUES({game_id}, {event_id}, "
         playerID = self.player_id
         stmt += f"'{playerID}', {self.amt})"
@@ -428,7 +428,7 @@ class StatLine(Event):
                     self.pos = fn(vals[4])
                     self.data = list(map(fn, vals[5:]))
 
-    def toSQLIns(self, game_id, event_id, gameInfo, playerIDMap):
+    def toSQLIns(self, game_id, event_id, gameInfo):
         # don't use team lines for now
         # because we get this data from gamelogs
         if self.lineType in ("btline", "ptline", "dtline", "tline"):
@@ -483,10 +483,9 @@ EVENT_TYPE_DICT["ladj"] = EventAdjustment
 EVENT_TYPE_DICT["padj"] = EventAdjustment
 EVENT_TYPE_DICT["presadj"] = EventAdjustment
 
-def insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, teamCodeToIDMap,
-                       parkCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, events, conn):
+def insertEventsIntoDB(gameInfo, gameIDMap, umpCodeToIDMap, scorerCodeToIDMap, events, conn):
     curs = conn.cursor()
-    stmt = gameInfo.toSQLIns(playerCodeToIDMap, parkCodeToIDMap, teamCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap)
+    stmt = gameInfo.toSQLIns(umpCodeToIDMap, scorerCodeToIDMap)
     #print(stmt)
     curs.execute(stmt)
     event_id = 1
@@ -494,7 +493,7 @@ def insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, teamCodeToIDMap,
         #print("gameID=", gameInfo.gameNumID, "event_id=", event_id)
         game_id, event_id = (gameInfo.gameNumID, event_id)
         #print("game_id, event_id=", game_id, event_id)
-        stmt = evt.toSQLIns(game_id, event_id, gameInfo, playerCodeToIDMap)
+        stmt = evt.toSQLIns(game_id, event_id, gameInfo)
         #print("insertEventsIntoDB: stmt= ", stmt)
         if stmt is not None:
             try:
@@ -550,8 +549,7 @@ def parseEvent(v, gameInfo, gameID, nextGameNum):
             evt = EVENT_TYPE_DICT[evtType](v[1:])
         return evt
     
-def parseEventsFromEVX(fPath, gameIDMap, playerCodeToIDMap, teamCodeToIDMap, 
-                       parkCodeIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn):
+def parseEventsFromEVX(fPath, gameIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn):
     print(f"parseEventsFromEVX: processing file {fPath}")
     with open(fPath, "r") as fIn:
         rdr = csv.reader(fIn, delimiter=',', quotechar='"')
@@ -564,8 +562,7 @@ def parseEventsFromEVX(fPath, gameIDMap, playerCodeToIDMap, teamCodeToIDMap,
             if type(evt) == type(GameID()):
                 # insert all events from previous game
                 if gameID is not None:
-                    insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, teamCodeToIDMap,
-                                       parkCodeIDMap, umpCodeToIDMap, scorerCodeToIDMap,
+                    insertEventsIntoDB(gameInfo, gameIDMap, umpCodeToIDMap, scorerCodeToIDMap,
                                        evts, conn)
                 gameID = evt
                 gameInfo = None
@@ -579,8 +576,7 @@ def parseEventsFromEVX(fPath, gameIDMap, playerCodeToIDMap, teamCodeToIDMap,
         
         # insert last record
         if gameID is not None:
-            insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, teamCodeToIDMap,
-                               parkCodeIDMap, umpCodeToIDMap, scorerCodeToIDMap,
+            insertEventsIntoDB(gameInfo, gameIDMap, umpCodeToIDMap, scorerCodeToIDMap,
                                evts, conn)
     return nextGameNum
 
@@ -603,8 +599,7 @@ def parseBox(v, gameInfo, gameID, nextGameNum):
     print("unknown event", evtType)
     return None
 
-def parseBoxFromEBX(fPath, gameIDMap, playerCodeToIDMap, teamCodeToIDMap, 
-                       parkCodeIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn):
+def parseBoxFromEBX(fPath, gameIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn):
     print(f"parseBoxFromEBX: processing file {fPath}")
     with open(fPath, "r") as fIn:
         rdr = csv.reader(fIn, delimiter=',', quotechar='"')
@@ -617,8 +612,7 @@ def parseBoxFromEBX(fPath, gameIDMap, playerCodeToIDMap, teamCodeToIDMap,
             if type(evt) == type(GameID()):
                 # insert all events from previous game
                 if gameID is not None:
-                    insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, teamCodeToIDMap,
-                                       parkCodeIDMap, umpCodeToIDMap, scorerCodeToIDMap,
+                    insertEventsIntoDB(gameInfo, gameIDMap, umpCodeToIDMap, scorerCodeToIDMap,
                                        evts, conn)
                 gameID = evt
                 gameInfo = None
@@ -632,13 +626,11 @@ def parseBoxFromEBX(fPath, gameIDMap, playerCodeToIDMap, teamCodeToIDMap,
         
         # insert last record
         if gameID is not None:
-            insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, teamCodeToIDMap,
-                               parkCodeIDMap, umpCodeToIDMap, scorerCodeToIDMap,
+            insertEventsIntoDB(gameInfo, gameIDMap, umpCodeToIDMap, scorerCodeToIDMap,
                                evts, conn)
     return nextGameNum    
     
-def processEventFiles(startYear, endYear, playerCodeToIDMap, teamCodeToIDMap,
-                      parkCodeToIDMap, conn, includePayoffs=True):
+def processEventFiles(startYear, endYear, conn, includePayoffs=True):
     #playoffs = ("wc", "dv", "lc", "ws")
     rng = list(range(startYear, endYear+1))
     #rng.extend(playoffs)
@@ -659,8 +651,7 @@ def processEventFiles(startYear, endYear, playerCodeToIDMap, teamCodeToIDMap,
                     #print(f"getPlayerStats: processing file {fPath}")
                     fPath2 = os.path.join(baseDir, fName)
                     
-                    nextGameNum = parseEventsFromEVX(fPath2, gameIDMap, playerCodeToIDMap, teamCodeToIDMap,
-                                       parkCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn)
+                    nextGameNum = parseEventsFromEVX(fPath2, gameIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn)
             except FileNotFoundError as e:
                 print(fName)
                 print(e)
@@ -676,8 +667,7 @@ def processEventFiles(startYear, endYear, playerCodeToIDMap, teamCodeToIDMap,
                     #print(f"getPlayerStats: processing file {fPath}")
                     fPath2 = os.path.join(baseDirPost, fName)
                     
-                    nextGameNum = parseEventsFromEVX(fPath2, gameIDMap, playerCodeToIDMap, teamCodeToIDMap,
-                                       parkCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn)
+                    nextGameNum = parseEventsFromEVX(fPath2, gameIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn)
             except FileNotFoundError as e:
                 print(fName)
                 print(e)
@@ -695,8 +685,7 @@ def processEventFiles(startYear, endYear, playerCodeToIDMap, teamCodeToIDMap,
                     #print(f"getPlayerStats: processing file {fPath}")
                     fPath2 = os.path.join(baseDirBox, fName)
                     
-                    nextGameNum = parseBoxFromEBX(fPath2, gameIDMap, playerCodeToIDMap, teamCodeToIDMap,
-                                       parkCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn)
+                    nextGameNum = parseBoxFromEBX(fPath2, gameIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn)
             except FileNotFoundError as e:
                 print(fName)
                 print(e)

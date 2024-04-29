@@ -4,6 +4,7 @@ import csv
 import os
 import re
 import sys
+from datetime import date
 
 # parse boxscores from Retrosheet data
 
@@ -254,14 +255,12 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
 
     # clear tables
     del_stmt = f"DELETE FROM {tbl}"
-    del_ex_stmt = f"DELETE FROM {extra_tbl}"
     del_comp_stmt = f"DELETE FROM {comp_tbl}"
-    del_comp_stmt = f"DELETE FROM {innings_tbl}"
+    del_innings_stmt = f"DELETE FROM {innings_tbl}"
 
     cur.execute(del_stmt)
-    cur.execute(del_ex_stmt)
     cur.execute(del_comp_stmt)
-
+    cur.execute(del_innings_stmt)
     
     for f in rng:
         fName = f"gl{f}.txt"
@@ -279,7 +278,6 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
         with open(fPath, "r") as fIn:
             rdr = csv.reader(fIn, delimiter=',', quotechar='"')
             for row in rdr:
-                ext_visit = None   # score for visitor in extra innings
                 i = 0
                     
                 for v in row:
@@ -289,6 +287,7 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                         game_year = int(v[0:4])
                         game_month = int(v[4:6])
                         game_day = int(v[6:])
+                        game_date = date(game_year, game_month, game_day)
                         # x = f"DATE('{v[0:4]}-{v[4:6]}-{v[6:]}')"
                     elif i == 1:
                         dh_game_num = int(v)
@@ -297,7 +296,7 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                     elif i == 3:
                         away_team = v
                         if away_team not in teamIDMap and away_team not in missing_teams:
-                            print(teamIDMap)                            
+                            #print(teamIDMap)                            
                             print("Could not find team ", away_team)
                             missing_teams.append(away_team)
 
@@ -309,7 +308,7 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                             stmt = "SELECT game_id, game_date, home_team, dh_num FROM game_info_view WHERE"
                             #stmt += f" year={game_year}"
                             if db == "sqlite":
-                                stmt += f" CAST(SUBSTR(game_date,6,2) AS INTEGER)={game_year}"
+                                stmt += f" CAST(SUBSTR(game_date,0,5) AS INTEGER)={game_year}"
                             elif db == "postgres":
                                 stmt += f" EXTRACT(year from game_date)={game_year}"
 
@@ -319,16 +318,23 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                             #print(len(tups))
                             gameIDMap[game_year] = dict()
                             for t in tups:
-                                print(t)
+                                #print(t)
                                 game_id = int(t[0])
-                                game_date = t[1]
-                                ht = t[3]
-                                dh_num = int(t[4])
-                                if game_date not in gameIDMap[game_year]:
-                                    gameIDMap[game_year][game_date] = dict()
-                                if ht not in gameIDMap[game_year][game_date]:
-                                    gameIDMap[game_year][game_date][ht] = dict()
-                                gameIDMap[game_year][game_date][ht][dh_num] = game_id
+                                if db == "sqlite":
+                                    #game_dt = date(t[1][0:4], t[1][4:6], t[1][6:])
+                                    game_dt = date.fromisoformat(t[1])
+                                elif db == "postgres":
+                                    game_dt = date.fromisoformat(t[1])
+                                    
+                                #print("game_dt=", game_dt)
+                                #print("game_ddte=", game_date)
+                                ht = t[2]
+                                dh_num = int(t[3])
+                                if game_dt not in gameIDMap[game_year]:
+                                    gameIDMap[game_year][game_dt] = dict()
+                                if ht not in gameIDMap[game_year][game_dt]:
+                                    gameIDMap[game_year][game_dt][ht] = dict()
+                                gameIDMap[game_year][game_dt][ht][dh_num] = game_id
 
                         if home_team in teamIDMap:
                             home_team_name = teamIDMap[home_team]
@@ -344,7 +350,7 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                         except: 
                             pass
                         if game_id == -1:
-                            #print("could not find gameID in gameIDMap game_year=", game_year)
+                            print("could not find gameID in gameIDMap game_year=", game_year)
                             game_id = game_id_next
                             game_id_next += 1
                         
@@ -372,8 +378,8 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                             c_stmt = f"INSERT INTO {comp_tbl} VALUES({game_id}"
                             c_stmt += f", DATE('{v[0:4]}-{v[4:6]}-{v[6:8]}')"
                             c_stmt += f", {v[1]}, {v[2]}, {v[3]}, {v[4]})"
-                            print(c_stmt)
-                            cur.execute(c_stmt)                            
+                            #print(c_stmt)
+                            cur.execute(c_stmt)
                     elif i == 14:
                         forfeit = v
                     elif i == 15:
@@ -407,7 +413,8 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                             stmt += f", {int(v)}"
 
                     i += 1
-                # end for row
+                # end for v in row
+
                 stmt += ")"
                 #print(stmt)
                 cur.execute(stmt)

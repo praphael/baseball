@@ -27,7 +27,7 @@ int handleBoxRequest(sqlite3 *pdb, const std::string &qy, std::string& resp, std
 int handlePlayerRequest(sqlite3 *pdb, const std::string &qy, std::string& resp, 
                         std::string &mimeType, 
                         NameTrie & playerLastTrie,
-                        NameTrie & playerOtheTrie,
+                        NameTrie & playerOtherTrie,
                         std::unordered_map<int, std::string>& playerIDMap );
 
 // per-game player stats, aggregated 
