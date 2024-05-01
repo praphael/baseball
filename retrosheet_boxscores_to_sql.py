@@ -245,6 +245,13 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
     tups = cur.fetchall()
     for t in tups:
         MONTHS[t[0]] = t[1]
+    DAYS_OF_WEEK = dict()
+    stmt = "SELECT num, d FROM day_in_week"
+    cur.execute(stmt)
+    tups = cur.fetchall()
+    for t in tups:
+        DAYS_OF_WEEK[t[1]] = t[0]
+    print("DAYS_OF_WEEK=", DAYS_OF_WEEK)
     # map of date/hometeam/number the integer game id
     #gameIDMap = dict()
     teamIDMap = dict()
@@ -273,7 +280,11 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
             playoff_type = playoffGTMap[f]
 
         gameIDMap = dict()
-        
+        # flag map from gameID, for setting forfeit/protest/compelted
+        flags = dict() 
+
+        forfMap = {"":0, "V":1, "H":2, "T":3}
+        protMap = {"":0, "P":1, "V":2, "H":3, "X":4, "Y":5}
         missing_teams = []
         with open(fPath, "r") as fIn:
             rdr = csv.reader(fIn, delimiter=',', quotechar='"')
@@ -305,12 +316,9 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
 
                         # fetch game IDs for this year if we have not already done so
                         if game_year not in gameIDMap:
-                            stmt = "SELECT game_id, game_date, home_team, dh_num FROM game_info_view WHERE"
+                            stmt = "SELECT game_id, game_date, home_team, game_type_num, flags"
                             #stmt += f" year={game_year}"
-                            if db == "sqlite":
-                                stmt += f" CAST(SUBSTR(game_date,0,5) AS INTEGER)={game_year}"
-                            elif db == "postgres":
-                                stmt += f" EXTRACT(year from game_date)={game_year}"
+                            stmt += f" FROM game_info WHERE year={game_year}"
 
                             #print(stmt)
                             cur.execute(stmt)
@@ -329,12 +337,13 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                                 #print("game_dt=", game_dt)
                                 #print("game_ddte=", game_date)
                                 ht = t[2]
-                                dh_num = int(t[3])
+                                dh_num = 3 & (int(t[3]) >> 6)
                                 if game_dt not in gameIDMap[game_year]:
                                     gameIDMap[game_year][game_dt] = dict()
                                 if ht not in gameIDMap[game_year][game_dt]:
                                     gameIDMap[game_year][game_dt][ht] = dict()
                                 gameIDMap[game_year][game_dt][ht][dh_num] = game_id
+                                flags[game_id] = t[4]
 
                         if home_team in teamIDMap:
                             home_team_name = teamIDMap[home_team]
@@ -372,7 +381,9 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                     elif i == 13:  # completion
                         #stmt += f", '{v}'"
                         # completion info, including date on which game was completed
+                        completed = True
                         if len(v) > 0:  
+                            completed = False
                             v.split(",")
                             # yyyymmdd,park,vs,hs,len
                             c_stmt = f"INSERT INTO {comp_tbl} VALUES({game_id}"
@@ -408,22 +419,40 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                                 inn += 1
                     elif i in range(21, 77):  # stats
                         if v == "":
-                            stmt += f", NULL"    
+                            stmt += f", NULL"
                         else:
                             stmt += f", {int(v)}"
-
                     i += 1
                 # end for v in row
 
                 stmt += ")"
                 #print(stmt)
                 cur.execute(stmt)
-                # TODO update game info with protest, forfeit, day of week, etc.
-                #forfeit, protest, dow
+
+                # 6: completed
+                # 7-8: forfeit 
+                # 9-11: protest 
+
+                #  update game info with protest, forfeit, day of week, game lenetc.
+                
+                # not new game
+                if game_id < (1 << 28):
+                    fl = flags[game_id]
+                    fl = fl | (completed << 6) 
+                    fl = fl | (forfMap[forfeit] << 7)
+                    fl = fl | (protMap[protest] << 9)
+                    stmt = f"UPDATE game_info SET flags={fl}"
+                    stmt += f", dow={DAYS_OF_WEEK[dow]}"
+                    stmt += f", game_duration_min={game_len_min}"
+                    stmt += f" WHERE game_id={game_id}"
+                    cur.execute(stmt)
+                else:
+                    # TODO make new game-info
+                    pass 
+                
         conn.commit()
 
 if __name__=="__main__":
-
     narg = len(sys.argv)
     yearStart = 1871
     yearEnd = 2023

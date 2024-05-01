@@ -10,7 +10,7 @@ using namespace std;
 // for 's' operator
 using namespace std::string_literals;
 
-auto box_queries = vector<string>();
+auto gamelog_queries = vector<string>();
 auto player_queries = vector<string>();
 auto playergame_queries = vector<string>();
 auto situation_queries = vector<string>();
@@ -35,12 +35,40 @@ auto situation_queries = vector<string>();
 // limit: <num>
 
 void initQueryStrings() {
-    box_queries.push_back("{\"aggregation\":\"no\"}");
-    auto qy = "{\"team\":\"BAL\", \"year\": {\"low\":2022, \"high\":2022}"s;
-    qy += ", group:[\"month\"]}";
-    box_queries.push_back(qy);
-    playergame_queries.push_back("{}");
-    situation_queries.push_back("{}");
+    const auto cma = ", "s;
+    const auto opbr = "{"s;
+    const auto clbr = "}"s;
+    const auto teamBAL = "\"team\":\"BAL\""s;
+    const auto bat_teamBOS = "\"batter_team\":\"BOS\""s;
+    const auto agg_no = "\"aggregation\":\"no\""s;
+    const auto agg_sum = "\"aggregation\":\"sum\""s;
+    const auto agg_avg = "\"aggregation\":\"avg\""s;
+    const auto baberuth_bid = "\"batter_id\":20415"s;
+    const auto waltjohs_pid = "\"pitcher_id\":11839"s;
+    const auto year2022 = "\"year\": {\"low\":2022, \"high\":2022}"s;
+    const auto year_rng = "\"year\": {\"low\":2012, \"high\":2022}"s;
+    const auto mnth_jun = "\"month\": 6"s;
+    const auto grp_mnth = "\"group\":[\"month\"]";
+    const auto grp_opp_team = "\"group\":[\"_team\"]";
+    const auto grp_year = "\"group\":[\"year\"]";
+    const auto grp_batter = "\"group\":[\"batter_id\"]";
+    const auto limit10 = "\"limit\": 10";
+
+    gamelog_queries.push_back(opbr + agg_no + clbr);    
+    auto qy = opbr + agg_sum + cma + teamBAL + cma + year2022 + cma + grp_mnth + clbr;
+    gamelog_queries.push_back(qy);
+    qy = opbr + teamBAL + cma + year2022 + cma + grp_mnth + clbr;
+    gamelog_queries.push_back(qy);
+    qy = opbr + agg_sum + cma + baberuth_bid + cma + grp_year + clbr;
+    playergame_queries.push_back(qy);
+    qy = opbr + teamBAL + cma + year2022 + cma + mnth_jun + cma + grp_opp_team + clbr;
+    playergame_queries.push_back(qy);
+    
+    qy = opbr + agg_no + cma + baberuth_bid + cma + waltjohs_pid + clbr;
+    situation_queries.push_back(qy);
+    qy = opbr + agg_sum + cma + bat_teamBOS + cma + year2022 + cma + grp_mnth + clbr;
+    situation_queries.push_back(qy);
+
 }
 
 int main(int argc, char *argv[]) {
@@ -55,11 +83,12 @@ int main(int argc, char *argv[]) {
     vector<field_val_t> prms, fieldVals;
     string sql_qy, errMsg;
 
-    for(auto qy : box_queries) {
-        err = buildSQLQuery(qy, sql_qy, prms, errMsg, args);
+    for(auto qy : gamelog_queries) {
+        err = err | buildSQLQuery(qy, sql_qy, prms, errMsg, args);
         cout << endl;
-        cout << endl << "qy= " << qy;
+        cout << endl << "(gamelog) qy= " << qy;
         cout << endl << "err= " << err << " errMsg=" << errMsg;
+        if (err) exit(1);
         cout << endl << "sql_qy= " << sql_qy;        
         cout << endl << "prms= ";
         for (auto& v: prms) {
@@ -68,10 +97,11 @@ int main(int argc, char *argv[]) {
     }
 
     for(auto qy : playergame_queries) {
-        err = buildPlayerGameSQLQuery(qy, sql_qy, prms, errMsg, args);
+        err = err | buildPlayerGameSQLQuery(qy, sql_qy, prms, errMsg, args);
         cout << endl;
-        cout << endl << "qy= " << qy;
+        cout << endl << "(playergame) qy= " << qy;
         cout << endl << "err= " << err << " errMsg=" << errMsg;
+        if (err) exit(1);
         cout << endl << "sql_qy= " << sql_qy;        
         cout << endl << "prms= ";
         for (auto& v: prms) {
@@ -80,10 +110,11 @@ int main(int argc, char *argv[]) {
     }
 
     for(auto qy : situation_queries) {
-        err = buildSituationSQLQuery(qy, sql_qy, prms, errMsg, args);
+        err = err | buildSituationSQLQuery(qy, sql_qy, prms, errMsg, args);
         cout << endl;
-        cout << endl << "qy= " << qy;
+        cout << endl << "(situation) qy= " << qy;
         cout << endl << "err= " << err << " errMsg=" << errMsg;
+        if (err) exit(1);
         cout << endl << "sql_qy= " << sql_qy;        
         cout << endl << "prms= ";
         for (auto& v: prms) {

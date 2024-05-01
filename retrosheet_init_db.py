@@ -100,15 +100,18 @@ allTables["team"]="""CREATE TABLE team (
 #   100 "X" -- an upheld protest was made by the visiting team
 #   101 "Y" -- an upheld protest was made by the home team
 
-# game_type_num flags
+# game_type_num 
 # 0-2: 0=regular, 1= post, 2 (10)=pre, 3 (11) other exhibition
 # 3-5: postseason type: 0=not postseason 1:wildcard, 2=division, 3=league champsionship, 4=world series
 # 6-7: 0=single game (not double header), 1=game 1 of DH, 2=game 2 of DH, 3=game 3 of TH
 # 8-11: innings_sched
  
+# store year/month as separate fields for easier search/indexing
 allTables["game_info"]="""CREATE TABLE game_info (
     game_id integer PRIMARY KEY,
     game_date date NOT NULL,
+    year smallint NOT NULL,
+    month smallint NOT NULL,
     dow smallint,
     start_time smallint,
     game_type_num smallint NOT NULL,    
@@ -463,7 +466,9 @@ allTables["daynight"] = """CREATE TABLE daynight (
 allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
         i.game_id,
         i.game_date,
-        dinw.d AS day_of_week,
+        i.year,
+        i.month,
+        i.dow,
         i.start_time,
         seas.d AS season,
         post.d AS post_series,
@@ -499,8 +504,6 @@ allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
         spit.name_last||', '||SUBSTR(spit.name_other, 0, 2) AS save_pitcher,
         gwr.name_last||', '||SUBSTR(gwr.name_other, 0, 2) AS gw_rbi
     FROM game_info i
-    LEFT JOIN (SELECT * FROM day_in_week) dinw
-    ON dinw.num=(i.dow)
     LEFT JOIN (SELECT * FROM season) seas
     ON seas.num=(7 & i.game_type_num)
     LEFT JOIN (SELECT * FROM postseason_series) post
@@ -541,7 +544,9 @@ allViews["gamelog_view"] = """CREATE VIEW gamelog_view AS SELECT
     l.home_score,
     l.game_len_outs,
     i.game_date,
-    i.day_of_week,
+    i.year,
+    i.month,
+    i.dow,
     i.start_time,
     i.season,
     i.post_series,
@@ -804,7 +809,7 @@ allTables["player_game_pitching"] = """CREATE TABLE player_game_pitching (
 )"""
 
 # inning = inning + (inning_half << 6)
-allTables["game_situation"] = """CREATE TABLE game_situation (
+allTables["game_situation"] = """CREATE TABLE game_situation2 (
     game_id integer,
     event_id smallint,
     batter_id smallint NOT NULL,
@@ -815,8 +820,8 @@ allTables["game_situation"] = """CREATE TABLE game_situation (
     pitch_cnt char(2),
     bat_team_score smallint NOT NULL,
     pitch_team_score smallint NOT NULL,
-    bat_result char(3),
-    bat_base smallint,
+    play_result char(3),
+    play_base smallint,
     hit_loc char(3),
     hit_type char(1),
     outs_made smallint,
@@ -836,16 +841,16 @@ allTables["game_situation_bases"] = """CREATE TABLE game_situation_bases (
 allTables["game_situation_result2"] = """CREATE TABLE game_situation_result2 (
     game_id integer,
     event_id smallint,
-    bat_result char(3),
-    bat_base smallint,
+    play_result char(3),
+    play_base smallint,
     PRIMARY KEY(game_id, event_id)
 )"""
 
 allTables["game_situation_result3"] = """CREATE TABLE game_situation_result3 (
     game_id integer,
     event_id smallint,
-    bat_result char(3),
-    bat_base smallint,
+    play_result char(3),
+    play_base smallint,
     PRIMARY KEY(game_id, event_id)
 )"""
 
@@ -927,16 +932,27 @@ allTables["game_situation_base_run_mod"] = """CREATE TABLE game_situation_base_r
     PRIMARY KEY(game_id, event_id, src, seq)
 )"""
 
-# select * from player_game_batting_view where batter_id=20415;
+allTables["play_baserun"] = """ CREATE TABLE play_baserun (
+    play char(4)
+)"""
 
+allTables["left_right"] = """ CREATE TABLE left_right (
+    lr char(1),
+    d char(6)
+)"""
+
+# select * from player_game_batting_view where batter_num_id=20415;
 allViews["player_game_batting_view"] = """CREATE VIEW player_game_batting_view AS SELECT
     b.game_id, 
+    p.player_num_id AS batter_num_id,
     p.player_id AS batter_id,
+    pl.name_last AS name_last,
+    pl.name_other AS name_other,
     b.team,
     b.pos, 
     b.seq,
     i.game_date,
-    i.day_of_week,
+    i.dow,
     i.start_time,
     i.season,
     i.post_series,
@@ -992,16 +1008,21 @@ allViews["player_game_batting_view"] = """CREATE VIEW player_game_batting_view A
     ON b.game_id=i.game_id    
     LEFT JOIN player_num_id p
     ON p.player_num_id=b.batter_id
+    LEFT JOIN player pl
+    ON p.player_id=pl.player_id
 )"""
 
 allViews["player_game_fielding_view"] = """CREATE VIEW player_game_fielding_view AS SELECT
     f.game_id,
-    p.player_id AS fielder_id, 
+    p.player_num_id AS fielder_num_id,
+    p.player_id AS fielder_id,
+    pl.name_last AS name_last,
+    pl.name_other AS name_other,
     f.team,
     f.pos,
     f.seq,
     i.game_date,
-    i.day_of_week,
+    i.dow,
     i.start_time,
     i.season,
     i.post_series,
@@ -1047,15 +1068,20 @@ allViews["player_game_fielding_view"] = """CREATE VIEW player_game_fielding_view
     ON f.game_id=i.game_id
     LEFT JOIN player_num_id p
     ON p.player_num_id=f.fielder_id
+    LEFT JOIN player pl
+    ON p.player_id=pl.player_id
 )"""
 
 allViews["player_game_pitching_view"] = """CREATE VIEW player_game_pitching_view AS SELECT
     p.game_id,
-    pl.player_id AS pitcher_id,
+    p.player_num_id AS fielder_num_id,
+    p.player_id AS fielder_id,
+    pl.name_last AS name_last,
+    pl.name_other AS name_other,
     p.team,
     p.seq,
     i.game_date,
-    i.day_of_week,
+    i.dow,
     i.start_time,
     i.season,
     i.post_series,
@@ -1111,13 +1137,18 @@ allViews["player_game_pitching_view"] = """CREATE VIEW player_game_pitching_view
     ON p.game_id=i.game_id
     LEFT JOIN player_num_id pl
     ON pl.player_num_id=p.pitcher_id
+    LEFT JOIN player pl
+    ON p.player_id=pl.player_id
+
 )"""
 
 allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     s.game_id,
     s.event_id,
     i.game_date,
-    i.day_of_week,
+    i.year,
+    i.month,
+    i.dow,
     i.start_time,
     i.season,
     i.post_series,
@@ -1152,31 +1183,45 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     i.save_pitcher,
     i.gw_rbi,
     s.batter_id,
+    pgb.team AS batter_team,
+    pgb.pos AS batter_pos,
+    pgb.seq AS batter_seq,
+    bat.name_last AS batter_last,
+    bat.name_other AS batter_other,
+    ---bat_lr.d AS batter_side,
     s.pitcher_id,
-    bat.name_last as batter_last,
-    bat.name_other as batter_other,
-    pit.name_last as pitcher_last,
-    pit.name_other as pitcher_other,
+    pgp.team AS pitcher_team,
+    pgp.seq AS pitcher_seq,
+    pit.name_last AS pitcher_last,
+    pit.name_other AS pitcher_other,
+    ---pit_lr.d AS pitcher_side,
     s.inning,
     s.inning_half,
     s.outs,
     s.pitch_cnt,
     s.bat_team_score,
     s.pitch_team_score,
-    s.bat_result,
-    s.bat_base,
+    s.play_result,
+    s.play_base,
     s.hit_loc,
     s.hit_type,
     s.outs_made,
     s.runs_scored,
-    b.bases_first,
-    b.bases_second,
-    b.bases_third,
+    b.bases_first AS brun1_id,
+    b.bases_second AS brun2_id,
+    b.bases_third AS brun3_id,
+
+---    brun1.name_last as brun1_name_last,
+---    brun1.name_other as brun1_name_other,
+---    brun2.name_last as brun2_name_last,
+---    brun2.name_other as brun2_name_other,
+---    brun3.name_last as brun3_name_last,
+---    brun3.name_other as brun3_name_other,
     
-    r2.bat_result AS bat_result2,
-    r2.bat_base AS bat_base2,
-    r3.bat_result AS bat_result3,
-    r3.bat_base AS bat_result3,
+    r2.play_result AS play_result2,
+    r2.play_base AS play_base2,
+    r3.play_result AS play_result3,
+    r3.play_base AS play_base3,
 
     fa1.fielder_id AS ass1,
     fa2.fielder_id AS ass2,
@@ -1266,8 +1311,8 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     ON s.game_id=fpo2.game_id AND fpo2.seq=2 AND s.event_id=fpo2.event_id
     LEFT JOIN game_situation_fielder_putout fpo3
     ON s.game_id=fpo3.game_id AND fpo3.seq=3 AND s.event_id=fpo3.event_id
-    LEFT JOIN game_situation_fielder_error fe1
 
+    LEFT JOIN game_situation_fielder_error fe1
     ON s.game_id=fe1.game_id AND fe1.seq=1 AND s.event_id=fe1.event_id
     LEFT JOIN game_situation_fielder_error fe2
     ON s.game_id=fe2.game_id AND fe2.seq=2 AND s.event_id=fe2.event_id
@@ -1325,10 +1370,31 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     LEFT JOIN player bat
     ON bat.player_id=bat_num.player_id
     LEFT JOIN player pit
-    ON pit.player_id=pit_num.player_id    
-    
-)"""
+    ON pit.player_id=pit_num.player_id
 
+    LEFT JOIN player_num_id brun1_num
+    ON b.bases_first=brun1_num.player_id
+    LEFT JOIN player_num_id brun2_num
+    ON b.bases_second=brun2_num.player_id
+    LEFT JOIN player_num_id brun3_num
+    ON b.bases_third=brun3_num.player_id
+
+---    LEFT JOIN player brun1
+---    ON brun1.player_id=brun1_num.player_id
+---    LEFT JOIN player brun2
+---    ON brun2.player_id=brun2_num.player_id
+---    LEFT JOIN player brun3
+---    ON brun3.player_id=brun3_num.player_id
+    
+    LEFT JOIN player_game_batting pgb 
+    ON s.batter_id=pgb.batter_id AND pgb.game_id=s.game_id
+    LEFT JOIN player_game_pitching pgp
+    ON s.pitcher_id=pgp.pitcher_id AND pgp.game_id=s.game_id
+    ---LEFT JOIN left_right bat_lr 
+    ---ON bat.bats=bat_lr.lr AND bat.player_id=bat_num.player_id
+    ---LEFT JOIN left_right pit_lr 
+    ---ON pit.bats=pit_lr.lr AND pit.player_id=pit_num.player_id   
+"""
 
 allValues = dict()
 allValues["day_in_week"] = ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
@@ -1346,11 +1412,13 @@ allValues["winddir"] += ("RF to LF", "To CF", "To LF", "To RF")
 allValues["forfeit"] = ("", "Away", "Home", "No Decision")
 allValues["protest"] = ("", "Unidentified", "Disallow Away", "Disallow Home", "Upheld Away", "Upheld Home")
 
+allValues["play_baserun"] = ("SB", "CS", "PO", "POCS", "DI", "OA")
+
 def insertDummyValues(cur):
     stmt = "INSERT INTO park VALUES("
     stmt += "'unkwn', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
     cur.execute(stmt)
-
+        
 if __name__ == "__main__":
     db = "sqlite"    
 
@@ -1404,6 +1472,13 @@ if __name__ == "__main__":
             #print(stmt)
             cur.execute(stmt)
             i += 1
+    stmt = "INSERT INTO left_right VALUES('L', 'Left')"
+    cur.execute(stmt)
+    stmt = "INSERT INTO left_right VALUES('R', 'Right')"
+    cur.execute(stmt)
+    stmt = "INSERT INTO left_right VALUES('S', 'Switch')"
+    cur.execute(stmt)
+
     
     insertDummyValues(cur)
     conn.commit()

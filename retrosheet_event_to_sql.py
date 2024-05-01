@@ -228,7 +228,9 @@ class GameInfo:
 
         dt = self.game_date
         game_date = f"DATE('{dt[0]}-{dt[1]}-{dt[2]}')"
-        stmt += f"{self.gameNumID}, {game_date}, 0, {self.starttime}, {game_num_type}"
+        year = int(dt[0])
+        month = int(dt[1])
+        stmt += f"{self.gameNumID}, {game_date}, {year}, {month}, 0, {self.starttime}, {game_num_type}"
         stmt += f", '{away}', 0, '{home}', 0"
         
         # set flags
@@ -402,7 +404,6 @@ class StatLine(Event):
                 self.data = list(map(fn, vals[1:]))
             elif self.lineType in ("dpline", "tpline", "hpline", "hrline", "sbline","csline"):
                 self.data = list(map(fn, vals[1:]))
- 
             else:
                 self.player_id = vals[1]
                 self.side = int(vals[2])

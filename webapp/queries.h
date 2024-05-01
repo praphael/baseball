@@ -7,15 +7,16 @@
 #include <vector>
 #include <iostream>
 #include <sstream>
+#include <set>
 
 #include "json.hpp"
 
 using json = nlohmann::json;
 
 using query_result_t = std::vector<std::vector<std::string>>;
-                  
 
 enum valType {NOT_SET, INT, STR, INT_RANGE};
+enum queryType {ALL, GAMELOG, PLAYERGAME, SITUATION};
 
 struct range_t {
     int low;
@@ -51,7 +52,20 @@ struct args_t {
     bool isOldTime;
     std::vector<std::string> stats;
     std::vector<std::string> order;
-    unsigned int minGP;
+    // min games played for gamelog or player game queries
+    unsigned int minGP; 
+
+    // min plays for situation
+    // since this includes SB/CS/WP/PB/DI/OA
+    // it is not necessarily PA/BF unless 
+    // excludeBaseRun is true
+    unsigned int minPlays; 
+
+    // whether to exclude plays that
+    // are purely baserunning
+    // e.g. SB/CS/WP/PB/DI/OA
+    bool excludeBaseRun;
+
     unsigned int limit;
     std::string ret;
     std::string retopts;
@@ -63,6 +77,9 @@ struct q_params_t {
     std::string fieldSelector; 
     valType vType; 
     bool isTeam; // whether is team-dependent field, e.g. score
+    // types of queries where this param makes sense
+    // one or more of "gamelog", "playergame", "situation"
+    std::set<queryType> queryTypes;
 };
 
 std::unordered_map<std::string, q_params_t>& initQueryParams();

@@ -1471,7 +1471,7 @@ class GameState:
                 stBat.AB += 1
                 self.teamStats[curBatTeam].AB += 1
                 outs += 1
-            elif r in ("S", "D", "T", "HR"):
+            elif r in ("S", "D", "DGR", "T", "HR"):
                 stBat.AB += 1
                 stBat.H += 1
                 self.teamStats[curBatTeam].AB += 1
@@ -1480,7 +1480,7 @@ class GameState:
                 if r == "S":
                     DEBUG_PRINT("single")
                     self.batterBase = 1
-                elif r == "D":
+                elif r in ("D", "DGR"):
                     DEBUG_PRINT("double")
                     stBat.n2B += 1
                     self.teamStats[curBatTeam].n2B += 1

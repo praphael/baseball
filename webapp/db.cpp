@@ -14,6 +14,7 @@ using std::endl;
 using std::unordered_map;
 using std::to_string;
 
+// for 's' operator
 using namespace std::string_literals;
 
 //------------------------------------------------------------------------------

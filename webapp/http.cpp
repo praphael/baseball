@@ -39,10 +39,11 @@ using std::unordered_map;
 using std::cout;
 using std::cerr;
 using std::endl;
+using namespace std::string_literals;
 
 //const std::vector<string> API_ROOT = {"baseball", "api"};
 
-const auto routes = std::set{"parks", "teams", "box", "player", "playergame", "situation"};
+const auto routes = std::set{"parks"s, "teams"s, "box"s, "player"s, "playergame"s, "situation"s};
 
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http = beast::http;           // from <boost/beast/http.hpp>
