@@ -6,7 +6,8 @@ allViews = dict()
 
 #"aardd001","Aardsma","David Allan","David","12/27/1981","Denver","Colorado","USA","04/06/2004","08/23/2015",,,,,,,,,,,"R","R","6-05",200,,,,,,,,,
 allTables["player"]="""CREATE TABLE player (
-    player_id char(8) PRIMARY KEY,
+    player_num_id smallint PRIMARY KEY,
+    player_id char(8),
     name_last char(64) NOT NULL,
     name_first char(64) NOT NULL,
     name_other char(64) NOT NULL,
@@ -41,12 +42,6 @@ allTables["player"]="""CREATE TABLE player (
     hall_of_fame char(3)
 ) """ # WITHOUT ROWID
 
-allTables["player_num_id"]="""CREATE TABLE player_num_id (
-    player_num_id smallint,
-    player_id char(8),
-    PRIMARY KEY(player_num_id)
-)"""
-
 allTables["park"]="""CREATE TABLE park (
     park_id char(5) PRIMARY KEY,
     park_name varchar(64),
@@ -68,6 +63,18 @@ allTables["team"]="""CREATE TABLE team (
     team_last smallint
 )"""
 
+allTables["umpire"] = """CREATE TABLE umpire (
+    ump_num_id smallint PRIMARY KEY,
+    ump_id char(8),
+    ump_name_last char(64),
+    ump_name_first char(64)
+)"""
+
+allTables["scorer"] = """CREATE TABLE scorer (
+    scorer_num_id smallint PRIMARY KEY,
+    scorer_id char(8),
+    scorer_name char(64)
+)"""
 
 # cond bits
 # 0 : day (0)  night(1)
@@ -124,21 +131,28 @@ allTables["game_info"]="""CREATE TABLE game_info (
     attendance integer,
     cond integer,
     game_duration_min smallint,
-    scorer char(8),
-    ump_home char(8),
-    ump_1b char(8), 
-    ump_2b char(8), 
-    ump_3b char(8),
-    ump_lf char(8),
-    ump_rf char(8),
-    win_pitcher char(8),
-    loss_pitcher char(8),
-    save_pitcher char(8), 
-    gw_rbi char(8),
-    FOREIGN KEY(win_pitcher) REFERENCES player(player_id),
-    FOREIGN KEY(loss_pitcher) REFERENCES player(player_id),
-    FOREIGN KEY(save_pitcher) REFERENCES player(player_id),
-    FOREIGN KEY(gw_rbi) REFERENCES player(player_id),
+    scorer_num_id smallint,
+    ump_home_num_id smallint,
+    ump_1b_num_id smallint,
+    ump_2b_num_id smallint,
+    ump_3b_num_id smallint,
+    ump_lf_num_id smallint,
+    ump_rf_num_id smallint,
+    win_pitcher_num_id smallint,
+    loss_pitcher_num_id smallint,
+    save_pitcher_num_id smallint,
+    gw_rbi_num_id smallint,
+    FOREIGN KEY(win_pitcher_num_id) REFERENCES player(player_num_id),
+    FOREIGN KEY(loss_pitcher_num_id) REFERENCES player(player_num_id),
+    FOREIGN KEY(save_pitcher_num_id) REFERENCES player(player_num_id),
+    FOREIGN KEY(gw_rbi_num_id) REFERENCES player(player_num_id),
+    FOREIGN KEY(scorer_num_id) REFERENCES scorer(scorer_num_id), 
+    FOREIGN KEY(ump_home_num_id) REFERENCES ump(ump_num_id), 
+    FOREIGN KEY(ump_1b_num_id) REFERENCES ump(ump_num_id), 
+    FOREIGN KEY(ump_2b_num_id) REFERENCES ump(ump_num_id), 
+    FOREIGN KEY(ump_3b_num_id) REFERENCES ump(ump_num_id), 
+    FOREIGN KEY(ump_lf_num_id) REFERENCES ump(ump_num_id), 
+    FOREIGN KEY(ump_rf_num_id) REFERENCES ump(ump_num_id), 
     FOREIGN KEY(park) REFERENCES park(park_id),
     FOREIGN KEY(away_team) REFERENCES team(team_id),
     FOREIGN KEY(home_team) REFERENCES team(team_id)
@@ -146,17 +160,7 @@ allTables["game_info"]="""CREATE TABLE game_info (
 """
 # WITHOUT ROWID
 
-allTables["ump"] = """CREATE TABLE ump (
-    ump_num_id smallint PRIMARY KEY,
-    ump_id char(8),
-    ump_name char(64)
-)"""
 
-allTables["scorer"] = """CREATE TABLE scorer (
-    scorer_num_id smallint PRIMARY KEY,
-    scorer_id char(8),
-    scorer_name char(64)
-)"""
 
 allTables["gamelog"] = """CREATE TABLE gamelog (
     game_id integer PRIMARY KEY,
@@ -218,7 +222,7 @@ allTables["gamelog"] = """CREATE TABLE gamelog (
     home_errors smallint,
     home_passed_balls smallint,
     home_double_plays smallint,
-    home_triple_plays smallint
+    home_triple_plays smallint    
  )""" # WITHOUT ROWID
 
 # excluded data from boxscores, not present in game_info
@@ -253,11 +257,12 @@ allTables["completion"]="""CREATE TABLE completion (
 allTables["event_start"]="""CREATE TABLE event_start (
     game_id integer,
     event_id smallint,
-    player_id char(8),
+    player_num_id smallint,
     team char(3),
     bat_pos smallint,
     field_pos smallint,
-    FOREIGN KEY(player_id) REFERENCES player(player_id)
+    PRIMARY KEY(game_id, event_id),
+    FOREIGN KEY(player_num_id) REFERENCES player(player_num_id)
 )
 """
 
@@ -266,11 +271,12 @@ allTables["event_start"]="""CREATE TABLE event_start (
 allTables["event_sub"]="""CREATE TABLE event_sub (
     game_id integer,
     event_id smallint,
-    player_id char(8),
+    player_num_id smallint,
     team char(3),
     bat_pos smallint,
     field_pos smallint,
-    FOREIGN KEY(player_id) REFERENCES player(player_id)
+    PRIMARY KEY(game_id, event_id),
+    FOREIGN KEY(player_num_id) REFERENCES player(player_num_id)
 )
 """
 
@@ -310,7 +316,8 @@ allTables["event_sub"]="""CREATE TABLE event_sub (
 allTables["event_com"]="""CREATE TABLE event_com (
     game_id integer,
     event_id smallint,
-    com char(256)
+    com char(256),
+    PRIMARY KEY(game_id, event_id)
 )"""
 
 # AP    appeal play
@@ -364,12 +371,13 @@ allTables["event_play"]="""CREATE TABLE event_play (
     game_id integer,
     event_id smallint,
     team char(3),
-    player_id char(8),
+    player_num_id smallint,
     inning smallint,
     batter_count smallint,
     pitch_seq char(32),
     play char(64),
-    FOREIGN KEY(player_id) REFERENCES player(player_id)
+    PRIMARY KEY(game_id, event_id),
+    FOREIGN KEY(player_num_id) REFERENCES player(player_num_id)
 )"""
 
 
@@ -380,10 +388,11 @@ allTables["event_play"]="""CREATE TABLE event_play (
 allTables["event_player_adj"]="""CREATE TABLE event_player_adj (
     game_id integer,
     event_id smallint,
-    player_id char(8),
+    player_num_id smallint,
     adj_type smallint,
     adj char(1),
-    FOREIGN KEY(player_id) REFERENCES player(player_id)
+    PRIMARY KEY(game_id, event_id),
+    FOREIGN KEY(player_num_id) REFERENCES player(player_num_id)
 )
 """
 # PRIMARY KEY(game_id_event_id)
@@ -391,7 +400,8 @@ allTables["event_lineup_adj"]="""CREATE TABLE event_lineup_adj (
     game_id integer,
     event_id smallint,
     team_id char(3),
-    adj smallint
+    adj smallint,
+    PRIMARY KEY(game_id, event_id)
 )
 """
 
@@ -399,9 +409,10 @@ allTables["event_lineup_adj"]="""CREATE TABLE event_lineup_adj (
 allTables["event_data_er"]="""CREATE TABLE event_data_er (
     game_id integer,
     event_id smallint,
-    player_id char(8),
+    player_num_id smallint,
     er smallint,
-    FOREIGN KEY(player_id) REFERENCES player(player_id)
+    PRIMARY KEY(game_id, event_id),
+    FOREIGN KEY(player_num_id) REFERENCES player(player_num_id)
 )
 """
 
@@ -523,13 +534,13 @@ allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
     LEFT JOIN (SELECT * FROM team) atm
     ON atm.team_id=away_team
     LEFT JOIN (SELECT * FROM player) wpit
-    ON wpit.player_id=i.win_pitcher
+    ON wpit.player_num_id=i.win_pitcher_num_id
     LEFT JOIN (SELECT * FROM player) lpit
-    ON lpit.player_id=i.loss_pitcher
+    ON lpit.player_num_id=i.loss_pitcher_num_id
     LEFT JOIN (SELECT * FROM player) spit
-    ON spit.player_id=i.save_pitcher
+    ON spit.player_num_id=i.save_pitcher_num_id
     LEFT JOIN (SELECT * FROM player) gwr
-    ON gwr.player_id=i.gw_rbi
+    ON gwr.player_id=i.gw_rbi_num_id
     LEFT JOIN (SELECT * FROM park) prk
     ON prk.park_id=i.park
     LEFT JOIN (SELECT * FROM forfeit) forf
@@ -743,7 +754,7 @@ allViews["gamelog_view"] = """CREATE VIEW gamelog_view AS SELECT
 
 allTables["player_game_batting"] = """CREATE TABLE player_game_batting (
     game_id integer,
-    batter_id smallint,
+    batter_num_id smallint,
     team char(3),
     pos smallint, 
     seq smallint,
@@ -764,12 +775,13 @@ allTables["player_game_batting"] = """CREATE TABLE player_game_batting (
     CS smallint,
     GIDP smallint,
     INTF smallint,
-    PRIMARY KEY(game_id, batter_id, pos)
+    PRIMARY KEY(game_id, batter_num_id, pos),
+    FOREIGN KEY(batter_num_id) REFERENCES player(player_num_id)    
 )"""
 
 allTables["player_game_fielding"] = """CREATE TABLE player_game_fielding (
     game_id integer,
-    fielder_id smallint,
+    fielder_num_id smallint,
     team char(3),
     pos smallint,
     seq smallint,
@@ -780,12 +792,13 @@ allTables["player_game_fielding"] = """CREATE TABLE player_game_fielding (
     DP smallint,
     TP smallint,
     PB smallint,
-    PRIMARY KEY(game_id, fielder_id, pos, seq)
+    PRIMARY KEY(game_id, fielder_num_id, pos, seq),
+    FOREIGN KEY(fielder_num_id) REFERENCES player(player_num_id)    
 )"""
 
 allTables["player_game_pitching"] = """CREATE TABLE player_game_pitching (
     game_id integer,
-    pitcher_id char(8),
+    pitcher_num_id smallint,
     team char(3),
     seq smallint,
     IP3 smallint,
@@ -805,15 +818,16 @@ allTables["player_game_pitching"] = """CREATE TABLE player_game_pitching (
     BK smallint,
     SH smallint,
     SF smallint,
-    PRIMARY KEY(game_id, pitcher_id, seq)
+    PRIMARY KEY(game_id, pitcher_num_id, seq),
+    FOREIGN KEY(pitcher_num_id) REFERENCES player(player_num_id)    
 )"""
 
 # inning = inning + (inning_half << 6)
-allTables["game_situation"] = """CREATE TABLE game_situation2 (
+allTables["game_situation"] = """CREATE TABLE game_situation (
     game_id integer,
     event_id smallint,
-    batter_id smallint NOT NULL,
-    pitcher_id smallint NOT NULL,
+    batter_num_id smallint NOT NULL,
+    pitcher_num_id smallint NOT NULL,
     inning smallint NOT NULL,
     inning_half char(1) NOT NULL,
     outs smallint NOT NULL,
@@ -826,7 +840,9 @@ allTables["game_situation"] = """CREATE TABLE game_situation2 (
     hit_type char(1),
     outs_made smallint,
     runs_scored smallint,
-    PRIMARY KEY(game_id, event_id)
+    PRIMARY KEY(game_id, event_id),
+    FOREIGN KEY(batter_num_id) REFERENCES player(player_num_id),   
+    FOREIGN KEY(pitcher_num_id) REFERENCES player(player_num_id)    
 )"""
 
 allTables["game_situation_bases"] = """CREATE TABLE game_situation_bases (
@@ -835,7 +851,10 @@ allTables["game_situation_bases"] = """CREATE TABLE game_situation_bases (
     bases_first smallint,
     bases_second smallint,
     bases_third smallint,
-    PRIMARY KEY(game_id, event_id)
+    PRIMARY KEY(game_id, event_id),
+    FOREIGN KEY(bases_first) REFERENCES player(player_num_id),    
+    FOREIGN KEY(bases_second) REFERENCES player(player_num_id),    
+    FOREIGN KEY(bases_third) REFERENCES player(player_num_id)
 )"""
 
 allTables["game_situation_result2"] = """CREATE TABLE game_situation_result2 (
@@ -857,33 +876,37 @@ allTables["game_situation_result3"] = """CREATE TABLE game_situation_result3 (
 allTables["game_situation_fielder_assist"] = """CREATE TABLE game_situation_fielder_assist (
     game_id integer,
     event_id smallint,
-    fielder_id smallint,
+    fielder_num_id smallint,
     seq smallint,
-    PRIMARY KEY(game_id, event_id, fielder_id, seq)
+    PRIMARY KEY(game_id, event_id, fielder_num_id, seq),
+    FOREIGN KEY(fielder_num_id) REFERENCES player(player_num_id)
 )"""
 
 allTables["game_situation_fielder_putout"] = """CREATE TABLE game_situation_fielder_putout (
     game_id integer,
     event_id smallint,
-    fielder_id smallint,
+    fielder_num_id smallint,
     seq smallint,
-    PRIMARY KEY(game_id, event_id, fielder_id, seq)
+    PRIMARY KEY(game_id, event_id, fielder_num_id, seq),
+    FOREIGN KEY(fielder_num_id) REFERENCES player(player_num_id)
 )"""
 
 allTables["game_situation_fielder_error"] = """CREATE TABLE game_situation_fielder_error (
     game_id integer,
     event_id smallint,
-    fielder_id smallint,
+    fielder_num_id smallint,
     seq smallint,
-    PRIMARY KEY(game_id, event_id, fielder_id, seq)
+    PRIMARY KEY(game_id, event_id, fielder_num_id, seq),
+    FOREIGN KEY(fielder_num_id) REFERENCES player(player_num_id)
 )"""
 
 allTables["game_situation_fielder_fielded"] = """CREATE TABLE game_situation_fielder_fielded (
     game_id integer,
     event_id smallint,
-    fielder_id smallint,
+    fielder_num_id smallint,
     seq smallint,
-    PRIMARY KEY(game_id, event_id, fielder_id, seq)
+    PRIMARY KEY(game_id, event_id, fielder_num_id, seq),
+    FOREIGN KEY(fielder_num_id) REFERENCES player(player_num_id)
 )"""
 
 allTables["game_situation_result1_mod"] = """CREATE TABLE game_situation_result1_mod (
@@ -933,21 +956,19 @@ allTables["game_situation_base_run_mod"] = """CREATE TABLE game_situation_base_r
 )"""
 
 allTables["play_baserun"] = """ CREATE TABLE play_baserun (
-    play char(4)
+    play char(4) PRIMARY KEY
 )"""
 
 allTables["left_right"] = """ CREATE TABLE left_right (
-    lr char(1),
+    lr char(1) PRIMARY KEY,
     d char(6)
 )"""
 
 # select * from player_game_batting_view where batter_num_id=20415;
 allViews["player_game_batting_view"] = """CREATE VIEW player_game_batting_view AS SELECT
     b.game_id, 
-    p.player_num_id AS batter_num_id,
-    p.player_id AS batter_id,
-    pl.name_last AS name_last,
-    pl.name_other AS name_other,
+    pl.name_last AS batter_name_last,
+    pl.name_other AS batter_name_other,
     b.team,
     b.pos, 
     b.seq,
@@ -1006,18 +1027,14 @@ allViews["player_game_batting_view"] = """CREATE VIEW player_game_batting_view A
     FROM player_game_batting b
     LEFT JOIN game_info_view i
     ON b.game_id=i.game_id    
-    LEFT JOIN player_num_id p
-    ON p.player_num_id=b.batter_id
     LEFT JOIN player pl
-    ON p.player_id=pl.player_id
-)"""
+    ON b.batter_num_id=pl.player_num_id
+"""
 
 allViews["player_game_fielding_view"] = """CREATE VIEW player_game_fielding_view AS SELECT
     f.game_id,
-    p.player_num_id AS fielder_num_id,
-    p.player_id AS fielder_id,
-    pl.name_last AS name_last,
-    pl.name_other AS name_other,
+    pl.name_last AS fielder_name_last,
+    pl.name_other AS fielder_name_other,
     f.team,
     f.pos,
     f.seq,
@@ -1066,18 +1083,14 @@ allViews["player_game_fielding_view"] = """CREATE VIEW player_game_fielding_view
     FROM player_game_fielding f
     LEFT JOIN game_info_view i
     ON f.game_id=i.game_id
-    LEFT JOIN player_num_id p
-    ON p.player_num_id=f.fielder_id
     LEFT JOIN player pl
-    ON p.player_id=pl.player_id
-)"""
+    ON f.fielder_num_id=pl.player_num_id
+"""
 
 allViews["player_game_pitching_view"] = """CREATE VIEW player_game_pitching_view AS SELECT
     p.game_id,
-    p.player_num_id AS fielder_num_id,
-    p.player_id AS fielder_id,
-    pl.name_last AS name_last,
-    pl.name_other AS name_other,
+    pl.name_last AS pitcher_name_last,
+    pl.name_other AS pitcher_name_other,
     p.team,
     p.seq,
     i.game_date,
@@ -1135,12 +1148,9 @@ allViews["player_game_pitching_view"] = """CREATE VIEW player_game_pitching_view
     FROM player_game_pitching p
     LEFT JOIN game_info_view i
     ON p.game_id=i.game_id
-    LEFT JOIN player_num_id pl
-    ON pl.player_num_id=p.pitcher_id
     LEFT JOIN player pl
-    ON p.player_id=pl.player_id
-
-)"""
+    ON p.pitcher_num_id=pl.player_num_id
+"""
 
 allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     s.game_id,
@@ -1412,7 +1422,22 @@ allValues["winddir"] += ("RF to LF", "To CF", "To LF", "To RF")
 allValues["forfeit"] = ("", "Away", "Home", "No Decision")
 allValues["protest"] = ("", "Unidentified", "Disallow Away", "Disallow Home", "Upheld Away", "Upheld Home")
 
-allValues["play_baserun"] = ("SB", "CS", "PO", "POCS", "DI", "OA")
+play_baserun = ("SB", "CS", "PO", "POCS", "DI", "OA")
+
+# add WITHOUT ROWID to these tables
+tablesWithoutROWID = ["player", "umpire", "game_info", "gamelog", "event_play",
+                      "event_start", "event_sub", "event_com",
+                      "player_game_batting", "player_game_pitching",
+                      "player_game_fielding",
+                      "game_situation", "game_situation_bases",
+                      "game_situation_result_mod",
+                      "game_situation_baserun", "game_situation_baserun_mod"
+                      "game_situation_result2", "game_situation_fielder_assist",
+                      "game_situation_fielder_putout", "game_situation_fielder_error",
+                      "game_situation_result1_mod", "game_situation_result2_mod"]
+
+
+
 
 def insertDummyValues(cur):
     stmt = "INSERT INTO park VALUES("
@@ -1426,6 +1451,10 @@ if __name__ == "__main__":
         db = sys.argv[1]
     if db == "sqlite":
         import sqlite3
+        # clear file
+        f = open("baseball.db", "w")
+        f.close()
+
         conn = sqlite3.connect("baseball.db")
         cur = conn.cursor()
     elif db == "postgres":
@@ -1443,20 +1472,19 @@ if __name__ == "__main__":
                 #print(f"dropping table {table}")
                 cur.execute(f"DROP TABLE IF EXISTS {table}")
                 conn.commit()
-            else:
-                cur.execute(f"DROP TABLE {table}")
         except Exception as e:
             pass
         #print(createStmt)
         print("creating table ", table)
+        if db == "sqlite":
+            createStmt += " WITHOUT ROWID"
+        #print(createStmt)
         cur.execute(createStmt)
 
     for view, createStmt in allViews.items():
         try:
             if db == "postgres":
                 cur.execute(f"DROP VIEW IF EXISTS {view}")
-            else:
-                cur.execute(f"DROP VIEW {view}")
         except Exception as e:
             pass
         #print(createStmt)
@@ -1472,6 +1500,11 @@ if __name__ == "__main__":
             #print(stmt)
             cur.execute(stmt)
             i += 1
+    for p in play_baserun:
+        stmt = f"INSERT INTO play_baserun VALUES('{p}')"
+        #print(stmt)
+        cur.execute(stmt)
+
     stmt = "INSERT INTO left_right VALUES('L', 'Left')"
     cur.execute(stmt)
     stmt = "INSERT INTO left_right VALUES('R', 'Right')"

@@ -9,6 +9,7 @@ from copy import deepcopy
 
 # global
 playerCodeToIDMap = dict()
+playerIDToCodeMap = dict()
 #playerIDMap = dict()
 
 # setting to True will print debugging output for all games
@@ -426,6 +427,8 @@ class PlayEvent(Event):
                         break
                 if not possiblySafeDueToError:
                     self.run.out.append(srcBase)
+                else:
+                    self.run.out.append((srcBase, "E"))
             # use E designation as opposed to True/False
             if possiblySafeDueToError:
                 isSafe = "E"
@@ -480,10 +483,10 @@ class PlayEvent(Event):
             if m is not None:
                 DEBUG_PRINT("hit")  
                 if m.group(2) is not None:
-                    self.hit_loc = m.group(2)
+                    self.bat.hit_loc = m.group(2)
                 return False, m.group(1), None, m.end()
             # home run (possibly inside the park)
-            m = re.match(r"^HR?(\d)?[#!?+-]?", bat0)
+            m = re.match(r"^HR?(.*)?[#!?+-]?", bat0)
             if m is not None:
                 DEBUG_PRINT("home run")
                 if m.group(1) is not None:
@@ -702,6 +705,7 @@ class PlayEvent(Event):
             self.game_id, self.event_id, self.team_id, self.player_id = p[0:4]
             self.inning, self.batter_count, self.pitch_seq, self.play = p[4:]
             self.team = self.team_id
+            self.player_id = playerIDToCodeMap[self.player_id]
             #print("team=", self.team)
             self.pitchSeq = None
             self.bat = Event() # dummy value
@@ -740,6 +744,7 @@ class SubEvent(Event):
         if s is not None:
             self.game_id, self.event_id, self.player_id = s[0:3]
             self.team_id, self.bat_pos, self.field_pos = s[3:]
+            self.player_id = playerIDToCodeMap[self.player_id]
             self.bat_pos = int(self.bat_pos)
             self.field_pos = int(self.field_pos)
             self.team = self.team_id
@@ -750,6 +755,7 @@ class PlayerAdjEvent(Event):
             # destructure
             self.game_id, self.event_id, self.player_id = p[0:3]
             self.adjType, self.adj = p[3:]
+            self.player_id = playerIDToCodeMap[self.player_id]
 
     def print(self):
         DEBUG_PRINT(f"**** Player adjustment: {self.player_id}  {self.adjType} {self.adj}")
@@ -770,6 +776,7 @@ class DataEREvent(Event):
             # destructure
             self.game_id, self.event_id, self.player_id = d[0:3]
             self.er = int(d[3])
+            self.player_id = playerIDToCodeMap[self.player_id]
     
     def print(self):
         DEBUG_PRINT(f"ER: {self.player_id} {self.er}")
@@ -1289,6 +1296,7 @@ class GameState:
         #pit = playerIDMap[pitcherID][0]
         pit = pitcherID
         err = False
+        
         if self.expectGameEnd:
             DEBUG_PRINT("applyPlay: ERROR end of game expected")
             err = True
@@ -1306,6 +1314,8 @@ class GameState:
         (bID, stBat) = self.statsBat[curBatTeam][curBatterIdx][-1]
         # DEBUG_PRINT(self.statsPitch[curFieldTeam])
         (pID, stPit) = self.statsPitch[curFieldTeam][-1] 
+        # pitchers get credited with putouts for strikeouts
+        (pID, stPitField) = self.statsField[curFieldTeam][1][-1] 
         if batterID != bID:
             stBatter = batterID
             DEBUG_PRINT("applyPlay: ERROR batter", stBatter, " does not match lineup", bID)
@@ -1330,7 +1340,9 @@ class GameState:
                 #runner = playerIDMap[runID][0]
                 DEBUG_PRINT(runID, end=" ")
         DEBUG_PRINT()
-        DEBUG_PRINT("play= ", p.play)
+        DEBUG_PRINT("play= ", p.play, end=" ")
+        DEBUG_PRINT("hit_type= ", p.bat.hit_type, end=" ")
+        DEBUG_PRINT("hit_loc= ", p.bat.hit_loc)
         
         # inn_out_bat_cnt = (self.inning << 8) 
         # if self.inningHalf == "B":
@@ -1383,64 +1395,45 @@ class GameState:
             DEBUG_PRINT(gs3_stmt)
             self.SQLstmts.append(gs3_stmt)
         
-        outs = 0
-        runs = 0
+        # place current batter as a "baserunner" from home
+        self.baseRunners[0] = (curBatterIdx, batterID)
         baseRunNxt = [None]*4  # 0 = home (batter), 1 = first, etc.
-        # bases which were vacated by steals, pickoffs and caught stealing
-        self.vacatedBases = [None]*4
-        # base which batter should occupy
-        self.batterBase = None
-
+        
+        # runners present at beginning of play, including batter 
+        # (base 0 = home)
+        # -1 mean runner is now out
+        # e.g., for 'SB2' movedRunners[1] = 2
+        # for 'CS2'  movedRunners[1] = -1
+        self.movedRunners = [None]*4 
+        # default is for runners to stay at base
+        for b in range(0, 4):
+            if self.baseRunners[b] is not None:
+                self.movedRunners[b] = b
+        
+        
         def applyBaseRunResult(r2, base2):
             DEBUG_PRINT("applyBaseRunResult: r2=", r2, " base2=", base2)
-            runs = 0
-            if r2 in ("SB", "CS", "PO", "POCS"): # stolen base / caught stealing / pick off
-                b = base2
-                if b == "H":
-                    b = 4
-                else:
-                    b = int(b)
-                if r2 == "PO": # for pickoffs number is the source base
-                    rn = self.baseRunners[b]
-                    self.vacatedBases[b] = rn
-                    self.baseRunners[b] = None
-                else:
-                    rn = self.baseRunners[b-1]
-                    self.vacatedBases[b-1] = rn
-                    self.baseRunners[b-1] = None
-                if rn is None:
-                    return None
-                (runIdx, runnerID) = rn
+            
+            if base2 == "H":
+                dst = 4
+            else:
+                dst = int(base2)
+            src = dst
+            
+            if r2 in ("SB", "CS", "POCS"):
+                src = dst - 1
+                runIdx, runnerID = self.baseRunners[src]
                 if r2 == "SB":
                     DEBUG_PRINT("stolen base", b)
-                    if b == 4:
-                        runs += 1
+                    self.movedRunners[src] = dst
                     self.statsBat[curBatTeam][runIdx][-1][1].SB += 1
                     self.teamStats[curBatTeam].SB += 1
-                    if b != 4:
-                        baseRunNxt[b] = (runIdx, runnerID)
-                elif r2 in ("CS", "PO", "POCS"):
-                    # outs should be handled by "run.out"
-                    # unless possiblySafeDueToError
-                    if p.possiblySafeDueToError:
-                         DEBUG_PRINT("applyBaseRunResult: CS/PO/POCS possibly safe due to error")
-                         if treatBaserunModErrorAsOut:
-                             DEBUG_PRINT("applyBaseRunResult: treating as out")
-                             #outs += 1
-                         else:
-                             DEBUG_PRINT("applyBaseRunResult: treating as safe")
-                             if b == 4:
-                                 runs += 1
-                             else:
-                                 baseRunNxt[b] = (runIdx, runnerID)
-
-                    if r2 in ("CS", "POCS"):
-                        self.statsBat[curBatTeam][runIdx][-1][1].CS += 1
-                        self.teamStats[curBatTeam].CS += 1
-                        DEBUG_PRINT("caught stealing", b)
-                    else:
-                        DEBUG_PRINT("pickoff", b)
-            return runs
+                if r2 in ("CS", "POCS"):
+                    self.statsBat[curBatTeam][runIdx][-1][1].CS += 1
+                    self.teamStats[curBatTeam].CS += 1
+                    DEBUG_PRINT("caught stealing", b)
+                else:
+                    DEBUG_PRINT("pickoff", b)
             # end applyOtherResult
 
         # most plays advance to the next batter
@@ -1470,7 +1463,7 @@ class GameState:
                     DEBUG_PRINT("out - other")
                 stBat.AB += 1
                 self.teamStats[curBatTeam].AB += 1
-                outs += 1
+                self.movedRunners[0] = -1
             elif r in ("S", "D", "DGR", "T", "HR"):
                 stBat.AB += 1
                 stBat.H += 1
@@ -1479,58 +1472,56 @@ class GameState:
                 stPit.H += 1
                 if r == "S":
                     DEBUG_PRINT("single")
-                    self.batterBase = 1
+                    self.movedRunners[0] = 1
                 elif r in ("D", "DGR"):
                     DEBUG_PRINT("double")
                     stBat.n2B += 1
                     self.teamStats[curBatTeam].n2B += 1
                     stPit.n2B += 1
-                    self.batterBase = 2                
+                    self.movedRunners[0] = 2
                 elif r == "T":
                     DEBUG_PRINT("triple")
                     stBat.n3B += 1
                     self.teamStats[curBatTeam].n3B += 1
                     stPit.n3B += 1
-                    self.batterBase = 3                
+                    self.movedRunners[0] = 3
                 elif r == "HR":
                     DEBUG_PRINT("home run")
-                    runs += 1
                     stBat.HR += 1
-                    stBat.R += 1
-                    stBat.RBI += 1
                     self.teamStats[curBatTeam].HR += 1
-                    self.teamStats[curBatTeam].RBI += 1
                     stPit.HR += 1
+                    self.movedRunners[0] = 4
             elif r == "BB":
                 DEBUG_PRINT("walk")
                 stBat.BB += 1
                 self.teamStats[curBatTeam].BB += 1
                 stPit.BB += 1
-                self.batterBase = 1            
+                self.movedRunners[0] = 1   
             elif r == "IBB":
                 DEBUG_PRINT("intentional walk")
                 stBat.IBB += 1
                 self.teamStats[curBatTeam].IBB += 1
                 stPit.IBB += 1
-                self.batterBase = 1            
+                self.movedRunners[0] = 1   
             elif r == "K": # strike out
                 DEBUG_PRINT("strikeout")
-                outs += 1
                 stBat.AB += 1
                 stBat.K += 1
                 self.teamStats[curBatTeam].AB += 1
                 self.teamStats[curBatTeam].K += 1
                 stPit.K += 1
+                stPitField.PO += 1
+                self.movedRunners[0] = -1
             elif r == "FO": # force out (runner(s) other than batter)
                 DEBUG_PRINT("force out")
                 stBat.AB += 1
                 self.teamStats[curBatTeam].AB += 1
-                self.batterBase = 1
+                self.movedRunners[0] = 1
             elif r == "FC": # fielders choice
                 DEBUG_PRINT("fielders choice")
                 stBat.AB += 1
                 self.teamStats[curBatTeam].AB += 1
-                self.batterBase = 1
+                self.movedRunners[0] = 1   
             elif r == "BK": # balk
                 DEBUG_PRINT("balk")
                 stPit.BK += 1
@@ -1538,9 +1529,9 @@ class GameState:
                 expectNextBat = False
             elif r == "HBP": # hit by pitch
                 DEBUG_PRINT("hit by pitch")
-                self.batterBase = 1
                 self.teamStats[curBatTeam].HBP += 1
                 stBat.HBP += 1
+                self.movedRunners[0] = 1   
             elif r == "FLE": # error on foul ball
                 DEBUG_PRINT("error on foul ball")
                 expectNextBat = False           
@@ -1550,11 +1541,11 @@ class GameState:
             elif r == "CI": # catcher interference
                 DEBUG_PRINT("catcher interference")
                 self.teamStats[curFieldTeam].CI += 1
-                self.batterBase = 1
+                self.movedRunners[0] = 1   
             elif r == "E":
                 stBat.AB += 1
                 self.teamStats[curBatTeam].AB += 1
-                self.batterBase = 1
+                self.movedRunners[0] = 1   
             elif r == "WP": # wildpitch
                 DEBUG_PRINT("wild pitch")
                 if rNum == 1: # handle combo plays
@@ -1577,10 +1568,7 @@ class GameState:
             elif r in ("SB", "CS", "PO", "POCS"):
                 if rNum == 1:  # handle combo plays
                     expectNextBat = False
-                oth_runs = applyBaseRunResult(r, base)
-                if oth_runs is None:
-                    return True, False, False
-                runs += oth_runs                
+                applyBaseRunResult(r, base)
             else:
                 expectNextBat = False
                 DEBUG_PRINT("Unknown play ", r)
@@ -1618,18 +1606,15 @@ class GameState:
             rNum += 1
         # END for loop
 
-        # if error on play, not present in run.adv, 
-        # may need to increment outs
-        if p.possiblySafeDueToError and treatBaserunModErrorAsOut:
-            outs += 1
         stmt_fldr_ass = f"INSERT INTO game_situation_fielder_assist VALUES({gameID}, {eventID}"
         stmt_fldr_po = f"INSERT INTO game_situation_fielder_putout VALUES({gameID}, {eventID}"
         stmt_fldr_err = f"INSERT INTO game_situation_fielder_error VALUES({gameID}, {eventID}"
         stmt_fldr_fld = f"INSERT INTO game_situation_fielder_fielded VALUES({gameID}, {eventID}"
         seq = 1
         for f in p.fielding.errors:
-            fldr_id = playerCodeToIDMap[self.curField.fieldPos[f]]
+            fldr_id = self.curField.fieldPos[f]
             DEBUG_PRINT("fielding error on ", f, fldr_id)
+            fldr_id = playerCodeToIDMap[fldr_id]
             self.statsField[curFieldTeam][f][-1][1].E += 1
             self.teamStats[curFieldTeam].E += 1
             stmt_err = stmt_fldr_err + f", {fldr_id}, {seq})"
@@ -1661,128 +1646,100 @@ class GameState:
             self.SQLstmts.append(stmt_fld)
             seq += 1
         
-        basesAdv = set()
         self.possiblySafeDueToError = False
         
         def handleBaseRunners():
-            runs = 0
-            outs = 0
             # explicit outs not having to do with runner advances
             DEBUG_PRINT("runners out", p.run.out)
             for b in p.run.out:                
-                if b not in ("B", "H"):                
-                    baseRunNxt[int(b)] = None  # clear base runner
-                outs += 1
-            stmt_base_run = f"INSERT INTO game_situation_base_run VALUES({gameID}, {eventID}"
-            strikeOutAdv = False
-            for adv in p.run.adv:
-                DEBUG_PRINT("adv=", adv)
-                
-                src = adv[0]
-                # runner explicitly marked as safe, so override
-                if src != "B" and int(src) in p.run.out and adv[2]:
-                    DEBUG_PRINT("overriding runner ", src, " being makred as out")
-                    outs -= 1
-                if src == "B":
-                    runnerID = batterID
-                    runIdx = curBatterIdx
-                    # if result of strikeout, subtract out due to strikeout
-                    if p.bat.results[0] == "K":
-                        outs -= 1                        
-                        strikeOutAdv = True
-                else:
-                    src = int(src)
-                    #DEBUG_PRINT(src)
-                    # base could already have been vacated due to stolen base
-                    if self.vacatedBases[src] is not None:
-                        (runIdx, runnerID) = self.vacatedBases[src]
-                    elif self.baseRunners[src] is not None:
-                        (runIdx, runnerID) = self.baseRunners[src]
-                    #elif self.vacatedBases[src] is not None:
-                    #    (runIdx, runnerID) = self.vacatedBases[src]
-                    else:
-                        DEBUG_PRINT("ERROR: Could not find runner on base", src)
-                        return None
-                    
-                basesAdv.add(src)
-                    
-                dst = adv[1]
-                if adv[2] == "E":
+                src = b
+                isError = False
+                if type(b) == type(()):
+                    isError = True
                     self.possiblySafeDueToError = True
-                if src == "B":
-                    # clear since advance is explicit
-                    self.batterBase = None
-
-                # if we treat as out, need to increment outs
-                if (adv[2] == "E" and treatBaserunModErrorAsOut):
+                    src = b[0]
+                src = baseToNum(src)
+                
+                # clear base runner
+                if isError:
+                    if treatBaserunModErrorAsOut:
+                        self.movedRunners[src] = -1
+                else:
+                    self.movedRunners[src] = -1
+            stmt_base_run = f"INSERT INTO game_situation_base_run VALUES({gameID}, {eventID}"
+            for adv in p.run.adv:
+                src = baseToNum(adv[0])
+                dst = baseToNum(adv[1])
+                isSafe = adv[2]
+                DEBUG_PRINT("src=", src, "dst=", dst, "isSafe=", isSafe)
+                #DEBUG_PRINT(self.baseRunners)
+                #DEBUG_PRINT(self.movedRunners)
+                runIdx, runnerID = self.baseRunners[src]
+                
+                if isSafe == "E": # error
+                    self.possiblySafeDueToError = True                
+                    if treatBaserunModErrorAsOut:
+                        DEBUG_PRINT(f"runner on src ({runnerID}) treating as out at {dst}, ignoring error")
+                        self.movedRunners[src] = -1
+                    else:
+                        DEBUG_PRINT(f"runner on {src} {runnerID} treating as safe at {dst} due to error")
+                        self.movedRunners[src] = dst
+                elif isSafe: # safe
+                    self.movedRunners[src] = dst
+                else:  # out
+                    self.movedRunners[src] = -1 
+                    
+                a2 = isSafe
+                if isSafe == "E":
+                     a2 = treatBaserunModErrorAsOut
+                stmt = stmt_base_run + f", {src}, {dst}, {a2})"
+                DEBUG_PRINT(stmt)
+                self.SQLstmts.append(stmt)
+            
+            baseRunNxt = [None]*4
+            runs = 0
+            outs = 0
+            for b in range(0, 4):
+                rn = self.baseRunners[b]
+                nxtBase = self.movedRunners[b]
+                if nxtBase == -1:
                     outs += 1
-                if dst == "H":
-                    if (adv[2] == "E" and not treatBaserunModErrorAsOut) or adv[2] is True: 
-                        # there are some plays where explict advance from B-H is given
-                        # after a home run, perhaps due to umpire review
-                        # see BAL/DET 1963/9/14
-                        if src != "B" or r != "HR":
-                            runs += 1
-                        if adv[2] == "E":
-                            DEBUG_PRINT(f"runner on {src} ({runnerID}) treating as safe at home due to error")
+                if rn is not None:    
+                    runIdx, runnerID = self.baseRunners[b]
+                    if nxtBase == b:
+                        DEBUG_PRINT("runner on", b, " does not advance")
+                    else:
+                        if nxtBase == 0 or nxtBase == 4:
+                            DEBUG_PRINT("runner on", b, " scores")
+                        elif nxtBase == -1:
+                            DEBUG_PRINT("runner on", b, " is out")
                         else:
-                            DEBUG_PRINT(f"runner on {src} ({runnerID}) scored ")
+                            DEBUG_PRINT("runner on", b, " advances to ", nxtBase)
+                    
+                    if nxtBase == 0 or nxtBase == 4:
+                        runs += 1
                         self.statsBat[curBatTeam][runIdx][-1][1].R += 1
                         stBat.RBI += 1
                         self.teamStats[curBatTeam].RBI += 1
-                    else:
-                        if adv[2] == "E":
-                            DEBUG_PRINT(f"runner on {src} ({runnerID}) treating as out at home, ignoring error")
-                        else:
-                            DEBUG_PRINT(f"runner on {src} ({runnerID}) out at home")
-
-                else: # base other than home
-                    dst = int(dst)                    
-                    if (adv[2] == "E" and not treatBaserunModErrorAsOut) or adv[2] is True:
-                        if adv[2] == "E":
-                            DEBUG_PRINT(f"runner on {src} {runnerID} treating as safe at {dst} due to error")
-                        else:
-                            DEBUG_PRINT(f"runner on {src} {runnerID} advanced to {dst}")
-                        baseRunNxt[dst] = (runIdx, runnerID)
-                    else: # out
-                        if adv[2] == "E":
-                            DEBUG_PRINT(f"runner on src ({runnerID}) treating as out at {dst}, ignoring error")
-                        else:
-                            DEBUG_PRINT(f"runner on src ({runnerID}) out at {dst}")
-                a2 = adv[2]
-                if adv[2] == "E":
-                     a2 = treatBaserunModErrorAsOut
-                a0 = baseToNum(adv[0])
-                a1 = baseToNum(adv[1])
-                stmt = stmt_base_run + f", {a0}, {a1}, {a2})"
-                DEBUG_PRINT(stmt)
-                self.SQLstmts.append(stmt)
-            if self.batterBase is not None:
-                baseRunNxt[self.batterBase] = (curBatterIdx, batterID)
-            if len(basesAdv) > 0:
-                DEBUG_PRINT("basesAdv=", basesAdv)
-            for b in range(1, 4):
-                rn = self.baseRunners[b]
-                if rn is not None and b not in basesAdv:
-                    baseRunNxt[b] = self.baseRunners[b]
-                    DEBUG_PRINT("runner on", b, " does not advance")
-            return runs, outs, strikeOutAdv
+                    elif nxtBase > 0:
+                        baseRunNxt[nxtBase] = (runIdx, runnerID)
+            return runs, outs, baseRunNxt
         
         ret = handleBaseRunners()
         if ret is None:
             return True, False, False
-        rb, ob, strikeOutAdv = ret
-        runs += rb
-        outs += ob        
+        runs, outs, baseRunNxt = ret
         DEBUG_PRINT("handleBaseRunners returned runs=", runs, "outs= ", outs)
         DEBUG_PRINT("possiblySafeDueToError=", self.possiblySafeDueToError)
+        DEBUG_PRINT("basedRunners=", self.baseRunners)
+        DEBUG_PRINT("movedRunners=", self.movedRunners)
+        DEBUG_PRINT("baseRunNxt=", baseRunNxt)
         if isDoublePlay and outs != 2:
             DEBUG_PRINT("double play but calculated outs != 2")
             return True, self.possiblySafeDueToError, False
         if isTriplePlay and outs != 3:
             DEBUG_PRINT("triple play but calculated outs != 3")
             return True, self.possiblySafeDueToError, False
-
 
         stmt_base_run_mod = f"INSERT INTO game_situation_base_run_mod VALUES({gameID}, {eventID}"
         for base_mod, adv in zip(p.run.mods, p.run.adv):
@@ -1830,22 +1787,7 @@ class GameState:
                     #DEBUG_PRINT(stmt_br_smod)
                     #self.SQLstmts.append(stmt_br_smod)
                 seq += 1
-            
-        # base_src char(1),
-        # base_dst char(1),
-        # mod char(4),
-        # prm char(2),
 
-        # hit_loc_hit_type_outs_made_runs_scored = 0
-        # if p.bat.hit_loc is not None:
-        #     hit_loc_hit_type_outs_made_runs_scored = (locations[p.bat.hit_loc] << 9)
-        # if p.bat.hit_type is not None:
-        #     hit_loc_hit_type_outs_made_runs_scored += (HIT_TYPES[p.bat.hit_type] << 6)
-        # hit_loc_hit_type_outs_made_runs_scored += (outs << 3)
-        # hit_loc_hit_type_outs_made_runs_scored += runs
-        # result_base = (playCodeNumMap[p.bat.results[0]] << 8)
-        # if p.bat.bases[0] is not None:
-        #     result_base += baseToNum(p.bat.bases[0])
         gs_stmt += f", '{p.bat.results[0]}', {valOrNULL(p.bat.bases[0])}"
         gs_stmt += f", {valOrNULL(p.bat.hit_loc)}, {valOrNULL(p.bat.hit_type)}, {outs}, {runs})" 
         
@@ -1976,8 +1918,9 @@ def deleteDBAfterEvent(gameID, savePtEventID):
         DEBUG_PRINT(stmt)
         cur.execute(stmt)
 
-def parseGame(gameID, plays, conn, cur):
+def parseGame(gameID, plays, conn):
     # detect if already parsed game
+    cur = conn.cursor()
     tStart = time.time() 
     stmt = f"SELECT * from game_situation WHERE game_id={gameID}"
     cur.execute(stmt)
@@ -2041,16 +1984,16 @@ def parseGame(gameID, plays, conn, cur):
             DEBUG_PRINT(f"parseGame ERROR: team=", team_id, " is neither home=", home_team, " or away=", away_team)
             return True
         #pID = playerIDMap[player_id][0] 
-        pID = player_id
+        pID = playerIDToCodeMap[player_id]
 
         DEBUG_PRINT(pID, team_id, " starting at ", field_pos, " batting order ", bat_pos)
         if bat_pos != 0:
-            lineup.battingOrder[bat_pos] = player_id
-            lineup.battingOrderStart[bat_pos] = player_id
-        if field_pos != 0:
-            lineup.fieldPos[field_pos] = player_id
-        if field_pos == 1:
-            lineup.pitchersUsed.append(player_id)
+            lineup.battingOrder[bat_pos] = pID
+            lineup.battingOrderStart[bat_pos] = pID
+        if field_pos != 0: # not DH
+            lineup.fieldPos[field_pos] = pID
+        if field_pos == 1:  # pitcher
+            lineup.pitchersUsed.append(pID)
     t1 = time.time()
     dt = t1 - tStart
     print(f"fetch took {dt*1000} ms")
@@ -2204,11 +2147,13 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=None, quit_on_err=True):
     failedGames = []
     failed = 0
     total = 0
-    stmt = f"SELECT player_num_id, player_id FROM player_num_id"
+
+    stmt = f"SELECT player_num_id, player_id FROM player"
     cur.execute(stmt)
     tups2 = cur.fetchall()
     for t in tups2:
         playerCodeToIDMap[t[1]] = int(t[0])
+        playerIDToCodeMap[t[0]] = t[1]
 
     try:
         for tup in tups:
@@ -2218,7 +2163,7 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=None, quit_on_err=True):
                     print(f"parsing game {gameID}")
                     total += 1
                     try:
-                        err = parseGame(gameID, plays, conn, cur)
+                        err = parseGame(gameID, plays, conn)
                     except KeyboardInterrupt as e:
                         print("broken by keyboard interrupt")
                         break
@@ -2289,7 +2234,7 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=None, quit_on_err=True):
             plays = g[1]
             print(f"reparse game {gameID}")
             try:
-                err = parseGame(gameID, plays, conn, cur)
+                err = parseGame(gameID, plays, conn)
             except KeyboardInterrupt as e:
                 print("broken by keyboard interrupt")
                 break

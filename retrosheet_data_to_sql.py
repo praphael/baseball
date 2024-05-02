@@ -11,7 +11,7 @@ from retrosheet_event_to_sql import processEventFiles
 baseDir = "alldata"
 
 # convert CSV to dataase
-def fromCSV(fPath, tableName, conn, rowIDFirst=False, rowIDMapField=None):    
+def fromCSV(fPath, tableName, conn, rowIDFirst=False, rowIDMapField=None, rowIDOffset=0):    
     cur = conn.cursor()
     print(f"processing file {fPath}")
     rowIDMap = None
@@ -33,7 +33,7 @@ def fromCSV(fPath, tableName, conn, rowIDFirst=False, rowIDMapField=None):
             ln = f"INSERT INTO {tableName} VALUES("
             vals = ""
             if rowIDFirst:
-                vals += f"{rowNum}, "
+                vals += f"{rowNum+rowIDOffset}, "
             col = 0
             for v in row:
                 vr = v
@@ -58,6 +58,7 @@ def fromCSV(fPath, tableName, conn, rowIDFirst=False, rowIDMapField=None):
 
             vals = vals[:-2] # drop last comma
             ln += vals + ")"
+            #print(ln)
             cur.execute(ln)
         conn.commit()
     return rowIDMap
@@ -91,17 +92,16 @@ def teams(conn):
 def players(conn):
     fName = "biofile.csv"
     fPath = os.path.join(baseDir, fName)
-    return fromCSV(fPath, "player", conn)
+    fromCSV(fPath, "player", conn, rowIDFirst=True, rowIDMapField=0)
 
-def player_num_ids(conn):
-    cur = conn.cursor()
-    cur.execute("SELECT player_id FROM player")
-    tups = cur.fetchall()
-    player_num = 1
-    for t in tups:
-        player_id = t[0]
-        cur.execute(f"INSERT INTO player_num_id VALUES({player_num}, '{player_id}')")
-        player_num += 1
+
+def umpires(conn):
+    offset = 0
+    for year in range(1871, 2024):
+        fName = f"UMPIRES{year}.txt"
+        fPath = os.path.join(baseDir, "umpires", fName)
+        umpMap = fromCSV(fPath, "umpire", conn, rowIDFirst=True, rowIDMapField=0, rowIDOffset=offset)    
+        offset += len(umpMap)
 
 if __name__ == "__main__":
     connectPG = False
@@ -132,7 +132,8 @@ if __name__ == "__main__":
             ("game_info_idx", "game_info(game_id)"),
             ("game_info_home_idx", "game_info(home_team)"),
             ("game_info_away_idx", "game_info(away_team)"),
-            ("player_num_id_idx", "player_num_id(player_num_id)"))
+            ("player_num_id_idx", "player(player_num_id)"),
+            ("player_id_idx", "player(player_id)"))
     for idx in idxs:
         try:
             cur.execute(f"DROP INDEX {idx[0]}")    
@@ -141,7 +142,7 @@ if __name__ == "__main__":
     teams(conn)
     parks(conn)
     players(conn)
-    player_num_ids(conn)
+    umpires(conn)
     processEventFiles(startYear, endYear, conn, True)
     print("creating indices")
     # these indices significantly speeds up parsing event outcomes
