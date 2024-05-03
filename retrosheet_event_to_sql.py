@@ -58,7 +58,7 @@ FIELDCOND["dry"] = 1
 FIELDCOND["damp"] = 2
 FIELDCOND["wet"] = 3
 FIELDCOND["soaked"] = 4
-
+FIELDCOND_A = ["", "dry", "damp", "wet", "soaked"]
 
 PRECIP = dict()
 PRECIP["none"] = 1
@@ -66,6 +66,7 @@ PRECIP["drizzle"] = 2
 PRECIP["rain"] = 3
 PRECIP["showers"] = 4
 PRECIP["snow"] = 5
+PRECIP_A = ["", "none", "drizzle", "rain", "showers", "snow"]
 
 SKYCOND = dict()
 SKYCOND["sunny"] = 1
@@ -73,16 +74,18 @@ SKYCOND["cloudy"] = 2
 SKYCOND["overcast"] = 3
 SKYCOND["dome"] = 4
 SKYCOND["night"] = 5
+SKYCOND_A = ["", "sunny", "cloudy", "overcast", "dome", "night"]
 
 WINDDIR = dict()
 WINDDIR["fromcf"] = 1
 WINDDIR["fromlf"] = 2
-WINDDIR["fromrf"] = 3
+WINDDIR["fromlf"] = 3
 WINDDIR["ltor"] = 4
 WINDDIR["rtol"] = 5
 WINDDIR["tolf"] = 6
 WINDDIR["tocf"] = 7
 WINDDIR["torf"] = 8
+WINDDIR_A = ["", "fromcf", "fromlf", "fromlf", "ltor", "rtol", "tolf", "tocf", "torf"]
 
 DAYNIGHT = dict()
 DAYNIGHT["day"] = 0
@@ -208,9 +211,11 @@ class GameInfo:
         # get the numeric id of the game
         gameIDMap[self.date][self.hometeam][self.number] = self.gameNumID
     
-    def insertIntoDB(self, cur, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap):
+    def insertIntoDB(self, cur, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, isUpdate=False):
         stmt = "INSERT INTO game_info VALUES("
-        
+        if isUpdate:
+            stmt = "UPDATE game_info SET"
+
         away = self.visteam
         home = self.hometeam
         #print("home=", home, "away=", away)
@@ -237,43 +242,54 @@ class GameInfo:
         game_date = f"DATE('{dt[0]}-{dt[1]}-{dt[2]}')"
         year = int(dt[0])
         month = int(dt[1])
-        stmt += f"{self.gameNumID}, {game_date}, {year}, {month}, 0, {self.starttime}, {game_num_type}"
-        stmt += f", '{away}', 0, '{home}', 0"
+        if isUpdate:
+            stmt += f" start_time={self.starttime}, game_type_num={game_num_type}"
+        else:
+            stmt += f"{self.gameNumID}, {game_date}, {year}, {month}, 0, {self.starttime}, {game_num_type}"
+            stmt += f", '{away}', 0, '{home}', 0"
         
         # set flags
-        flags = self.has_pitch_cnt + (self.has_pitch_cnt << 1) + (self.htbf << 2)
-        flags += (self.use_dh << 3) + (self.tiebreak_base << 4)
+        flags = self.has_pitch_cnt | (self.has_pitch_cnt << 1) | (self.htbf << 2)
+        flags = flags | (self.use_dh << 3) | (self.tiebreak_base << 4)
 
         # set condition
-        cond = self.daynight + (self.fieldcond << 1) + (self.precip << 4)
-        cond += (self.sky << 7) + (self.winddir << 10) + (self.windspeed+1)<<14
-        cond += (self.temp << 20)
+        cond = self.daynight | (self.fieldcond << 1) | (self.precip << 4)
+        cond = cond | (self.sky << 7) | (self.winddir << 10) | ((self.windspeed+1)<<14)
+        cond = cond | (self.temp << 20)
 
         park = self.site
         #print(flags, park, cond)
 
-        stmt += f", {flags}, '{park}', {valOrNULL(self.attendance)}, {cond}, {valOrNULL(self.timeofgame)}"
-        
+        if isUpdate:
+            print("precip=", PRECIP_A[self.precip], "sky=", SKYCOND_A[self.sky])
+            print("temp=", self.temp, "windspeed=", self.windspeed, "winddir=", WINDDIR_A[self.winddir])
+            print(f"flags={flags}, cond={cond}")
+            stmt += f", flags={flags}, cond={cond}"
+            stmt += f", attendance={valOrNULL(self.attendance)}"
+            stmt += f", game_duration_min={valOrNULL(self.timeofgame)}"
+            stmt += f" WHERE game_id={self.gameNumID}"
+        else:
+            stmt += f", {flags}, '{park}', {valOrNULL(self.attendance)}, {cond}, {valOrNULL(self.timeofgame)}"
 
-        umphome = getFromIDMap(self.umphome, umpCodeToIDMap)
-        ump1b = getFromIDMap(self.ump1b, umpCodeToIDMap)
-        ump2b = getFromIDMap(self.ump2b, umpCodeToIDMap)
-        ump3b = getFromIDMap(self.ump3b, umpCodeToIDMap)
-        umplf = getFromIDMap(self.umplf, umpCodeToIDMap)
-        umprf = getFromIDMap(self.umprf , umpCodeToIDMap)
-        scorer = getFromIDMap(self.oscorer, scorerCodeToIDMap)
-        if scorer == "NULL":
-            scorer = GameInfo.nextScorerID
-            cur.execute(f"INSERT INTO scorer VALUES({scorer}, '{self.oscorer}', '{self.oscorer}')")
-            GameInfo.nextScorerID += 1
-        
-        stmt += f", {scorer}, {umphome}, {ump1b}, {ump2b}, {ump3b}"
-        stmt += f", {umplf}, {umprf}"
-        win_pitcher = getFromIDMap(self.wp, playerCodeToIDMap)
-        loss_pitcher = getFromIDMap(self.lp, playerCodeToIDMap)
-        save_pitcher = getFromIDMap(self.save, playerCodeToIDMap)
-        gwrbi = getFromIDMap(self.gwrbi, playerCodeToIDMap)
-        stmt += f", {win_pitcher}, {loss_pitcher}, {save_pitcher}, {gwrbi})"
+            umphome = getFromIDMap(self.umphome, umpCodeToIDMap)
+            ump1b = getFromIDMap(self.ump1b, umpCodeToIDMap)
+            ump2b = getFromIDMap(self.ump2b, umpCodeToIDMap)
+            ump3b = getFromIDMap(self.ump3b, umpCodeToIDMap)
+            umplf = getFromIDMap(self.umplf, umpCodeToIDMap)
+            umprf = getFromIDMap(self.umprf , umpCodeToIDMap)
+            scorer = getFromIDMap(self.oscorer, scorerCodeToIDMap)
+            if scorer == "NULL":
+                scorer = GameInfo.nextScorerID
+                cur.execute(f"INSERT INTO scorer VALUES({scorer}, '{self.oscorer}', '{self.oscorer}')")
+                GameInfo.nextScorerID += 1
+            
+            stmt += f", {scorer}, {umphome}, {ump1b}, {ump2b}, {ump3b}"
+            stmt += f", {umplf}, {umprf}"
+            win_pitcher = getFromIDMap(self.wp, playerCodeToIDMap)
+            loss_pitcher = getFromIDMap(self.lp, playerCodeToIDMap)
+            save_pitcher = getFromIDMap(self.save, playerCodeToIDMap)
+            gwrbi = getFromIDMap(self.gwrbi, playerCodeToIDMap)
+            stmt += f", {win_pitcher}, {loss_pitcher}, {save_pitcher}, {gwrbi})"
         cur.execute(stmt)
     
 class Event:
@@ -492,9 +508,12 @@ EVENT_TYPE_DICT["ladj"] = EventAdjustment
 EVENT_TYPE_DICT["padj"] = EventAdjustment
 EVENT_TYPE_DICT["presadj"] = EventAdjustment
 
-def insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, events, conn):
+def insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, events, conn, isUpdate=False):
     curs = conn.cursor()
-    gameInfo.insertIntoDB(curs, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap)
+    gameInfo.insertIntoDB(curs, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, isUpdate)
+    if isUpdate:
+        # only update gameinfo for now
+        return
     #print(stmt)
     event_id = 1
     for evt in events:
@@ -557,7 +576,7 @@ def parseEvent(v, gameInfo, gameID, nextGameNum):
             evt = EVENT_TYPE_DICT[evtType](v[1:])
         return evt
     
-def parseEventsFromEVX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn):
+def parseEventsFromEVX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn, isUpdate):
     print(f"parseEventsFromEVX: processing file {fPath}")
     with open(fPath, "r") as fIn:
         rdr = csv.reader(fIn, delimiter=',', quotechar='"')
@@ -571,7 +590,7 @@ def parseEventsFromEVX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scor
                 # insert all events from previous game
                 if gameID is not None:
                     insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap,
-                                       evts, conn)
+                                       evts, conn, isUpdate)
                 gameID = evt
                 gameInfo = None
                 nextGameNum += 1
@@ -585,7 +604,7 @@ def parseEventsFromEVX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scor
         # insert last record
         if gameID is not None:
             insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap,
-                               evts, conn)
+                               evts, conn, isUpdate)
     return nextGameNum
 
 def parseBox(v, gameInfo, gameID, nextGameNum):
@@ -607,7 +626,7 @@ def parseBox(v, gameInfo, gameID, nextGameNum):
     print("unknown event", evtType)
     return None
 
-def parseBoxFromEBX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn):
+def parseBoxFromEBX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn, isUpdate):
     print(f"parseBoxFromEBX: processing file {fPath}")
     with open(fPath, "r") as fIn:
         rdr = csv.reader(fIn, delimiter=',', quotechar='"')
@@ -621,7 +640,7 @@ def parseBoxFromEBX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerC
                 # insert all events from previous game
                 if gameID is not None:
                     insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap,
-                                       evts, conn)
+                                       evts, conn, isUpdate)
                 gameID = evt
                 gameInfo = None
                 nextGameNum += 1
@@ -635,10 +654,10 @@ def parseBoxFromEBX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerC
         # insert last record
         if gameID is not None:
             insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap,
-                               evts, conn)
+                               evts, conn, isUpdate)
     return nextGameNum    
     
-def processEventFiles(startYear, endYear, conn, includePayoffs=True):
+def processEventFiles(startYear, endYear, conn, includePayoffs=True, isUpdate=False):
     #playoffs = ("wc", "dv", "lc", "ws")
     rng = list(range(startYear, endYear+1))
     #rng.extend(playoffs)
@@ -671,7 +690,7 @@ def processEventFiles(startYear, endYear, conn, includePayoffs=True):
                     #print(f"getPlayerStats: processing file {fPath}")
                     fPath2 = os.path.join(baseDir, fName)
                     
-                    nextGameNum = parseEventsFromEVX(fPath2, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn)
+                    nextGameNum = parseEventsFromEVX(fPath2, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn, isUpdate)
             except FileNotFoundError as e:
                 print(fName)
                 print(e)
@@ -687,7 +706,7 @@ def processEventFiles(startYear, endYear, conn, includePayoffs=True):
                     #print(f"getPlayerStats: processing file {fPath}")
                     fPath2 = os.path.join(baseDirPost, fName)
                     
-                    nextGameNum = parseEventsFromEVX(fPath2, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn)
+                    nextGameNum = parseEventsFromEVX(fPath2, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn, isUpdate)
             except FileNotFoundError as e:
                 print(fName)
                 print(e)
@@ -705,7 +724,7 @@ def processEventFiles(startYear, endYear, conn, includePayoffs=True):
                     #print(f"getPlayerStats: processing file {fPath}")
                     fPath2 = os.path.join(baseDirBox, fName)
                     
-                    nextGameNum = parseBoxFromEBX(fPath2, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn)
+                    nextGameNum = parseBoxFromEBX(fPath2, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, nextGameNum, conn, isUpdate)
             except FileNotFoundError as e:
                 print(fName)
                 print(e)
@@ -713,3 +732,8 @@ def processEventFiles(startYear, endYear, conn, includePayoffs=True):
             #    pass            
                 
     return gameIDMap
+
+if __name__=="__main__":
+    import sqlite3
+    conn = sqlite3.connect("baseball.db")
+    processEventFiles(1871, 2023, conn, True, True)

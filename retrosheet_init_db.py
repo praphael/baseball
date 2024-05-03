@@ -522,9 +522,9 @@ allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
     LEFT JOIN (SELECT * FROM daynight) dn
     ON dn.num=(1 & i.cond) 
     LEFT JOIN (SELECT * FROM fieldcond) fc
-    ON fc.num=(7 & i.cond >> 1)
+    ON fc.num=(7 & (i.cond >> 1))
     LEFT JOIN (SELECT * FROM precip) pr
-    ON pr.num=(7 & i.cond >> 4)
+    ON pr.num=(7 & (i.cond >> 4))
     LEFT JOIN (SELECT * FROM sky) sk
     ON sk.num=(7 & (i.cond >> 7) )
     LEFT JOIN (SELECT * FROM winddir) wd
