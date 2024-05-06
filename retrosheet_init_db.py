@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import sys
+import os
 
 allTables = dict()
 allViews = dict()
@@ -123,8 +124,12 @@ allTables["game_info"]="""CREATE TABLE game_info (
     start_time smallint,
     game_type_num smallint NOT NULL,    
     away_team char(3) NOT NULL,
+    away_league char(3),
+    away_division char(8),
     away_game_num smallint,
-    home_team char(3) NOT NULL,    
+    home_team char(3) NOT NULL,
+    home_league char(3),
+    home_division char(8),
     home_game_num smallint,
     flags smallint NOT NULL,
     park char(5) NOT NULL,
@@ -487,14 +492,16 @@ allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
         atm.team_id AS away_team, 
         atm.team_city AS away_team_city, 
         atm.team_nickname AS away_team_name, 
-        atm.team_league AS away_league,
+        i.away_league,
+        i.away_division,
         i.away_game_num,
-        i.home_team AS home_team_id,
         htm.team_id AS home_team, 
         htm.team_city AS home_team_city, 
         htm.team_nickname AS home_team_name,
-        htm.team_league AS home_league,
+        i.home_league,
+        i.home_division,
         i.home_game_num,
+        i.park AS park_id,
         prk.park_name AS park,
         i.attendance,
         i.game_duration_min,
@@ -504,7 +511,7 @@ allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
         sk.d AS sky,
         wd.d AS winddir,
         31 & (cond >> 14) AS windspeed,
-        255 & (cond >> 20) AS temp,
+        128 & (cond >> 20) AS temp,
         (1 & (flags >> 2)) AS home_team_bat_first,
         (1 & (flags >> 3)) AS use_dh,
         (1 & (flags >> 6)) AS complete,
@@ -698,7 +705,7 @@ allViews["gamelog_view"] = """CREATE VIEW gamelog_view AS SELECT
     s25.home_score AS h25,
     s25.away_score AS a25
     FROM gamelog l
-    LEFT JOIN (SELECT * FROM game_info_view) i
+    LEFT JOIN (SELECT * FROM game_info2) i
     ON l.game_id=i.game_id    
     LEFT JOIN (SELECT * FROM score_by_inning) s1
     ON l.game_id=s1.game_id AND s1.inning=1
@@ -1025,7 +1032,7 @@ allViews["player_game_batting_view"] = """CREATE VIEW player_game_batting_view A
     b.GIDP,
     b.INTF
     FROM player_game_batting b
-    LEFT JOIN game_info_view i
+    LEFT JOIN game_info2 i
     ON b.game_id=i.game_id    
     LEFT JOIN player pl
     ON b.batter_num_id=pl.player_num_id
@@ -1081,7 +1088,7 @@ allViews["player_game_fielding_view"] = """CREATE VIEW player_game_fielding_view
     f.TP,
     f.PB
     FROM player_game_fielding f
-    LEFT JOIN game_info_view i
+    LEFT JOIN game_info2 i
     ON f.game_id=i.game_id
     LEFT JOIN player pl
     ON f.fielder_num_id=pl.player_num_id
@@ -1146,7 +1153,7 @@ allViews["player_game_pitching_view"] = """CREATE VIEW player_game_pitching_view
     p.SH,
     p.SF
     FROM player_game_pitching p
-    LEFT JOIN game_info_view i
+    LEFT JOIN game_info2 i
     ON p.game_id=i.game_id
     LEFT JOIN player pl
     ON p.pitcher_num_id=pl.player_num_id
@@ -1192,19 +1199,19 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     i.loss_pitcher,
     i.save_pitcher,
     i.gw_rbi,
-    s.batter_id,
+    s.batter_num_id,
     pgb.team AS batter_team,
     pgb.pos AS batter_pos,
     pgb.seq AS batter_seq,
     bat.name_last AS batter_last,
     bat.name_other AS batter_other,
-    ---bat_lr.d AS batter_side,
-    s.pitcher_id,
+    bat_lr.d AS batter_side,
+    s.pitcher_num_id,
     pgp.team AS pitcher_team,
     pgp.seq AS pitcher_seq,
     pit.name_last AS pitcher_last,
     pit.name_other AS pitcher_other,
-    ---pit_lr.d AS pitcher_side,
+    pit_lr.d AS pitcher_side,
     s.inning,
     s.inning_half,
     s.outs,
@@ -1217,34 +1224,31 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     s.hit_type,
     s.outs_made,
     s.runs_scored,
-    b.bases_first AS brun1_id,
-    b.bases_second AS brun2_id,
-    b.bases_third AS brun3_id,
 
----    brun1.name_last as brun1_name_last,
----    brun1.name_other as brun1_name_other,
----    brun2.name_last as brun2_name_last,
----    brun2.name_other as brun2_name_other,
----    brun3.name_last as brun3_name_last,
----    brun3.name_other as brun3_name_other,
+    brun1.name_last as brun1_name_last,
+    brun1.name_other as brun1_name_other,
+    brun2.name_last as brun2_name_last,
+    brun2.name_other as brun2_name_other,
+    brun3.name_last as brun3_name_last,
+    brun3.name_other as brun3_name_other,
     
     r2.play_result AS play_result2,
     r2.play_base AS play_base2,
     r3.play_result AS play_result3,
     r3.play_base AS play_base3,
 
-    fa1.fielder_id AS ass1,
-    fa2.fielder_id AS ass2,
-    fa3.fielder_id AS ass3,
-    fa4.fielder_id AS ass4,
-    fa5.fielder_id AS ass5,
-    fa6.fielder_id AS ass6,
-    fpo1.fielder_id AS po1,
-    fpo2.fielder_id AS po2,
-    fpo3.fielder_id AS po3,
-    fe1.fielder_id AS err1,
-    fe2.fielder_id AS err2,
-    fe3.fielder_id AS err3,
+    fa1.fielder_num_id AS ass1,
+    fa2.fielder_num_id AS ass2,
+    fa3.fielder_num_id AS ass3,
+    fa4.fielder_num_id AS ass4,
+    fa5.fielder_num_id AS ass5,
+    fa6.fielder_num_id AS ass6,
+    fpo1.fielder_num_id AS po1,
+    fpo2.fielder_num_id AS po2,
+    fpo3.fielder_num_id AS po3,
+    fe1.fielder_num_id AS err1,
+    fe2.fielder_num_id AS err2,
+    fe3.fielder_num_id AS err3,
 
     r1m1.mod AS r1m1,
     r1m1.prm AS r1m1prm,
@@ -1292,7 +1296,7 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
 
     FROM game_situation s
 
-    LEFT JOIN game_info_view i
+    LEFT JOIN game_info2 i
     ON s.game_id=i.game_id
     LEFT JOIN game_situation_bases b
     ON s.game_id=b.game_id AND s.event_id=b.event_id
@@ -1373,37 +1377,26 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     LEFT JOIN game_situation_base_run_mod br3_m3
     ON s.game_id=br3_m3.game_id AND br3_m3.seq=3 AND s.event_id=br3_m3.event_id
     
-    LEFT JOIN player_num_id bat_num
-    ON s.batter_id=bat_num.player_num_id
-    LEFT JOIN player_num_id pit_num
-    ON s.pitcher_id=pit_num.player_num_id
     LEFT JOIN player bat
-    ON bat.player_id=bat_num.player_id
+    ON bat.player_num_id=s.batter_num_id
     LEFT JOIN player pit
-    ON pit.player_id=pit_num.player_id
+    ON pit.player_num_id=s.pitcher_num_id
 
-    LEFT JOIN player_num_id brun1_num
-    ON b.bases_first=brun1_num.player_id
-    LEFT JOIN player_num_id brun2_num
-    ON b.bases_second=brun2_num.player_id
-    LEFT JOIN player_num_id brun3_num
-    ON b.bases_third=brun3_num.player_id
-
----    LEFT JOIN player brun1
----    ON brun1.player_id=brun1_num.player_id
----    LEFT JOIN player brun2
----    ON brun2.player_id=brun2_num.player_id
----    LEFT JOIN player brun3
----    ON brun3.player_id=brun3_num.player_id
+    LEFT JOIN player brun1
+    ON brun1.player_num_id=b.bases_first
+    LEFT JOIN player brun2
+    ON brun2.player_num_id=b.bases_second
+    LEFT JOIN player brun3
+    ON brun3.player_num_id=b.bases_third
     
     LEFT JOIN player_game_batting pgb 
-    ON s.batter_id=pgb.batter_id AND pgb.game_id=s.game_id
+    ON s.batter_num_id=pgb.batter_num_id AND pgb.game_id=s.game_id
     LEFT JOIN player_game_pitching pgp
-    ON s.pitcher_id=pgp.pitcher_id AND pgp.game_id=s.game_id
-    ---LEFT JOIN left_right bat_lr 
-    ---ON bat.bats=bat_lr.lr AND bat.player_id=bat_num.player_id
-    ---LEFT JOIN left_right pit_lr 
-    ---ON pit.bats=pit_lr.lr AND pit.player_id=pit_num.player_id   
+    ON s.pitcher_num_id=pgp.pitcher_num_id AND pgp.game_id=s.game_id
+    LEFT JOIN left_right bat_lr 
+    ON bat.bats=bat_lr.lr AND bat.player_num_id=bat.player_num_id
+    LEFT JOIN left_right pit_lr 
+    ON pit.bats=pit_lr.lr AND pit.player_num_id=pit.player_num_id   
 """
 
 allValues = dict()
@@ -1443,6 +1436,11 @@ def insertDummyValues(cur):
     stmt = "INSERT INTO park VALUES("
     stmt += "'unkwn', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
     cur.execute(stmt)
+
+    # dummy player ID to satisfy FOREIGN KEY constraint
+    stmt = "INSERT INTO player (player_num_id, player_id, name_last, name_first, name_other) VALUES("
+    stmt += "0, NULL, '', '', '')"
+    cur.execute(stmt)
         
 if __name__ == "__main__":
     db = "sqlite"    
@@ -1452,8 +1450,7 @@ if __name__ == "__main__":
     if db == "sqlite":
         import sqlite3
         # clear file
-        f = open("baseball.db", "w")
-        f.close()
+        os.remove("baseball.db")
 
         conn = sqlite3.connect("baseball.db")
         cur = conn.cursor()

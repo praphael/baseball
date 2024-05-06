@@ -7,12 +7,12 @@ const OptionRangeWithCheck = ({fieldName, label, options, valLow, valHigh,
                        checkVal, onChange, optionClasses,
                        checkClasses}) => {
     const onNewVal = (v, lowHigh) => {
-        const fName = fieldName + lowHigh;
+        const fName = fieldName + "_" + lowHigh;
         onChange(fName, v);
     }
     //console.log("OptionWithCheck val=", val, " checkVal=", checkVal)
     const idLow = `"filter_${fieldName}_low"`;
-    const idHigh = `"filter_${fieldName}_low"`;
+    const idHigh = `"filter_${fieldName}_high"`;
     return (
         <div className={optionClasses.divClass}>
             <h5 className={optionClasses.labelClass} htmlFor={idLow}>{label}:</h5>

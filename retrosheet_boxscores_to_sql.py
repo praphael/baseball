@@ -310,7 +310,10 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                             #print(teamIDMap)                            
                             print("Could not find team ", away_team)
                             missing_teams.append(away_team)
-
+                    elif i == 4:
+                        away_league = v
+                    elif i == 5:
+                        away_game_num = int(v)
                     elif i == 6:  # enough info to get gameID
                         home_team = v
 
@@ -367,6 +370,10 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                         
                         # start statment
                         stmt = f"INSERT INTO {tbl} VALUES({game_id}"                        
+                    elif i == 7:
+                        home_league = v
+                    elif i == 8:
+                        home_game_num = int(v)
                     elif i == 9:
                         away_score = int(v)
                         stmt += f", {away_score}"
@@ -444,6 +451,10 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                     stmt = f"UPDATE game_info SET flags={fl}"
                     stmt += f", dow={DAYS_OF_WEEK[dow]}"
                     stmt += f", game_duration_min={game_len_min}"
+                    stmt += f", away_league='{away_league}'"
+                    stmt += f", away_game_num={away_game_num}"
+                    stmt += f", home_league='{home_league}'"
+                    stmt += f", home_game_num={home_game_num}"
                     stmt += f" WHERE game_id={game_id}"
                     cur.execute(stmt)
                 else:

@@ -4,12 +4,14 @@
 #include <vector>
 
 struct NameTrie {
-    std::unique_ptr<NameTrie> chld[26];
+    NameTrie* chld[128];
     // players with this name 
     std::vector<int> playerIDs;
     int numChld;
 };
 
-void addToTrie(NameTrie &trie, std::string name, int playerID);
+void addToTrie(NameTrie &trie, const std::string& name, int playerID);
+
+void destroyTrie(NameTrie &trie);
 
 const std::vector<int>& findInTrie(const NameTrie &trie, std::string namePartial);

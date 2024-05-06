@@ -79,7 +79,7 @@ SKYCOND_A = ["", "sunny", "cloudy", "overcast", "dome", "night"]
 WINDDIR = dict()
 WINDDIR["fromcf"] = 1
 WINDDIR["fromlf"] = 2
-WINDDIR["fromlf"] = 3
+WINDDIR["fromrf"] = 3
 WINDDIR["ltor"] = 4
 WINDDIR["rtol"] = 5
 WINDDIR["tolf"] = 6
@@ -172,10 +172,13 @@ class GameInfo:
         # integral values
         elif f in ("innings", "windspeed", "temp", "timeofgame", "attendance"):
             try:
-                val = int(v)                    
+                val = int(v)
+                if f == "windspeed" and val > 30:
+                    print("windspeed", val, "> 30, truncating to 30")
+                    val = 30
             except ValueError as e:
                 #print(f"GameInfo: failure to parse integer field ", f, ",  v=", v)
-                return
+                return 
             setattr(self, f, val)
         elif f == "starttime":  
             # parse start time to integer (military time)
@@ -245,14 +248,20 @@ class GameInfo:
         if isUpdate:
             stmt += f" start_time={self.starttime}, game_type_num={game_num_type}"
         else:
+            # NULL values are for league/division which are not supplied 
+            # leagues present in gamelogs, division TBD
             stmt += f"{self.gameNumID}, {game_date}, {year}, {month}, 0, {self.starttime}, {game_num_type}"
-            stmt += f", '{away}', 0, '{home}', 0"
+            stmt += f", '{away}', NULL, NULL, 0, '{home}', NULL, NULL, 0"
         
         # set flags
         flags = self.has_pitch_cnt | (self.has_pitch_cnt << 1) | (self.htbf << 2)
         flags = flags | (self.use_dh << 3) | (self.tiebreak_base << 4)
 
         # set condition
+        if self.winddir != 0:
+            print("winddir=", self.winddir)
+        if self.sky in (2, 3):
+            print("sky=", self.sky)
         cond = self.daynight | (self.fieldcond << 1) | (self.precip << 4)
         cond = cond | (self.sky << 7) | (self.winddir << 10) | ((self.windspeed+1)<<14)
         cond = cond | (self.temp << 20)

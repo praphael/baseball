@@ -20,8 +20,8 @@ int doQuery(sqlite3 *pdb, std::string qy,
 int handleParksRequest(sqlite3 *pdb, const std::string &qy, std::string& resp, std::string &mimeType);
 int handleTeamsRequest(sqlite3 *pdb, const std::string &qy, std::string& resp, std::string &mimeType, 
                        std::unordered_map<std::string, std::string>& teamsMap );
-int handleBoxRequest(sqlite3 *pdb, const std::string &qy, std::string& resp, std::string &mimeType,
-                    const std::unordered_map<std::string, std::string>& teamsMap );
+int handleGamelogRequest(sqlite3 *pdb, const std::string &qy, std::string& resp, std::string &mimeType,
+                         const std::unordered_map<std::string, std::string>& teamsMap );
 
 // get names of players given partial name
 int handlePlayerRequest(sqlite3 *pdb, const std::string &qy, std::string& resp, 

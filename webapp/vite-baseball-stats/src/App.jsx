@@ -5,29 +5,33 @@ import Results from './components/Results.jsx'
 import StatTypes from './components/StatTypes.jsx';
 
 import { doRequest } from './js/requests.js'
-import { makeBoxScoreQueryString } from './js/queries.js'
+import {  makeGamelogQueryJSON, makePlayerGameQueryJSON, makeSituationQueryJSON } from './js/queries.js'
 import { boxScoreFiltOptsDefaults, boxScoreFiltDefaults, filterFields, getParksTeams, orderDefaults } from './js/filters.js'
 import { statTypesArr, statSortOrder, statSetsDefault } from './js/stats.js'
 import NumberInputWithCheck from './components/NumberInputWithCheck.jsx';
+import RadioButtonGroup from './components/RadioButtonGroup.jsx';
 
 const statSets = statSetsDefault;
 
-const resultsClass = "row";
+const resultsClass = "overflow-x-scroll flex-no-wrap";
 const statTypesClassName="col-auto";
 const aggregateDivClass = "col-auto" ; // border border-secondary
 const aggregateSelectClass = "col-auto form-select";
 const updateButtonClass = "btn btn-success text-no-wrap";
 
+const queryTypes = [["Team", "gamelog"], ["Player","playergame"], ["Situation","situation"]];
+
 function App() {
   const [results, setResults] = useState("");
   const [filter, setFilter] = useState(boxScoreFiltDefaults);
   //const [statTypes, setStatTypes] = useState({});
-  const [statSet, setStatSet] = useState("Offense 1");
+  const [statSet, setStatSet] = useState("off1");
   const [order, setOrder] = useState(orderDefaults);
   const [aggregate, setAggregate] = useState("sum");
   const [boxScoreFiltOpts, setBoxScoreFiltOpts] = useState(boxScoreFiltOptsDefaults);
   const [minGP, setMinGP] = useState(1);
   const [limit, setLimit] = useState(30);
+  const [queryType, setQueryType] = useState("gamelog");
 
   console.log("boxScoreFiltOptsDefaults=", boxScoreFiltOptsDefaults);
   useEffect(() => {
@@ -47,15 +51,40 @@ function App() {
   const updateData = async () => {
     console.log("updateData");
     const statTypes = statSets.get(statSet);
-    const qy = makeBoxScoreQueryString(filter, aggregate, statTypes, order, minGP, limit);
-    console.log("qy=", qy);
-    const url = encodeURI("/box?" + qy);
-    const r = await doRequest(url, 'GET', null, "", null, "html", (e) => {
-        alert(`Get Data:  status ${e.status} error: ${e.error}`);
-    });
-    // console.log("updateData r=", r);
-    if(r != null)
-      setResults(r);
+
+    if (queryType == "gamelog") {
+      const qy = makeGamelogQueryJSON(filter, aggregate, statTypes, order, minGP, limit);
+      console.log("qy=", qy);
+      const url = encodeURI("/gamelog?" + qy);
+      const r = await doRequest(url, 'GET', null, "", null, "html", (e) => {
+          alert(`Get Data:  status ${e.status} error: ${e.error}`);
+      });
+      // console.log("updateData r=", r);
+      if(r != null)
+        setResults(r);
+    }
+    if (queryType == "playergame") {
+      const qy = makePlayerGameQueryJSON(filter, aggregate, statTypes, order, minGP, limit);
+      console.log("qy=", qy);
+      const url = encodeURI("/playergame?" + qy);
+      const r = await doRequest(url, 'GET', null, "", null, "html", (e) => {
+          alert(`Get Data:  status ${e.status} error: ${e.error}`);
+      });
+      // console.log("updateData r=", r);
+      if(r != null)
+        setResults(r);
+    }
+    if (queryType == "situation") {
+      const qy = makeSituationQueryJSON(filter, aggregate, statTypes, order, minGP, limit);
+      console.log("qy=", qy);
+      const url = encodeURI("/situation?" + qy);
+      const r = await doRequest(url, 'GET', null, "", null, "html", (e) => {
+          alert(`Get Data:  status ${e.status} error: ${e.error}`);
+      });
+      // console.log("updateData r=", r);
+      if(r != null)
+        setResults(r);
+    }
   }
 
   const onNewAggVal=(v) => {
@@ -85,11 +114,11 @@ function App() {
             // clear the selected values 
             // because doesn't make sense to select for value while also grouping
             // except for ranges
-            if(field == "team") {
-              if(filter.values.get("teamlow") == filter.values.get("teamhigh")) {
-                newFilt.values.set("teamlow", "");
-                newFilt.values.set("teamhigh", "");
-              }
+            if(field == "year") {
+               if(filter.values.get("year_low") == filter.values.get("year_high")) {
+                 newFilt.values.set("year_low", "");
+                 newFilt.values.set("year_high", "");
+               }
             }
             else {
                 newFilt.values.set(field, "");
@@ -106,7 +135,7 @@ function App() {
   }
 
   const onOrderChange = (field, value, isAsc) => {
-    console.log("onOrderChange  field=", field, " value=", value);
+    console.log("onOrderChange field=", field, " value=", value);
     try {
       // we have to copy, or else React doens't detect state change
       const newOrd = [...order]
@@ -122,6 +151,16 @@ function App() {
       setOrder(newOrd);
       // updateData();
     } catch(e) { console.log("Could not set order ", e)}
+  }
+
+  const onStatSetChange = (stSet) => {
+    console.log("onStatSetChange=", stSet)
+    setStatSet(stSet);
+  }
+
+  const onQueryTypeChange = (qType) => {
+    console.log("onQueryTypeChange=", qType)
+    setQueryType(qType);
   }
 
   console.log("App statSet=", statSet);
@@ -144,16 +183,21 @@ function App() {
              Some combinations of parameters may not make sense.
              </p>
             </div>
-        <div className="row">
-          <div className="col-auto">
+        <div className="row overflow-x-scroll flex-no-wrap">
+          <div className="col">
+            <RadioButtonGroup fieldName="queryType" label=""
+               options={queryTypes} 
+                  val={queryType} onRadioChange={onQueryTypeChange}
+                  radioClasses={{divClass:"", labelClass:""}} />
             <h4>Filters/Order:</h4>
-            <BoxScoreFilters boxScoreFiltOpts={boxScoreFiltOpts} filter={filter} onFiltChange={onFiltChange}
-                             order={order} onOrderChange={onOrderChange} updateData={updateData}/>
+            <BoxScoreFilters boxScoreFiltOpts={boxScoreFiltOpts} filter={filter}
+                             onFiltChange={onFiltChange} order={order} 
+                             onOrderChange={onOrderChange} updateData={updateData}/>
           </div>
-          <div className="col-auto">
+          <div className="col">
             <div className="container">
               <div className="row">
-                <StatTypes statSet={statSet} setStatSet={setStatSet} 
+                <StatTypes statSet={statSet} onStatSetChange={onStatSetChange} 
                             updateData={updateData}
                             divClassName={statTypesClassName}/>
               </div>
@@ -167,6 +211,8 @@ function App() {
                         <option value="no">(no)</option>
                         <option value="sum">Total</option>
                         <option value="avg">Average</option>
+                        <option value="max">Max</option>
+                        <option value="min">Min</option>
                     </select>
                 </div>
                 <div className="col-2">
@@ -185,7 +231,7 @@ function App() {
                   <button className={updateButtonClass} onClick={()=>(updateData())}>Get Data</button>
                 </div>
               </div>
-              <div className="row">
+              <div className="row overflow-x-scroll flex-no-wrap">
                   <Results resultsTable={results} divClassName={resultsClass}/>
               </div>
             </div>

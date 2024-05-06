@@ -1,24 +1,25 @@
 import { statSortOrder } from "./stats";
 
-function makeBoxScoreQueryString(filter, agg, statTypes, order, minGP, limit) {
+function makeQueryJSONBase(filter, agg, statTypes, order, minGP, limit) {
     let qy = {};
     filter.values.forEach((v, k) => {
         v = v.trim();
-        if (k == "yearlow" || k == "yearhigh" || k == "month") {
+        // range 
+        if (k.endsWith("_low") || k.endsWith("_high")) {
             if (v != "(all)" && v != "") {
-                console.log("makeBoxScoreQueryString k=", k, " v=", v);
+                console.log("makeQueryJSONBase k=", k, " v=", v);
                 v = parseInt(v);
-                console.log("makeBoxScoreQueryString (after parse) v=", v);
+                console.log("makeQueryJSONBase (after parse) v=", v);
                 if (v >= 0) {
-                    if (k == "yearlow") {
-                        const q = qy["year"];
-                        qy["year"] = {...q, "low" : v};
-                        console.log("yearlow qy=", qy);
+                    if (k.endsWith("_low")) {
+                        const b = k.substr(0, k.length-4);
+                        const q = qy[b];
+                        qy[b] = {...q, "low" : v};
                     }
-                    else if (k == "yearhigh") {
-                        const q = qy["year"];
-                        qy["year"] = {...q, "high" : v};
-                        console.log("yearhigh qy=", qy);
+                    else if (k.endsWith("_high")) {
+                        const b = k.substr(0, k.length-5);
+                        const q = qy[b];
+                        qy[b] = {...q, "high" : v};
                     }
                     else {
                         qy[k] = v;
@@ -69,4 +70,16 @@ function makeBoxScoreQueryString(filter, agg, statTypes, order, minGP, limit) {
     return JSON.stringify(qy);
 }
 
-export { makeBoxScoreQueryString }
+function makeGamelogQueryJSON(filter, agg, statTypes, order, minGP, limit) {
+    return makeQueryJSONBase(filter, agg, statTypes, order, minGP, limit);
+}
+
+function makePlayerGameQueryJSON(filter, agg, statTypes, order, minGP, limit) {
+    return makeQueryJSONBase(filter, agg, statTypes, order, minGP, limit);
+}
+
+function makeSituationQueryJSON(filter, agg, statTypes, order, minGP, limit) {
+    return makeQueryJSONBase(filter, agg, statTypes, order, minGP, limit);
+}
+
+export { makeGamelogQueryJSON, makePlayerGameQueryJSON, makeSituationQueryJSON }

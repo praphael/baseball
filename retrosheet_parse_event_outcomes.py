@@ -2281,7 +2281,7 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=[0, 200000], quit_on_err=
 
                             if quit_on_err:
                                 PRINT_DEBUG_OUT()
-                                break
+                                exit(1)
                             #PRINT_DEBUG_OUT()
                             #print(f"parsed ", total, "before failure")
                             #exit(1)                        

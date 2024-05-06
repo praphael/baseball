@@ -59,11 +59,11 @@ const def = [ "PB", "DP", "TP", "PO",
               "A", "_SB", "_CS", "CI"]
 
 const statSetsDefault = new Map()
-statSetsDefault.set("Game Box", new Set(gamebox));
-statSetsDefault.set("Offense 1", new Set(off1));
-statSetsDefault.set("Offense 2", new Set(off2));
-statSetsDefault.set("Pitching 1", new Set(pitch1));
-statSetsDefault.set("Pitching 2", new Set(pitch2));
-statSetsDefault.set("Fielding", new Set(def));
+statSetsDefault.set("box", new Set(gamebox));
+statSetsDefault.set("off1", new Set(off1));
+statSetsDefault.set("off2", new Set(off2));
+statSetsDefault.set("pit1", new Set(pitch1));
+statSetsDefault.set("pit2", new Set(pitch2));
+statSetsDefault.set("fld", new Set(def));
 
 export { statTypesArr, statSetsDefault, statSortOrder }

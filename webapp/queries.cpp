@@ -21,6 +21,7 @@ using namespace std::string_literals;
 const auto MONTH_FIELD = "month"s;
 //const auto YEAR_FIELD = "CAST(substr(game_date,0,5) AS INTEGER)"s;
 const auto YEAR_FIELD = "year"s;
+const auto DAY_FIELD = "CAST(substr(game_date,9,2) AS INTEGER)"s;
 // field conditions
 const auto DAYNIGHT_FIELD = "daynight"s;
 const auto TEMP_FIELD = "temp"s;
@@ -28,7 +29,7 @@ const auto WINDSPEED_FIELD = "windspeed"s;
 const auto WINDDIR_FiELD = "winddir"s;
 const auto PRECIP_FIElD = "precip";
 const auto SKY_FIELD = "sky";
-const auto FIELDCOND_FIELD = "fieldcond";
+const auto FIELDCOND_FIELD = "field_cond";
 
 const auto VALID_AGG = unordered_set<string>{"no", "sum", "avg", "max", "min", "count"};
 
@@ -69,7 +70,14 @@ const unordered_map<string, string> FIELD_NAME_MAP =
                   {"I6", "score_by_inning_6"},
                   {"I7", "score_by_inning_7"},
                   {"I8", "score_by_inning_8"},
-                  {"I9", "score_by_inning_9"} };
+                  {"I9", "score_by_inning_9"},
+                  {"I10", "score_by_inning_10"},
+                  {"I11", "score_by_inning_11"},
+                  {"I12", "score_by_inning_12"},
+                  {"I13", "score_by_inning_13"},
+                  {"I14", "score_by_inning_14"},
+                  {"I15", "score_by_inning_15"} };
+
 
 
 vector<string> QUERY_TYPES = {"All", "gamelog", "playergame", "situation"};
@@ -77,16 +85,16 @@ vector<string> QUERY_TYPES = {"All", "gamelog", "playergame", "situation"};
 auto QUERY_PARAMS = unordered_map<string, q_params_t>();
 
 // Note: Home/Away split not a query parameter because it has special handling
-vector<string> QUERY_PARAMS_ORDER = {"year", "team", "_team", "league", "_league", 
-                                     "month", "dow", "park_id", "game",
-                                     "season", "series", "day_night", "temp", "windspeed",
-                                     "winddir", "precip", "sky", "fieldcond", "starttime",
+vector<string> QUERY_PARAMS_ORDER = {"year", "month", "dow", "date", "day", "season", "round", "team", "_team", 
+                                     "league", "_league", "park_id", "game", "_game",
+                                     "daynight", "temp", "windspeed",
+                                     "winddir", "precip", "sky", "field_cond", "starttime",
                                      "attendance", "duration", "protest", "forfeit", 
                                      "batter", "pitcher", "batter_team", "pitcher_team",
                                      "fielder", "sit_inn", "sit_innhalf", "sit_outs",
                                      "sit_bat_tm_sco", "sit_pit_tm_sco", "sit_sco_diff", 
                                      "sit_bases", "sit_base_1", "sit_base_2", "sit_base_3", 
-                                     "sit_pit_cnt", "sit_play_res", "sit_play_base",
+                                     "sit_bat_cnt", "sit_play_res", "sit_play_base",
                                      "sit_play_res2", "sit_play_base2", "sit_play_res3",
                                      "sit_play_base3", "sit_hit_loc", "sit_hit_type",
                                      "sit_outs_made", "sit_runs_sco"};
@@ -130,22 +138,22 @@ unordered_map<string, q_params_t>& initQueryParams() {
     QUERY_PARAMS["park_id"] = q_params_t{"park", valType::STR, false, {queryType::ALL}};
     
     // game number (regular or post season series)
-    // note to be confunsed with "game_num" which is the double header number
     QUERY_PARAMS["game"] = q_params_t{"game_num", valType::INT_RANGE, true, {queryType::ALL}};
+    QUERY_PARAMS["_game"] = q_params_t{"game_num", valType::INT_RANGE, true, {queryType::ALL}};
     // "Reg" "Post" "Pre" "Other"
     QUERY_PARAMS["season"] = q_params_t{"season", valType::STR, false, {queryType::ALL}};
     // "", "Wildcard", "Division", "League", "World Series", "Playoff tiebreak"
-    QUERY_PARAMS["series"] = q_params_t{"post_series", valType::STR, false, {queryType::ALL}};
+    QUERY_PARAMS["round"] = q_params_t{"post_series", valType::STR, false, {queryType::ALL}};
     
     // 'day' or 'night'
-    QUERY_PARAMS["day_night"] = q_params_t{"day_night", valType::STR, false, {queryType::ALL}};
+    QUERY_PARAMS["daynight"] = q_params_t{"daynight", valType::STR, false, {queryType::ALL}};
     // conditions
     QUERY_PARAMS["temp"] = q_params_t{TEMP_FIELD, valType::INT_RANGE, false, {queryType::ALL}};
     QUERY_PARAMS["windspeed"] = q_params_t{WINDSPEED_FIELD, valType::INT_RANGE, false, {queryType::ALL}};
     QUERY_PARAMS["winddir"] = q_params_t{WINDDIR_FiELD, valType::STR, false, {queryType::ALL}};
     QUERY_PARAMS["precip"] = q_params_t{PRECIP_FIElD, valType::STR, false, {queryType::ALL}};
     QUERY_PARAMS["sky"] = q_params_t{SKY_FIELD, valType::STR, false, {queryType::ALL}};
-    QUERY_PARAMS["fieldcond"] = q_params_t{FIELDCOND_FIELD, valType::STR, false, {queryType::ALL}};
+    QUERY_PARAMS["field_cond"] = q_params_t{FIELDCOND_FIELD, valType::STR, false, {queryType::ALL}};
     QUERY_PARAMS["start_time"] = q_params_t{"start_time", valType::INT_RANGE, false, {queryType::ALL}};
     QUERY_PARAMS["attendance"] = q_params_t{"attendance", valType::INT_RANGE, false, {queryType::ALL}};
     QUERY_PARAMS["duration"] = q_params_t{"game_duration_min", valType::INT_RANGE, false, {queryType::ALL}};
@@ -174,6 +182,7 @@ unordered_map<string, q_params_t>& initQueryParams() {
     QUERY_PARAMS["sit_pit_tm_sco"] = q_params_t{"pitch_team_score", valType::INT_RANGE, false, {queryType::SITUATION}};
     // batter team score - pitcher team score
     QUERY_PARAMS["sit_sco_diff"] = q_params_t{"(bat_team_score - pitch_team_score)", valType::INT_RANGE, false, {queryType::SITUATION}};
+    QUERY_PARAMS["sit_bat_cnt"] = q_params_t{"pitch_cnt", valType::STR, false, {queryType::SITUATION}};
     
     // string which describes a base situation that
     // cannot be described by using "sit_bases_XXX" or is inconvienent
@@ -188,7 +197,7 @@ unordered_map<string, q_params_t>& initQueryParams() {
     QUERY_PARAMS["sit_base_2"] = q_params_t{"brun2_last", valType::INT, false, {queryType::SITUATION}};
     QUERY_PARAMS["sit_base_3"] = q_params_t{"brun3_last", valType::INT, false, {queryType::SITUATION}};
 
-    QUERY_PARAMS["sit_pit_cnt"] = q_params_t{"pitch_cnt", valType::STR, false, {queryType::SITUATION}};
+    
     QUERY_PARAMS["sit_play_res"] = q_params_t{"play_result", valType::STR, false, {queryType::SITUATION}};
     QUERY_PARAMS["sit_play_res2"] = q_params_t{"play_result2", valType::STR, false, {queryType::SITUATION}};
     QUERY_PARAMS["sit_play_res3"] = q_params_t{"play_result3", valType::STR, false, {queryType::SITUATION}};
@@ -221,14 +230,15 @@ unordered_map<string, q_params_t>& initQueryParams() {
 // and whether they can be a part of aggregation (e.g, appear in GROUP BY)
 vector<pair<string, bool>> SELECT_PARAMS_ORDER = { 
     {"year", true}, {"date", false}, {"month", true}, 
-    {"dow", true}, {"park_id", true}, 
-    {"num", false}, {"homeaway", true}, 
-    {"team", true}, {"league", true}, {"score", false},
-    {"_team", true}, {"_league", true}, { "_score", false},
-    {"game", true}, {"season", true}, {"series", true},
-    {"day_night", true}, {"temp", false}, {"windspeed", false},
+    {"day", "false"}, {"dow", true}, 
+    {"num", false}, {"homeaway", true}, {"game", true}, 
+    {"league", true}, {"team", true}, {"score", false},
+    { "_score", false}, {"_team", true}, {"_league", true},
+    {"_game", true}, {"season", true}, {"round", true},
+    {"park", true}, 
+    {"daynight", true}, {"temp", false}, {"windspeed", false},
     {"winddir", true}, {"precip", true}, {"sky", true}, 
-    {"fieldcond", true}, {"starttime", false},
+    {"field_cond", true}, {"start_time", false},
     {"attendance", false}, {"duration", false},
     {"protest", true}, {"forfeit", true},
     {"batter", true},  {"batter_team", true},
@@ -238,7 +248,7 @@ vector<pair<string, bool>> SELECT_PARAMS_ORDER = {
     {"sit_bat_tm_sco", true}, {"sit_pit_tm_sco", true}, 
     {"sit_sco_diff", true}, {"sit_bases", false}, 
     {"sit_base_1", false}, {"sit_base_2", false},
-    {"sit_base_3", false}, {"sit_pit_cnt", true},
+    {"sit_base_3", false}, {"sit_bat_cnt", true},
     {"sit_play_res", true}, {"sit_play_base", true},
     {"sit_play_res2", true}, {"sit_play_base2", true},
     {"sit_play_res3", true}, {"sit_play_base3", true},
@@ -407,6 +417,8 @@ std::string buildCTEWhereClause(bool isHome,
 // fieldNames are names that appear in SELECT
 string makeCTE(bool isHome, 
                bool isOldTime,
+               bool addCond,
+               const string agg,
                const vector<string>& fieldNames,
                const unordered_map<string, field_val_t> fieldValueMap,
                const vector<string>& group,
@@ -443,7 +455,6 @@ string makeCTE(bool isHome,
         if (qp.isTeam || f != qp.fieldSelector)
             query += " AS " + f;
         query += ", ";
-        
     }
     // need to add fields group fields which were not in select
     for (auto g : group) {
@@ -464,27 +475,38 @@ string makeCTE(bool isHome,
         }
     }
 
-    query += " game_date AS date, dh_num AS num";
-    selectFields.insert(selectFields.end(), {"date", "num", "team", "league", "score"});
-    selectFieldsSet.insert({"date", "num", "team", "game", "league", "score"});
+    query += "year, dh_num AS num"s;
+    selectFields.insert(selectFields.end(), {"year", "num", "team", "score", "_team", "_score"});
+    selectFieldsSet.insert({"year", "num", "team", "score", "_team", "_score"});
+    if (agg == "no") {
+        query += ", month, "s + DAY_FIELD + " AS day, dow";
+        selectFields.insert(selectFields.end(), {"month", "day", "dow", "game", "league", "_game", "_league"});
+        selectFieldsSet.insert({"month", "day", "dow", "game", "league", "_game", "_league"});
+    }
+    
     if(isHome) {
         query += ", home_team AS team, away_team as _team";
-        query += ", home_game_num AS game, away_game_num as _game";
-        query += ", home_league AS league, away_league as _league";
         query += ", home_score AS score, away_score AS _score";
+        if (agg == "no") {
+            query += ", CAST(home_game_num AS integer) AS game, CAST(away_game_num AS integer) AS _game";
+            query += ", home_league AS league, away_league as _league";
+        }
     } else {
         query += ", away_team AS team, home_team as _team";
-        query += ", away_game_num AS game, home_game_num as _game";
-        query += ", away_league as league, home_league AS _league";
         query += ", away_score AS score, home_score AS _score";
+        if (agg == "no") {
+            query += ", CAST(away_game_num AS integer) AS game, CAST(home_game_num AS integer) AS _game";
+            query += ", away_league as league, home_league AS _league";
+        }
     }
-
-    // used for counting wins/losess and gropings by team/league
-    selectFields.insert(selectFields.end(), {"_team", "_game", "_score", "_league"});
-    selectFieldsSet.insert( {"_team", "_game", "_score", "_league"});    
-
+       
     statList.clear();
     query += buildStatQueryStr(stats, isHome, "no", statList);
+    if (addCond) {
+        selectFields.insert(selectFields.end(), { "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
+        selectFieldsSet.insert({ "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
+        query += ", park, daynight, start_time, precip, temp, sky, windspeed, winddir, field_cond, attendance, game_duration_min AS duration";
+    }
     query += " FROM gamelog_view"s;
     query += buildCTEWhereClause(isHome, fieldNames, fieldValueMap, isOldTime, selectFields, prms);
     
@@ -573,6 +595,7 @@ string makeFinalSelect(bool isSplitYear,
 {       
     string query = " SELECT ";
     auto isFirst = true;
+    const auto SKIP_COLS = unordered_set<string>({"homeaway", "team", "_team", "_league", "league"});
     for (auto p : SELECT_PARAMS_ORDER) {
         auto p_name = p.first;   // the parameter name
         auto p_isagg = p.second;  // whether this parameter can be part of aggregation
@@ -586,23 +609,13 @@ string makeFinalSelect(bool isSplitYear,
         if((selectFieldsSet.count(p_name) > 0 && (agg == "no" || p_isagg)) )
         {
             // skip 'homeaway' column if it is not in select or group
-            if (p_name == "homeaway" && (groupSet.count(p_name) + fieldValueMap.count(p_name)) == 0)
-                continue;
-            
-            // remove team from aggregations, if not part of the selection or grouping
-            if (agg != "no" && (p_name == "team" || p_name == "_team") 
-                && (fieldValueMap.count(p_name) + groupSet.count(p_name) == 0))
-                continue;
-            // exclude league and opposing league if we're not selecting by team
-            if (agg != "no" && (p_name == "league") 
-                && (fieldValueMap.count(p_name) + groupSet.count(p_name) 
-                    + fieldValueMap.count("team") + groupSet.count("team") == 0))
-                continue;
-            if (agg != "no" && (p_name == "_league") 
-                && (fieldValueMap.count(p_name) + groupSet.count(p_name) 
-                    + fieldValueMap.count("_team") + groupSet.count("_team") == 0))
-                continue;
+            if (agg != "no" && SKIP_COLS.count(p_name) > 0) {
+                  if (groupSet.count(p_name) + fieldValueMap.count(p_name) == 0) 
+                     continue;
+                 // fieldValueMap.count("team") + groupSet.count("team") == 0)
 
+            }
+            
             if(!isFirst)
                 query += ", "s;
             isFirst = false;
@@ -613,12 +626,13 @@ string makeFinalSelect(bool isSplitYear,
             }
             selectFieldsSetOut.emplace(p_name);
             if(p_name == "num") {
-                query += "REPLACE(h.num, '0', ' ') AS num";
+                query += "REPLACE(num, '0', ' ') AS num";
             }
             else {
-            query += "h." + p_name;
-            if(p_name == "park_id")
-                query += ", p.park_name AS park";
+                query += p_name;
+                //query += "h." + p_name;
+            // if(p_name == "park_id")
+            //     query += ", p.park_name AS park";
             }
         }
     }
@@ -631,29 +645,30 @@ string makeFinalSelect(bool isSplitYear,
         selectFieldsSetOut.insert({"gp", "won", "lost", "rec"});
         if(agg == "avg") {
             for (auto s : statList)
-                query += ", ROUND(1000*AVG(h." + s + "))/1000.00 AS " + s;
+                query += ", ROUND(1000*AVG(" + s + "))/1000.00 AS " + s;
         }
         else {
             for (auto s : statList)
-                query += ", " + agg + "(h." + s + ") AS " + s;
+                query += ", " + agg + "(" + s + ") AS " + s;
         }
     }
     else
-        query += ", h." + joinStr(statList, ", h.");
+        query += ", " + joinStr(statList, ", ");
 
     // in the case where team is not selected or grouped
     // then only join from home table
     if(fieldValueMap.count("team") + groupSet.count("team") == 0)
-        query += " FROM home_t h";
+        query += " FROM home_t";
     else
-        query += " FROM both_t h";
+        query += " FROM both_t";
 
     return query;
 }
 
 string makeOrderBy(const vector<string>& order,
                    const unordered_set<string>& selectFieldsSet,
-                   const vector<string>& statList)
+                   const vector<string>& statList,
+                   const string agg)
 {
     string order_clause = ""s;
     unordered_set<string> statsSet;
@@ -677,6 +692,13 @@ string makeOrderBy(const vector<string>& order,
             ordFilt.push_back(ordstr);
         }
     }
+    if (agg == "no") {
+        ordFilt.push_back("year");
+        ordFilt.push_back("month");
+        ordFilt.push_back("day");
+        ordFilt.push_back("game");
+    }
+
     if (ordFilt.size() > 0)
         order_clause = " ORDER BY " + joinStr(ordFilt, ", ");
 
@@ -703,9 +725,11 @@ int buildLastClause(string &lastClause,
     cout << endl << "buildLastClause: final_select=" << lastClause;
 
     // join park names
+    /*
     auto isPark = fieldValueMap.count("park_id") > 0 || groupSet.count("park_id") > 0;
     if (isPark)
         lastClause += " INNER JOIN (SELECT * FROM parks) p ON h.park_id=p.park_id"s;
+    */
 
     if(group.size() > 0) {
         auto itr = std::find(group.begin(), group.end(), "park_id"s);
@@ -770,11 +794,11 @@ int getArgs(string argstr, args_t& args, json& j_args, string& errMsg) {
         return 1;
     }
 
-    if (args.grp.size() == 0 && args.agg != "no") {
+    /* if (args.grp.size() == 0 && args.agg != "no") {
         errMsg = "At least one field must be grouped if there is am aggregation (total/average)";
         cerr << endl << errMsg;
         return 1;
-    }
+    } */
 
     args.isOldTime = false;
     if (j_args.contains("oldtime")) {
@@ -856,17 +880,21 @@ int buildSQLQuery(string argstr, string &qy,
 
     prms.clear();
     qy = "WITH"s;
+    // add field conditions
+    auto addCond = (args.agg=="no");
     if(args.isHome) {
-        qy += makeCTE(true, args.isOldTime, fieldNames, fieldValueMap, args.grp,
-                      args.stats, selectFields, selectFieldsSet, statList, prms);
+        qy += makeCTE(true, args.isOldTime, addCond, args.agg, fieldNames, 
+                     fieldValueMap, args.grp, args.stats, selectFields,
+                     selectFieldsSet, statList, prms);
         qy += "), ";
     } else {
         // need empty set so both_t UNION makes sense
         qy += " home_t as (SELECT 1 WHERE 1=0), "; 
     }
     if(args.isAway) {
-        qy += makeCTE(false, args.isOldTime, fieldNames, fieldValueMap, args.grp,
-                     args.stats, selectFields, selectFieldsSet, statList, prms);
+        qy += makeCTE(false, args.isOldTime, addCond, args.agg, fieldNames,
+                      fieldValueMap, args.grp, args.stats, selectFields,
+                      selectFieldsSet, statList, prms);
         qy += "), ";
     } else {
         // need empty set so both_t UNION makes sense
@@ -902,7 +930,7 @@ int buildSQLQuery(string argstr, string &qy,
     qy += " SELECT * FROM(" + lastClause + ")";
     if(args.agg != "no")
         qy += " WHERE gp > " + to_string(args.minGP);
-    qy += makeOrderBy(args.order, selectFieldsSetOut, statList);
+    qy += makeOrderBy(args.order, selectFieldsSetOut, statList, args.agg);
 
     // add some extra to determine if there are more records available
     qy += " LIMIT " + to_string(args.limit+5);
@@ -912,19 +940,19 @@ int buildSQLQuery(string argstr, string &qy,
 
 string renderHTMLTable(vector<string> headers, query_result_t result,
                        string opts, int limit) {
-    auto tblAttr = string("");
-    auto tbAttr = string("");
-    auto trAttr = string("");
-    auto tdAttr = string("");
-    auto thAttr = string("");
+    auto tblAttr = ""s;
+    auto tbAttr = ""s;
+    auto trAttr = ""s;
+    auto tdAttr = ""s;
+    auto thAttr = ""s;
     std::stringstream ss;
 
     if (opts == "bs") {
-        tblAttr = string("class=\"table table-hover table-striped\"");
-        tbAttr = string("table-group-divider");
-        trAttr = string("class=\"tr\"");
-        tdAttr = string("class=\"td\"");
-        thAttr = string("scope=\"row\"");
+        tblAttr = "class=\"table table-hover table-striped\""s;
+        tbAttr = "table-group-divider"s;
+        trAttr = "class=\"tr\""s;
+        tdAttr = "class=\"td text-nowrap\""s;
+        thAttr = "scope=\"row text-nowrap\""s;
     }
 
     ss << "<table " << tblAttr << ">";
@@ -1067,7 +1095,7 @@ string makeCTESit(bool excludeBaseRun,
     //statList.clear();
     //query += buildStatQueryStr(stats, isHome, "no", statList);
     */
-    query += " FROM game_situation_view"s;
+    query += " FROM game_situation2"s;
     query += buildCTESitWhereClause(excludeBaseRun, fieldNames, fieldValueMap, selectFields, prms);
     query += ")";
     return query;

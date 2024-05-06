@@ -1,8 +1,7 @@
 import React from 'react'
-import { useState } from 'react';
 
 import { statSetsDefault } from '../js/stats.js'
-import StatTypesRadio from './StatTypesRadio.jsx';
+import RadioButtonGroup from './RadioButtonGroup.jsx';
 
 const groupDivClass = "mb-2 mr-sm-2"; // form-check 
 const checkClass = "btn btn-check" // "form-check-input";
@@ -13,39 +12,26 @@ const groupLabelClass= "btn btn-outline-info" // "form-check-label"
 const statSetsCur = statSetsDefault;
 // const statSet = statSetDefault;
 
-const statSetOptions=["Game Box", "Offense 1", "Offense 2", "Pitching 1", "Pitching 2", "Fielding"];
-const initValArr = ['off', 'on', false, false, false, false]
+const statSetOptions=[["Game Box", "box"], ["Offense 1", "off1"],
+  ["Offense 2", "off2"], ["Pitching 1", "pit1"], ["Pitching 2", "pit2"],
+  ["Fielding", "fld"]];
 
-const StatTypes = ({statSet, setStatSet, updateData, divClassName}) => {
-    // const [statSet, setStatSet] = useState({})
-    const [valArr, setValArr] = useState(initValArr);
-    /*
-    const onStatTypeChange = (stat, value) => {
-        console.log("onStatTypeChange stat=", stat, "value=", value);
-        if(value) statTypes.add(stat);
-        else statTypes.delete(stat);
-        setStatTypes(statTypes);
-    } */
-
-    const onStatSetChange= (statSet_str) => {
-        setStatSet(statSet_str);
-        const newArr = [...valArr];
-        for(let i=0; i<newArr.length; i++) {
-            newArr[i] = (statSet_str === statSetOptions[i]) ? 'off' : 'on';
-        }
-        setValArr(newArr);
-        console.log("onStatSetChange statSet_str= ", statSet_str);
-    }
+const StatTypes = ({statSet, onStatSetChange, updateData, divClassName}) => {
 
     // console.log("statSet=", statSet);
     return (
       <>
         <h4>Stats:</h4>
         <div className={divClassName}>
-          <StatTypesRadio fieldName="statType" label=""
+          <RadioButtonGroup fieldName="statSet" label=""
+              options={statSetOptions} val={statSet}
+              onRadioChange={onStatSetChange}
+              radioClasses={{divClass:"", labelClass:""}} />
+          { /* <StatTypesRadio fieldName="statType" label=""
              options={statSetOptions}
              val={valArr} onStatRadioChange={onStatSetChange}
              radioClasses={{divClass:"", labelClass:""}} />
+          */ }
           {/* Against 
           <div className="container">
             <div className="row">

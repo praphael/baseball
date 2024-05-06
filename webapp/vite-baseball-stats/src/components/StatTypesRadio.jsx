@@ -1,7 +1,5 @@
 import React from 'react'
 
-import { useState, useMemo } from 'react'
-
 const StatTypesRadio = ({fieldName, label, options, val, 
     onStatRadioChange, radioClasses}) => {
     

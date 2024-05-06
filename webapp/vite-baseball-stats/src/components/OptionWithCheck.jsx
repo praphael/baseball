@@ -9,7 +9,7 @@ const OptionWithCheck = ({fieldName, label, options, val,
     const onNewVal = (v) => {
         onChange(fieldName, v);
     }
-    //console.log("OptionWithCheck val=", val, " checkVal=", checkVal)
+    console.log("OptionWithCheck val=", val, " checkVal=", checkVal)
     const id = `"filter_${fieldName}"`;
     return (
         <div className={optionClasses.divClass}>

@@ -332,6 +332,8 @@ sqlite3* initDB(int yearStart, int yearEnd) {
         cerr << endl << "initDB: Could not open 'baseball.db', exiting";
         exit(1);
     }
+    return pdb;  // don't copy to mem for now
+
     err = sqlite3_open(":memory:", &pdb_mem);
     if(err != SQLITE_OK) {
         cerr << endl << "initDB: Could not open memory db, exiting";
@@ -423,7 +425,7 @@ void fixColumnNames(vector<string>& colummNames) {
         cout << endl << "col= " << col;
         if(col.size() > 1) {
             if (col == "_team") {
-                col = "Opp";
+                col = "Opponent";
             }
             else if (col == "_league") {
                 col = "OppLg";
@@ -433,6 +435,9 @@ void fixColumnNames(vector<string>& colummNames) {
             }
             else if (col == "_score") {
                 col = "OppSc";
+            }
+            else if (col == "_game") {
+                col = "OppGm";
             }
             // statistics with '_' replace with 'opp'
             else if(col[0] == '_') {
@@ -444,10 +449,10 @@ void fixColumnNames(vector<string>& colummNames) {
                 col.erase(col.begin());
             }
             else if (col == "dow") {
-                col = "Day";
+                col = "DoW";
             }
             else if (col == "homeaway") {
-                col = "Home/Away";
+                col = "H/A";
             }
             else {
                 col[0] = toUpper(col[0]);
@@ -459,6 +464,17 @@ void fixColumnNames(vector<string>& colummNames) {
         }
         cout << "->" << col;
     }
+}
+
+string getDOW(string dow) {
+    if(dow == "0") return "Sun";
+    if(dow == "1") return "Mon";
+    if(dow == "2") return "Tue";
+    if(dow == "3") return "Wed";
+    if(dow == "4") return "Thu";
+    if(dow == "5") return "Fri";
+    if(dow == "6") return "Sat";    
+    return dow;
 }
 
 string getMonth(string month) {
@@ -483,10 +499,17 @@ void fixResults(const vector<string>& colummNames, query_result_t& results,
             if(col == "month") {                
                 row[c] = getMonth(oldVal);
             }
-            else if(col == "team") {
+            else if(col == "team" || col == "_team") {
                 if (teamsMap.count(oldVal) > 0)
                     row[c] = teamsMap.at(oldVal);
             }
+            else if(col == "dow") {       
+                row[c] = getDOW(oldVal);
+            }
+            else if(col == "game" || col == "_game") {
+                cout << endl << col << " " << row[c];
+            }
+
             if(row[c] != oldVal)
                 cout << endl << oldVal << "->" << row[c];
             c++;
@@ -498,10 +521,10 @@ int handleParksRequest(sqlite3 *pdb, const string &qy, string& resp, string& mim
     string qry = "SELECT DISTINCT p.park_id, p.park_name," 
             "p.park_aka, p.park_city, p.park_state,"
             "p.park_open, p.park_close, p.park_league, p.notes"
-            " FROM parks p"
-            " INNER JOIN (SELECT game_date, park FROM boxscore b)"
-            " ON p.park_id=park"
-            " WHERE CAST(substr(game_date, 0,5) AS INTEGER) > ?";
+            " FROM park p"
+            " INNER JOIN (SELECT year, park FROM game_info) i"
+            " ON p.park_id=i.park"
+            " WHERE i.year > ?";
     
     auto yearSince = 1902;
     vector<field_val_t> prms;
@@ -521,10 +544,10 @@ int handleParksRequest(sqlite3 *pdb, const string &qy, string& resp, string& mim
 int handleTeamsRequest(sqlite3 *pdb, const string &qy, string& resp, string& mimeType, 
                        unordered_map<string, string>& teamsMap ) {
     string qry = "SELECT DISTINCT t.team_id, t.team_league, t.team_city," 
-                 "team_nickname, team_first, team_last " 
-                 " FROM teams t" 
-                 " INNER JOIN boxscore b" 
-                 " ON t.team_id=b.home_team WHERE team_last > ? ORDER BY team_last";
+                 "t.team_nickname, t.team_first, t.team_last " 
+                 " FROM team t" 
+                 " INNER JOIN (SELECT home_team FROM game_info2) i" 
+                 " ON t.team_id=i.home_team WHERE t.team_last > ? ORDER BY t.team_last";
     
     auto yearSince = 1902;
     vector<field_val_t> prms;
@@ -532,14 +555,14 @@ int handleTeamsRequest(sqlite3 *pdb, const string &qy, string& resp, string& mim
     fv.setInt(yearSince);
     prms.push_back(fv);
 
-    query_result_t result;    
+    query_result_t result;
     vector<string> columnNames;
     int err = doQuery(pdb, qry, prms, result, columnNames, resp);
     for (auto& row : result) {
         if (teamsMap.count(row[0]) > 0) {
             cerr << endl << "duplicate team id=" << row[0];
         }
-        teamsMap[row[0]] = row[2] + " " + row[3];
+        teamsMap[row[0]] = row[3];
     }
     if (err) return err;
     resp = makeJSONresponse(columnNames, result, result.size());
@@ -547,17 +570,17 @@ int handleTeamsRequest(sqlite3 *pdb, const string &qy, string& resp, string& mim
     return 0;
 }
 
-int handleBoxRequest(sqlite3 *pdb, const string &qy, string& resp, string &mimeType,
+int handleGamelogRequest(sqlite3 *pdb, const string &qy, string& resp, string &mimeType,
                     const unordered_map<string, string>& teamsMap)
 {
-    string box_qry;
+    string gmlog_qry;
     vector<field_val_t> prms;
     args_t args;
-    cout << endl << "handleBoxRequest( " << __LINE__ << "): calling buildSQLQuery() qy=" << qy;
-    auto err = buildSQLQuery(qy, box_qry, prms, resp, args);
-    cout << endl << "handleBoxRequest( " << __LINE__ << "): box_qry=" << box_qry;
+    cout << endl << "handleGamelogRequest( " << __LINE__ << "): calling buildSQLQuery() qy=" << qy;
+    auto err = buildSQLQuery(qy, gmlog_qry, prms, resp, args);
+    cout << endl << "handleGamelogRequest( " << __LINE__ << "): gmlog_qry=" << gmlog_qry;
     if(err) { 
-        cerr << endl << "handleBoxRequest( " << __LINE__ << "): buildSQLQuery failed err=";
+        cerr << endl << "handleGamelogRequest( " << __LINE__ << "): buildSQLQuery failed err=";
         cerr << err;
         mimeType = MIME_TEXT;
         return 400;
@@ -565,31 +588,31 @@ int handleBoxRequest(sqlite3 *pdb, const string &qy, string& resp, string &mimeT
     query_result_t result;
     vector<string> columnNames;
     resp.clear();
-    err = doQuery(pdb, box_qry, prms, result, columnNames, resp);
-    cout << endl << "handleBoxRequest( " << __LINE__ << "): doQuery err=" << err;
+    err = doQuery(pdb, gmlog_qry, prms, result, columnNames, resp);
+    cout << endl << "handleGamelogRequest( " << __LINE__ << "): doQuery err=" << err;
     if (err) {
-         cerr << endl << "handleBoxRequest( " << __LINE__ << "): doQuery failed err=";
+         cerr << endl << "handleGamelogRequest( " << __LINE__ << "): doQuery failed err=";
          cerr << err;
          mimeType = MIME_TEXT;
          return 500;
     }
     
-    cout << endl << "handleBoxRequest( " << __LINE__ << "): doQuery returned " << result.size() << " rows";
+    cout << endl << "handleGamelogRequest( " << __LINE__ << "): doQuery returned " << result.size() << " rows";
 
     auto retType = args.ret;
     try { 
-        cout << endl << "handleBoxRequest( " << __LINE__ << "): fixing results";
+        cout << endl << "handleGamelogRequest( " << __LINE__ << "): fixing results";
         fixResults(columnNames, result, teamsMap);
     } catch (std::exception e) {
         cerr << endl << "exception fixing results: " << e.what();
     }
     try {
-        cout << endl << "handleBoxRequest( " << __LINE__ << "): fixing column names";
+        cout << endl << "handleGamelogRequest( " << __LINE__ << "): fixing column names";
         fixColumnNames(columnNames);
     } catch (std::exception e) {
         cerr << endl << "exception fixing column names: " << e.what();
     }
-    cout << endl << "handleBoxRequest( " << __LINE__ << "): retType=" << retType;
+    cout << endl << "handleGamelogRequest( " << __LINE__ << "): retType=" << retType;
     if(retType == "json") {
         resp = makeJSONresponse(columnNames, result, args.limit);
         mimeType = MIME_JSON;
@@ -627,20 +650,30 @@ int handlePlayerRequest(sqlite3 *pdb, const string &qy,
             return 400;
         }
         for (const auto& row : result) {
+            cout << endl << "adding " << row[0] << " " << row[1];
+            cout << " " << row[2];
             int id = stoi(row[2]);
-            addToTrie(playerLastTrie, row[0], id);
-            addToTrie(playerOtherTrie, row[1], id);
+            auto last = string(row[0]);
+            auto first = string(row[1]);
+            cout << endl << "last";
+            addToTrie(playerLastTrie, last, id);
+            cout << endl << "first";
+            addToTrie(playerOtherTrie, first, id);
             playerIDMap[id] = row[0] + ", " + row[1];
         }
     }
     // simple REST, use param given
     auto ids1 = findInTrie(playerLastTrie, qy);
-    auto ids2 = findInTrie(playerLastTrie, qy);
+    auto ids2 = findInTrie(playerOtherTrie, qy);
+
+    // merge IDs
+    auto idSet = std::set(ids1.begin(), ids1.end());
+    idSet.insert(ids2.begin(), ids2.end());
 
     // build JSON response
-    resp += "{ \"names\":[";
-    for(auto id : ids1) resp += "\"" + playerIDMap[id] + "\",";
-    for(auto id : ids2) resp += "\"" + playerIDMap[id] + "\",";
+    resp += "{ \"players\":[";
+    for(auto id : idSet) 
+        resp += "[\"" + playerIDMap[id] + "\", " + to_string(id) + "],";
     // remove last comma
     resp.pop_back();
     resp += "]}";

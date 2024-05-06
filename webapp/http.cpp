@@ -43,7 +43,7 @@ using namespace std::string_literals;
 
 //const std::vector<string> API_ROOT = {"baseball", "api"};
 
-const auto routes = std::set{"parks"s, "teams"s, "box"s, "player"s, "playergame"s, "situation"s};
+const auto routes = std::set{"parks"s, "teams"s, "gamelog"s, "player"s, "playergame"s, "situation"s};
 
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http = beast::http;           // from <boost/beast/http.hpp>
@@ -125,7 +125,11 @@ http::message_generator
 handle_request(
     beast::string_view doc_root,
     http::request<Body, http::basic_fields<Allocator>>&& req, 
-    sqlite3* pdb)
+    sqlite3* pdb,
+    unordered_map<string, string>& teamsMap,
+    NameTrie &playerLastTrie,
+    NameTrie &playerOtherTrie,
+    unordered_map<int, string> &playerIDMap)
 {
     // Returns a bad request response
     auto const bad_request =
@@ -168,9 +172,8 @@ handle_request(
 
     // Make sure we can handle the method
     if( req.method() != http::verb::get &&
-        req.method() != http::verb::head && 
         req.method() != http::verb::options)
-        return bad_request("Unknown HTTP-method");
+        return bad_request("Unsupported HTTP-method");
 
     // Request path must be absolute and not contain "..".
     if( req.target().empty() ||
@@ -199,79 +202,95 @@ handle_request(
         return bad_request("Could not initialize curl");
     } 
 
+    cout << endl << "handle_request: method= " << req.method();
     auto paths = splitStr(tgt, '/');
     cout << endl << "handle_request: paths.size()= " << paths.size();
     cout << endl << "handle_request: paths= ";
     printVec(paths);
-    if(paths.size() != 4)
+    if(paths.size() != 4) {
+        cout << endl << "not found - too many paths";
         return not_found(req.target());
-    if(paths[1] != "baseball" || paths[2] != "api")
+    }
+    if(paths[1] != "baseball" || paths[2] != "api") {
+        cout << endl << "not found - path[1] != 'baseball' or path[2] != 'api'";
         return not_found(req.target());
+    }
     // split into route/query string
     auto rt_qy = splitStr(paths[3], '?');
        
     string resp_body;
     auto mime_type = string("text/plain");
     // map from team code (three chars) to team name
-    static unordered_map<string, string> teamsMap;
-    // map from player names to IDs and ID to full name
-    static NameTrie playerLastTrie;
-    static NameTrie playerOtherTrie;
-    static unordered_map<int, string> playerIDMap;
+  
 
+    cout << endl << "rt_qy= ";
+    printVec(rt_qy);
+    string qy = "";
+    auto rt = rt_qy[0];
+    cout << endl << "rt= " << rt;
+    if (routes.count(rt) == 0) {
+        cout << endl << "not found";
+        return not_found(rt + " not found");
+    }
 
-    if (!err) {
-        cout << endl << "rt_qy= ";
-        printVec(rt_qy);
-        string qy = "";
-        auto rt = rt_qy[0];
-        if (routes.count(rt) == 0)
-            return not_found(rt + " not found");
-
-        if (rt_qy.size() > 2)
-            return bad_request("Bad query string");
-
-        if (rt_qy.size() > 1)
-            qy = rt_qy[1];
-        try {
-            if(req.method() != http::verb::get)
-                return bad_request("Unknown HTTP-method for route");
-
+    if (rt_qy.size() > 2) {
+        cout << endl << "bad query string, multiple '?'";
+        return bad_request("Bad query string");
+    }
+    // blank query is allowed
+    if (rt_qy.size() > 1)
+        qy = rt_qy[1];
+    cout << endl << "qy=" << qy;    
+    try {
+        if(req.method() == http::verb::get) {
             if(rt == "parks") {
+                cout << endl << "parks";
                 err = handleParksRequest(pdb, qy, resp_body, mime_type);
             }
             else if (rt == "teams") {
+                cout << endl << "teams";
                 err = handleTeamsRequest(pdb, qy, resp_body, mime_type, teamsMap);
             }
-            else if(rt == "box") {
-                err = handleBoxRequest(pdb, qy, resp_body, mime_type, teamsMap);
+            else if(rt == "gamelog") {
+                cout << endl << "gamelog";
+                err = handleGamelogRequest(pdb, qy, resp_body, mime_type, teamsMap);
             }
             else if(rt == "player") {
+                cout << endl << "player";
                 err = handlePlayerRequest(pdb, qy, resp_body, mime_type,
                         playerLastTrie, playerOtherTrie, playerIDMap);
             }
             else if(rt == "playergame") {
+                cout << endl << "playergame";
                 err = handlePlayerGameRequest(pdb, qy, resp_body, mime_type, teamsMap);
             }
             else if(rt == "situation") {
+                cout << endl << "situation";
                 err = handleSituationRequest(pdb, qy, resp_body, mime_type, teamsMap);
             }
             else {
+                cout << endl << "unknown route '" << rt << "'";
                 return not_found(req.target());
             }
-        } catch (std::exception e) {
-            std::cerr << endl << "exception during handle_request " << e.what();
-            return server_error(e.what());
         }
+        else if(req.method() != http::verb::options) {
+            cout << endl << "unsupported method '" << req.method() << "' for route '" << rt << "'";
+            return bad_request("Unknown HTTP-method for route");
+        }
+    } catch (std::exception e) {
+        std::cerr << endl << "exception during handle_request " << e.what();
+        return server_error(e.what());
     }
   
     // Cache the size since we need it after the move
     auto const size = resp_body.size();
+    cout << endl << "size= " << size;
 
 
-    // Respond to HEAD request
-    if(req.method() == http::verb::head || req.method() == http::verb::options)
+    // Respond to OPTIONS request, for CORS headers
+    if(req.method() == http::verb::options)
     {
+        cout << endl << "responing to OPTIONS/HEAD setting CORS headers";
         http::response<http::empty_body> res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, mime_type);
@@ -321,16 +340,28 @@ class session : public std::enable_shared_from_this<session>
     std::shared_ptr<std::string const> doc_root_;
     http::request<http::string_body> req_;
     sqlite3 *pdb;
+    unordered_map<string, string> &teamsMap;
+    NameTrie &playerLastTrie;
+    NameTrie &playerOtherTrie;
+    unordered_map<int, string> &playerIDMap;
 
 public:
     // Take ownership of the stream
     session(
         tcp::socket&& socket,
         std::shared_ptr<std::string const> const& doc_root,
-        sqlite3 *pdb)
+        sqlite3 *pdb,
+        unordered_map<string, string> &teamsMap,
+        NameTrie &playerLastTrie,
+        NameTrie &playerOtherTrie,
+        unordered_map<int, string> &playerIDMap)
         : stream_(std::move(socket))
         , doc_root_(doc_root)
         , pdb(pdb)
+        , teamsMap(teamsMap)
+        , playerLastTrie(playerLastTrie)
+        , playerOtherTrie(playerOtherTrie)
+        , playerIDMap(playerIDMap)
     {
     }
 
@@ -381,7 +412,9 @@ public:
 
         // Send the response
         send_response(
-            handle_request(*doc_root_, std::move(req_), pdb));
+            handle_request(*doc_root_, std::move(req_), pdb,
+              teamsMap, playerLastTrie, playerOtherTrie,
+              playerIDMap));
     }
 
     void
@@ -439,6 +472,10 @@ class listener : public std::enable_shared_from_this<listener>
     tcp::acceptor acceptor_;
     std::shared_ptr<std::string const> doc_root_;
     sqlite3 *pdb;
+    unordered_map<string, string> teamsMap;
+    NameTrie playerLastTrie;
+    NameTrie playerOtherTrie;
+    unordered_map<int, string> playerIDMap;
 
 public:
     listener(
@@ -454,6 +491,12 @@ public:
         beast::error_code ec;
         initQueryParams();
         pdb = initDB(yearStart, yearEnd);
+        string qy;
+        string resp, mimeType;
+        handleTeamsRequest(pdb, ""s, resp, mimeType, teamsMap);
+        // handleParksRequest(pdb, "", resp, mimeType);
+        // initialize tries and player ID map
+        handlePlayerRequest(pdb, ""s, resp, mimeType, playerLastTrie, playerOtherTrie, playerIDMap);
 
         // Open the acceptor
         acceptor_.open(endpoint.protocol(), ec);
@@ -496,6 +539,11 @@ public:
         do_accept();
     }
 
+    virtual ~listener() {
+        destroyTrie(playerLastTrie);
+        destroyTrie(playerOtherTrie);
+    }
+
 private:
     void
     do_accept()
@@ -521,12 +569,15 @@ private:
             // Create the session and run it
             std::make_shared<session>(
                 std::move(socket),
-                doc_root_, pdb)->run();
+                doc_root_, pdb, teamsMap, 
+                    playerLastTrie, playerOtherTrie,
+                    playerIDMap)->run();
         }
 
         // Accept another connection
         do_accept();
     }
+    
 };
 
 

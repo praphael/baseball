@@ -7,8 +7,14 @@ const Results = ({resultsTable, divClassName}) => {
     return {__html: r};
   };
 
+  const divStyle = { transform: "rotateX(180deg)", overflowX: "auto" }
+  const spanStyle = { transform: "rotateX(180deg)" }
   return (
-    <div className={divClassName} dangerouslySetInnerHTML={renderHTML(resultsTable)}>
+    <div style={divStyle}>
+    <div style={spanStyle}>
+    <span className={divClassName} dangerouslySetInnerHTML={renderHTML(resultsTable)}>
+    </span>
+    </div>
     </div>
   )
 }

@@ -1,17 +1,23 @@
+CREATE TABLE game_info2 AS SELECT * FROM game_info_view;
+
+CREATE INDEX game_info2_idx1 ON game_info2(game_id);
+CREATE INDEX game_info2_idx2 ON game_info2(year, month);
+CREATE INDEX game_info2_idx3 ON game_info2(home_team);
+CREATE INDEX game_info2_idx4 ON game_info2(away_team);
 
 CREATE INDEX pl_game_bat_idx1 ON player_game_batting(game_id);
-CREATE INDEX pl_game_bat_idx2 ON player_game_batting(batter_id);
+CREATE INDEX pl_game_bat_idx2 ON player_game_batting(batter_num_id);
 CREATE INDEX pl_game_bat_idx3 ON player_game_batting(team);
 CREATE INDEX pl_game_fld_idx1 ON player_game_fielding(game_id);
-CREATE INDEX pl_game_fld_idx2 ON player_game_fielding(batter_id);
+CREATE INDEX pl_game_fld_idx2 ON player_game_fielding(fielder_num_id);
 CREATE INDEX pl_game_fld_idx3 ON player_game_fielding(team);
 CREATE INDEX pl_game_pit_idx1 ON player_game_pitching(game_id);
-CREATE INDEX pl_game_pit_idx2 ON player_game_pitching(batter_id);
+CREATE INDEX pl_game_pit_idx2 ON player_game_pitching(pitcher_num_id);
 CREATE INDEX pl_game_pit_idx3 ON player_game_pitching(team);
 
 CREATE INDEX game_sit_idx1 ON game_situation(game_id, event_id);
-CREATE INDEX game_sit_idx2 ON game_situation(batter_id);
-CREATE INDEX game_sit_idx3 ON game_situation(pitcher_id);
+CREATE INDEX game_sit_idx2 ON game_situation(batter_num_id);
+CREATE INDEX game_sit_idx3 ON game_situation(pitcher_num_id);
 
 CREATE INDEX game_sit_bases_idx ON game_situation_bases(game_id, event_id);
 CREATE INDEX game_sit_result2_idx ON game_situation_result2(game_id, event_id);

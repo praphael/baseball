@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     handleTeamsRequest(pdb, qyStr, resp, mimeType, teamsMap);
     cout << resp;
     */
-    handleBoxRequest(pdb, qyStr, resp, mimeType, teamsMap);
+    handleGamelogRequest(pdb, qyStr, resp, mimeType, teamsMap);
     cout << resp;
     /* doQuery(pdb, "SELECT * from parks", params, result);
     for(auto row : result) {

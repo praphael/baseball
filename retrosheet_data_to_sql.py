@@ -129,9 +129,7 @@ if __name__ == "__main__":
             ("event_start_idx", "event_start(game_id)"),
             ("event_sub_idx", "event_sub(game_id)"),
             ("event_com_idx", "event_com(game_id)"),
-            ("game_info_idx", "game_info(game_id)"),
-            ("game_info_home_idx", "game_info(home_team)"),
-            ("game_info_away_idx", "game_info(away_team)"),
+            ("game_info_idx", "game_info(game_id)"),            
             ("player_num_id_idx", "player(player_num_id)"),
             ("player_id_idx", "player(player_id)"))
     for idx in idxs:
