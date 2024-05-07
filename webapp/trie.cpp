@@ -7,12 +7,17 @@ using std::vector;
 using std::cout;
 using std::endl;
 
-constexpr auto MAX_PLAYERS = 20;
+constexpr auto MAX_PLAYERS = 500;
 
 void addToTrie(NameTrie &trie, const string& name, int playerID) {
     auto tr = &trie;
     tr->numChld++;
     for(unsigned char c : name) {
+        // skip whitespace
+        if(c == ' ') continue;
+        // convert to lowercase
+        if (c >= 'A' && c <= 'Z')
+            c = 'a' + (c-'A');
         //cout << endl << c << " " << int(c) << " " << tr->numChld;
         if (tr->chld[c] == nullptr) 
             tr->chld[c] = new NameTrie();
@@ -34,9 +39,17 @@ const auto empty = vector<int>();
 const vector<int>& findInTrie(const NameTrie &trie, string namePartial) {
     auto tr = &trie;
     for(unsigned char c : namePartial) {
+        // skip whitespace
+        if (c == ' ') continue;
+
+        // convert to lowercase
+        if (c >= 'A' && c <= 'Z')
+            c = 'a' + (c-'A');
+        tr = tr->chld[c];
         if (tr == nullptr)
             return empty;
-        tr = tr->chld[c];
+        // cout << endl << c << tr->numChld;
+        if (tr->numChld == 1) break;
     }
     return tr->playerIDs;
 }

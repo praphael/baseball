@@ -86,8 +86,8 @@ auto QUERY_PARAMS = unordered_map<string, q_params_t>();
 
 // Note: Home/Away split not a query parameter because it has special handling
 vector<string> QUERY_PARAMS_ORDER = {"year", "month", "dow", "date", "day", "season", "round", "team", "_team", 
-                                     "league", "_league", "park_id", "game", "_game",
-                                     "daynight", "temp", "windspeed",
+                                     "league", "_league", "game", "_game",
+                                     "park_id", "daynight", "temp", "windspeed",
                                      "winddir", "precip", "sky", "field_cond", "starttime",
                                      "attendance", "duration", "protest", "forfeit", 
                                      "batter", "pitcher", "batter_team", "pitcher_team",
@@ -231,16 +231,17 @@ unordered_map<string, q_params_t>& initQueryParams() {
 vector<pair<string, bool>> SELECT_PARAMS_ORDER = { 
     {"year", true}, {"date", false}, {"month", true}, 
     {"day", "false"}, {"dow", true}, 
-    {"num", false}, {"homeaway", true}, {"game", true}, 
-    {"league", true}, {"team", true}, {"score", false},
-    { "_score", false}, {"_team", true}, {"_league", true},
-    {"_game", true}, {"season", true}, {"round", true},
+    {"num", false}, {"homeaway", true}, 
     {"park", true}, 
     {"daynight", true}, {"temp", false}, {"windspeed", false},
     {"winddir", true}, {"precip", true}, {"sky", true}, 
     {"field_cond", true}, {"start_time", false},
     {"attendance", false}, {"duration", false},
     {"protest", true}, {"forfeit", true},
+    {"game", true}, 
+    {"league", true}, {"team", true}, {"score", false},
+    { "_score", false}, {"_team", true}, {"_league", true},
+    {"_game", true}, {"season", true}, {"round", true},
     {"batter", true},  {"batter_team", true},
     {"pitcher", true}, {"pitcher_team", true},
     {"fielder", true}, {"sit_inn", true},
@@ -255,6 +256,13 @@ vector<pair<string, bool>> SELECT_PARAMS_ORDER = {
     {"sit_hit_loc", true}, {"sit_hit_type", true},
     {"sit_outs_made", true}, {"sit_runs_sco", true} };
 
+vector<pair<string, bool>> COND_PARAMS_ORDER = { 
+    {"park", true}, 
+    {"daynight", true}, {"temp", false}, {"windspeed", false},
+    {"winddir", true}, {"precip", true}, {"sky", true}, 
+    {"field_cond", true}, {"start_time", false},
+    {"attendance", false}, {"duration", false},
+    {"protest", true}, {"forfeit", true} };
 
 bool isNumberChar(char c) {
     return (c >= '0' && c <= '9');
@@ -503,9 +511,9 @@ string makeCTE(bool isHome,
     statList.clear();
     query += buildStatQueryStr(stats, isHome, "no", statList);
     if (addCond) {
-        selectFields.insert(selectFields.end(), { "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
-        selectFieldsSet.insert({ "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
-        query += ", park, daynight, start_time, precip, temp, sky, windspeed, winddir, field_cond, attendance, game_duration_min AS duration";
+        //selectFields.insert(selectFields.end(), { "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
+        //selectFieldsSet.insert({ "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
+        query += ", park, daynight, start_time, precip, temp, sky, windspeed, winddir, field_cond, attendance, game_duration_min AS duration, win_pitcher AS win, loss_pitcher AS loss, save_pitcher AS save, gw_rbi, complete, forfeit, protest";
     }
     query += " FROM gamelog_view"s;
     query += buildCTEWhereClause(isHome, fieldNames, fieldValueMap, isOldTime, selectFields, prms);
@@ -591,6 +599,7 @@ string makeFinalSelect(bool isSplitYear,
                        const vector<string>& group,
                        const unordered_set<string>& groupSet,
                        string agg,
+                       bool addCond, 
                        unordered_set<string>& selectFieldsSetOut) 
 {       
     string query = " SELECT ";
@@ -655,6 +664,12 @@ string makeFinalSelect(bool isSplitYear,
     else
         query += ", " + joinStr(statList, ", ");
 
+    if (addCond) {
+        query += ", park, daynight, start_time, precip, sky, temp, windspeed, winddir, field_cond, attendance, duration, win, loss, save, gw_rbi, complete, forfeit, protest";
+        //selectFieldsSet.insert({ "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
+        selectFieldsSetOut.insert({ "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
+    }
+        //selectFieldsSet.insert({ "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
     // in the case where team is not selected or grouped
     // then only join from home table
     if(fieldValueMap.count("team") + groupSet.count("team") == 0)
@@ -712,6 +727,7 @@ int buildLastClause(string &lastClause,
                     const vector<string>& statList, 
                     vector<string>& group,
                     string agg,
+                    bool addCond, 
                     bool isSplitYear, 
                     unordered_set<string>& selectFieldsSetOut)
 {
@@ -719,8 +735,8 @@ int buildLastClause(string &lastClause,
     for(auto g : group) groupSet.emplace(g);
 
     lastClause = makeFinalSelect(isSplitYear, selectFields, selectFieldsSet,
-                                 fieldValueMap, statList, group, groupSet, agg, 
-                                 selectFieldsSetOut);
+                                 fieldValueMap, statList, group, groupSet, agg,
+                                 addCond, selectFieldsSetOut);
 
     cout << endl << "buildLastClause: final_select=" << lastClause;
 
@@ -922,7 +938,7 @@ int buildSQLQuery(string argstr, string &qy,
     unordered_set<string> selectFieldsSetOut;
     err = buildLastClause(lastClause, fieldValueMap, selectFields,
                           selectFieldsSet, statList, args.grp, 
-                          args.agg, isSplitYear, selectFieldsSetOut);
+                          args.agg, addCond, isSplitYear, selectFieldsSetOut);
     cout << endl << "lastClause=" << lastClause;
     
     // need to wrap around last select by another select, since the minGP cannot be selected for

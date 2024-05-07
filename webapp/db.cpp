@@ -439,6 +439,12 @@ void fixColumnNames(vector<string>& colummNames) {
             else if (col == "_game") {
                 col = "OppGm";
             }
+            else if (col == "num") {
+                col = "N";
+            }
+            else if (col == "month") {
+                col = "Mon";
+            }
             // statistics with '_' replace with 'opp'
             else if(col[0] == '_') {
                 col.replace(0, 1, "opp");
@@ -650,32 +656,61 @@ int handlePlayerRequest(sqlite3 *pdb, const string &qy,
             return 400;
         }
         for (const auto& row : result) {
-            cout << endl << "adding " << row[0] << " " << row[1];
-            cout << " " << row[2];
+            //cout << endl << "adding " << row[0] << " " << row[1];
+            //cout << " " << row[2];
             int id = stoi(row[2]);
             auto last = string(row[0]);
-            auto first = string(row[1]);
-            cout << endl << "last";
+            auto other = string(row[1]);
+            //cout << endl << "last";
             addToTrie(playerLastTrie, last, id);
-            cout << endl << "first";
-            addToTrie(playerOtherTrie, first, id);
-            playerIDMap[id] = row[0] + ", " + row[1];
+            //cout << endl << "first";
+            addToTrie(playerOtherTrie, other, id);
+            playerIDMap[id] = other + " " + last;
         }
     }
-    // simple REST, use param given
-    auto ids1 = findInTrie(playerLastTrie, qy);
-    auto ids2 = findInTrie(playerOtherTrie, qy);
+    auto idSet = std::set<int>();
+    vector<string> s;
+    s.push_back(qy);
+    auto last = qy;
+    auto first = qy;
+    if(qy.find_first_of(',') != string::npos) {
+        s = splitStr(qy, ',');
+        last = s[0];
+        first = s[1];
+    }
+    else if(qy.find_first_of(' ') != string::npos) {
+        s = splitStr(qy, ' ');
+        first = s[0];
+        last = s[1];
+    }
 
-    // merge IDs
-    auto idSet = std::set(ids1.begin(), ids1.end());
-    idSet.insert(ids2.begin(), ids2.end());
+    cout << endl; printVec(s);
+    if (last != first) {
+        auto ids1 = findInTrie(playerLastTrie, last);
+        auto ids2 = findInTrie(playerOtherTrie, first);
+        
+        // only add player if both first and last match
+        for(auto x : ids1) {
+            if (std::find(std::begin(ids2), std::end(ids2), x) != std::end(ids2))
+                idSet.emplace(x);
+        }
+    }
+    else {
+        auto ids1 = findInTrie(playerLastTrie, qy);
+        auto ids2 = findInTrie(playerOtherTrie, qy);
+        // merge IDs
+        idSet.insert(ids1.begin(), ids1.end());
+        idSet.insert(ids2.begin(), ids2.end());
+    }
+    
 
     // build JSON response
     resp += "{ \"players\":[";
     for(auto id : idSet) 
         resp += "[\"" + playerIDMap[id] + "\", " + to_string(id) + "],";
     // remove last comma
-    resp.pop_back();
+    if (resp.back() == ',') 
+        resp.pop_back();
     resp += "]}";
     mimeType = MIME_JSON;
 

@@ -15,7 +15,7 @@ const statSets = statSetsDefault;
 
 const resultsClass = "overflow-x-scroll flex-no-wrap";
 const statTypesClassName="col-auto";
-const aggregateDivClass = "col-auto" ; // border border-secondary
+const aggregateDivClass = "col-2" ; // border border-secondary
 const aggregateSelectClass = "col-auto form-select";
 const updateButtonClass = "btn btn-success text-no-wrap";
 
@@ -31,7 +31,6 @@ function App() {
   const [boxScoreFiltOpts, setBoxScoreFiltOpts] = useState(boxScoreFiltOptsDefaults);
   const [minGP, setMinGP] = useState(1);
   const [limit, setLimit] = useState(30);
-  const [queryType, setQueryType] = useState("gamelog");
 
   console.log("boxScoreFiltOptsDefaults=", boxScoreFiltOptsDefaults);
   useEffect(() => {
@@ -42,14 +41,14 @@ function App() {
         boxScoreFiltOptsNew.parks = r.parks;
         boxScoreFiltOptsNew.teams = r.teams;
         setBoxScoreFiltOpts(boxScoreFiltOptsNew);
-        // do initla fetch with default params
-        await updateData();
+        // do initial fetch with default params
+        await getData("gamelog");
       };
       doFetch();
   }, []);
   
-  const updateData = async () => {
-    console.log("updateData");
+  const getData = async (queryType) => {
+    console.log("getData");
     const statTypes = statSets.get(statSet);
 
     if (queryType == "gamelog") {
@@ -158,11 +157,6 @@ function App() {
     setStatSet(stSet);
   }
 
-  const onQueryTypeChange = (qType) => {
-    console.log("onQueryTypeChange=", qType)
-    setQueryType(qType);
-  }
-
   console.log("App statSet=", statSet);
   console.log("filter=", filter);
   
@@ -184,21 +178,17 @@ function App() {
              </p>
             </div>
         <div className="row overflow-x-scroll flex-no-wrap">
-          <div className="col">
-            <RadioButtonGroup fieldName="queryType" label=""
-               options={queryTypes} 
-                  val={queryType} onRadioChange={onQueryTypeChange}
-                  radioClasses={{divClass:"", labelClass:""}} />
+          <div className="col-2">
             <h4>Filters/Order:</h4>
             <BoxScoreFilters boxScoreFiltOpts={boxScoreFiltOpts} filter={filter}
                              onFiltChange={onFiltChange} order={order} 
-                             onOrderChange={onOrderChange} updateData={updateData}/>
+                             onOrderChange={onOrderChange} updateData={getData}/>
           </div>
           <div className="col">
             <div className="container">
               <div className="row">
                 <StatTypes statSet={statSet} onStatSetChange={onStatSetChange} 
-                            updateData={updateData}
+                            updateData={getData}
                             divClassName={statTypesClassName}/>
               </div>
               <div className="row mt-4">
@@ -227,8 +217,12 @@ function App() {
                     type="text" id="filter_limit" value={limit}
                     onChange={(e)=>(onNewLimit(e.target.value))} />
                 </div>
-                <div className="col-4 p-4 align-items-center">
-                  <button className={updateButtonClass} onClick={()=>(updateData())}>Get Data</button>
+              </div>
+              <div className="row mt-3 flex-no-wrap">
+                <div className="hstack gap-3">
+                  <button className={updateButtonClass} onClick={()=>(getData("gamelog"))}>Get Team</button>
+                  <button className={updateButtonClass} onClick={()=>(getData("playergame"))}>Get Player</button>
+                  <button className={updateButtonClass} onClick={()=>(getData("situation"))}>Get Situation</button>
                 </div>
               </div>
               <div className="row overflow-x-scroll flex-no-wrap">
