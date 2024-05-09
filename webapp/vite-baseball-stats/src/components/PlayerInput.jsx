@@ -4,17 +4,30 @@ import { useState } from 'react'
 
 import { doRequest } from '../js/requests.js'
 
+const inputClass = "ml-2 col-8 form-input";
+
+// map name to numeric ID
+// can just use one universal players map and update
+// as we get data, since data
+// does not change - don't need useState hook
+const playersMap = new Map();
+
 // 
-const PlayerInput = ({fieldName, onChange}) => {
+const PlayerInput = ({fieldName, label, onFiltChange}) => {
   const [playersList, setPlayersList] = useState([[]]);
-  const [tLast, settLast] = useState(Date.now())
-  const [timeoutID, setTimeoutID] = useState(0)
+  const [timeoutID, setTimeoutID] = useState(0);
 
   const onInputChange = async (evt) => {
-      const qy = evt.target.value;
+      const plyrName = evt.target.value;
       const inh = evt.target.innerHTML;
-      console.log("PlayerInput qy", qy, " inh=", inh);
-      const url = encodeURI("/player?" + qy);
+      console.log("PlayerInput: onInputChange() plyrName=", plyrName);
+      onFiltChange(fieldName, plyrName, false);
+      
+      if(plyrName.indexOf(")") >= 0) 
+        return;
+    
+      console.log("PlayerInput plyrName", plyrName, " inh=", inh);
+      const url = encodeURI("/player?" + plyrName);
       if (timeoutID != 0) {
         clearTimeout(timeoutID);
       }
@@ -26,10 +39,10 @@ const PlayerInput = ({fieldName, onChange}) => {
         if(r != null) {
             console.log(r.players);
             setPlayersList(r.players);
+            r.players.map((p) => { playersMap.set(p[0], p[1]); });
         }
       }, 1000);
       setTimeoutID(tID);
-
   }
 
   const onOptionSelect = (e) => {
@@ -37,14 +50,15 @@ const PlayerInput = ({fieldName, onChange}) => {
   }
 
   const id = fieldName + "_players";
+  const fn_id = fieldName + "_input";
   return (
     <div>
-        <label><h5>{fieldName}</h5> &#x1F50D;</label>
-        <input type="text" list={id} onChange={(e) => onInputChange(e)}/>
+        <h5>{label}</h5><label htmlFor={fn_id}>&#x1F50D;</label>
+        <input className={inputClass} type="text" list={id} id={fn_id} onChange={(e) => onInputChange(e)}/>
         <datalist id={id}>
         {playersList.map((p) => (
             <option onSelect={(e)=>(onOptionSelect(e))} 
-                    value={p[0]}>{p[1]}
+                    value={p[0] + " (" + p[1] + ")"}>
             </option>)) }
         </datalist>
     </div>

@@ -5,11 +5,14 @@ import Results from './components/Results.jsx'
 import StatTypes from './components/StatTypes.jsx';
 
 import { doRequest } from './js/requests.js'
-import {  makeGamelogQueryJSON, makePlayerGameQueryJSON, makeSituationQueryJSON } from './js/queries.js'
+import { makeGamelogQueryJSON, makePlayerGameQueryJSON, makeSituationQueryJSON } from './js/queries.js'
 import { boxScoreFiltOptsDefaults, boxScoreFiltDefaults, filterFields, getParksTeams, orderDefaults } from './js/filters.js'
 import { statTypesArr, statSortOrder, statSetsDefault } from './js/stats.js'
 import NumberInputWithCheck from './components/NumberInputWithCheck.jsx';
 import RadioButtonGroup from './components/RadioButtonGroup.jsx';
+import ButtonGroup from './components/ButtonGroup.jsx';
+import PlayerInput from './components/PlayerInput.jsx';
+import OptionWithCheck from './components/OptionWithCheck.jsx';
 
 const statSets = statSetsDefault;
 
@@ -18,8 +21,29 @@ const statTypesClassName="col-auto";
 const aggregateDivClass = "col-2" ; // border border-secondary
 const aggregateSelectClass = "col-auto form-select";
 const updateButtonClass = "btn btn-success text-no-wrap";
+const optionInputDivClass = "row mb-1 mt-1"; // border border-secondary
+const selectClass = "col-4 form-select";
+const inputClass = "ml-2 col-8 form-input";
+const optionInputLabelClass = "form-label"
+const optionClasses = { divClass:optionInputDivClass, selectClass, labelClass:optionInputLabelClass } 
+const checkDivClass = "form-check form-check-inline mb-2";
+const checkClass = " ms-1 me-1 form-check-input";
+const checkLabelClass= "form-check-label"
+const checkClasses = { divClass:checkDivClass, checkClass, labelClass:checkLabelClass, label:"Group" }
 
 const queryTypes = [["Team", "gamelog"], ["Player","playergame"], ["Situation","situation"]];
+
+const seasonValMapDefault = new Map();
+seasonValMapDefault.set("Reg", true)
+seasonValMapDefault.set("Post", false)
+
+const RANGE_FIELDS = new Set();
+RANGE_FIELDS.add("year");
+RANGE_FIELDS.add("temp");
+RANGE_FIELDS.add("windspeed");
+RANGE_FIELDS.add("sit_outs");
+RANGE_FIELDS.add("sit_sco_diff");
+RANGE_FIELDS.add("sit_inn");
 
 function App() {
   const [results, setResults] = useState("");
@@ -31,6 +55,22 @@ function App() {
   const [boxScoreFiltOpts, setBoxScoreFiltOpts] = useState(boxScoreFiltOptsDefaults);
   const [minGP, setMinGP] = useState(1);
   const [limit, setLimit] = useState(30);
+  const [seasonValMap, setSeasonValMap] = useState(seasonValMapDefault);
+
+  const onSeasonChange = (v, st) =>  {
+    const newMap = new Map(seasonValMap);
+    console.log("onSeasonChange v=", v, " st=", st);
+    newMap.set(v, st);
+    // both true or both false
+    if (newMap.get("Post") == newMap.get("Reg"))
+      onFiltChange("season", "", false);
+    else if (newMap.get("Post"))
+      onFiltChange("season", "Post", false);
+    else
+      onFiltChange("season", "Reg", false);
+    // filter.values.get("season")
+    setSeasonValMap(newMap);
+  }
 
   console.log("boxScoreFiltOptsDefaults=", boxScoreFiltOptsDefaults);
   useEffect(() => {
@@ -47,7 +87,7 @@ function App() {
       doFetch();
   }, []);
   
-  const getData = async (queryType) => {
+  const getData = async (queryType, playerGameQueryType) => {
     console.log("getData");
     const statTypes = statSets.get(statSet);
 
@@ -63,7 +103,7 @@ function App() {
         setResults(r);
     }
     if (queryType == "playergame") {
-      const qy = makePlayerGameQueryJSON(filter, aggregate, statTypes, order, minGP, limit);
+      const qy = makePlayerGameQueryJSON(playerGameQueryType, filter, aggregate, statTypes, order, minGP, limit);
       console.log("qy=", qy);
       const url = encodeURI("/playergame?" + qy);
       const r = await doRequest(url, 'GET', null, "", null, "html", (e) => {
@@ -102,7 +142,7 @@ function App() {
 
   const onFiltChange = (field, value, isGroup) => {
     console.log("onFiltChange field=", field, "value=", value);
-    console.log("onFiltChange filter=", filter);
+    //console.log("onFiltChange filter=", filter);
     try {
       // we have to copy, or else React doens't detect state change
       const newFilt = {...filter}
@@ -113,14 +153,14 @@ function App() {
             // clear the selected values 
             // because doesn't make sense to select for value while also grouping
             // except for ranges
-            if(field == "year") {
-               if(filter.values.get("year_low") == filter.values.get("year_high")) {
-                 newFilt.values.set("year_low", "");
-                 newFilt.values.set("year_high", "");
+            if(RANGE_FIELDS.has(field)) {
+               if(filter.values.get(field + "_low") == filter.values.get(field + "_high")) {
+                 newFilt.values.set(field + "_low", "");
+                 newFilt.values.set(field + "_high", "");
                }
             }
             else {
-                newFilt.values.set(field, "");
+              newFilt.values.set(field, "");
             }
           }
           else {
@@ -178,7 +218,22 @@ function App() {
              </p>
             </div>
         <div className="row overflow-x-scroll flex-no-wrap">
-          <div className="col-2">
+          <div className="col-auto">
+            <ButtonGroup fieldName="season" label="Season: "
+                options={boxScoreFiltOpts.season} 
+                valMap={seasonValMap}
+                onButtonChange={onSeasonChange}
+                buttonClasses={{divClass:"", labelClass:"me-2"}}/>
+            <OptionWithCheck fieldName="team" label="Team/Batting"
+                options={boxScoreFiltOpts.teams} 
+                val={filter.values.get("team")}
+                checkVal={filter.group.has("team")} 
+                onChange={onFiltChange}
+                optionClasses={optionClasses}
+                checkClasses={checkClasses}/>
+            <PlayerInput fieldName="batter" label="Batter" onFiltChange={onFiltChange}/>
+            <PlayerInput fieldName="pitcher" label="Pitcher" onFiltChange={onFiltChange}/>
+
             <h4>Filters/Order:</h4>
             <BoxScoreFilters boxScoreFiltOpts={boxScoreFiltOpts} filter={filter}
                              onFiltChange={onFiltChange} order={order} 
@@ -220,9 +275,11 @@ function App() {
               </div>
               <div className="row mt-3 flex-no-wrap">
                 <div className="hstack gap-3">
-                  <button className={updateButtonClass} onClick={()=>(getData("gamelog"))}>Get Team</button>
-                  <button className={updateButtonClass} onClick={()=>(getData("playergame"))}>Get Player</button>
-                  <button className={updateButtonClass} onClick={()=>(getData("situation"))}>Get Situation</button>
+                  <button className={updateButtonClass} onClick={()=>(getData("gamelog"))}>Get Team Stats</button>
+                  <button className={updateButtonClass} onClick={()=>(getData("playergame", "bat"))}>Get Player Batting</button>
+                  <button className={updateButtonClass} onClick={()=>(getData("playergame", "pit"))}>Get Player Pitching</button>
+                  <button className={updateButtonClass} onClick={()=>(getData("playergame", "fld"))}>Get Player Fielding</button>
+                  <button className={updateButtonClass} onClick={()=>(getData("situation"))}>Get Situation Stats</button>
                 </div>
               </div>
               <div className="row overflow-x-scroll flex-no-wrap">

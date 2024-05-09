@@ -1,7 +1,7 @@
 import React from 'react'
 
 const RadioBtn = ({btnname, id, lbl, opt, onRadioChange, isChecked}) => {
-    console.log("RadioBtn opt=", opt, " isChecked=", isChecked);
+    //console.log("RadioBtn opt=", opt, " isChecked=", isChecked);
     if (isChecked)
         return <>
             <input type="radio" className="btn-check" name={btnname} id={id} value={opt} checked
@@ -20,7 +20,7 @@ const RadioBtn = ({btnname, id, lbl, opt, onRadioChange, isChecked}) => {
 const RadioButtonGroup = ({fieldName, label, options, val, 
     onRadioChange, radioClasses}) => {
 
-    console.log("RadioButtonGroup val=", val)
+    //console.log("RadioButtonGroup val=", val)
     const id = "radio_"+{fieldName}
     const btnname= "btnradio" + fieldName;
     return (

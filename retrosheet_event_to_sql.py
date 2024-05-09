@@ -49,6 +49,7 @@ class GameID:
             self.month = id[7:9]
             self.day = id[9:11]
             self.num = int(id[11])
+            self.date = self.year+self.month+self.day
 
             #print(self.team, self.year, self.month, self.day, self.num)
 
@@ -109,10 +110,11 @@ class GameInfo:
 
     def __init__(self, gameID=None, gameNumID=None) -> None:
         if gameID is not None and gameNumID is not None:
+            self.gameID = gameID
             self.game_date = (gameID.year, gameID.month, gameID.day)
             
             # game num in day 0 for nomrla games, 1 or 2 for double headers
-            self.game_num_type = gameID.num
+            self.game_num = gameID.num
             # unique numeric game id for DB
             self.gameNumID = gameNumID
             for fld in INFO_FIELDS:
@@ -173,9 +175,9 @@ class GameInfo:
         elif f in ("innings", "windspeed", "temp", "timeofgame", "attendance"):
             try:
                 val = int(v)
-                if f == "windspeed" and val > 30:
-                    print("windspeed", val, "> 30, truncating to 30")
-                    val = 30
+                if f == "windspeed" and val > 60:
+                    print("windspeed", val, "> 60, truncating to 60")
+                    val = 60
             except ValueError as e:
                 #print(f"GameInfo: failure to parse integer field ", f, ",  v=", v)
                 return 
@@ -210,9 +212,6 @@ class GameInfo:
         else:  # generic string value
             setattr(self, f, v)
 
-    def setGameNumID(self, gameIDMap):
-        # get the numeric id of the game
-        gameIDMap[self.date][self.hometeam][self.number] = self.gameNumID
     
     def insertIntoDB(self, cur, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, isUpdate=False):
         stmt = "INSERT INTO game_info VALUES("
@@ -222,9 +221,7 @@ class GameInfo:
         away = self.visteam
         home = self.hometeam
         #print("home=", home, "away=", away)
-        self.hometeam_id = home
-        self.visteam_id = away
-        game_num_type = (self.game_num_type << 6) + (self.innings << 8)
+        game_num_type = (self.game_num << 6) + (self.innings << 8)
         # tiebreaker playoff games considered part of the regular season
         if self.gametype=="playoff":
             game_num_type = game_num_type | (5 << 3)
@@ -258,10 +255,10 @@ class GameInfo:
         flags = flags | (self.use_dh << 3) | (self.tiebreak_base << 4)
 
         # set condition
-        if self.winddir != 0:
-            print("winddir=", self.winddir)
-        if self.sky in (2, 3):
-            print("sky=", self.sky)
+        # if self.winddir != 0:
+        #     print("winddir=", self.winddir)
+        # if self.sky in (2, 3):
+        #     print("sky=", self.sky)
         cond = self.daynight | (self.fieldcond << 1) | (self.precip << 4)
         cond = cond | (self.sky << 7) | (self.winddir << 10) | ((self.windspeed+1)<<14)
         cond = cond | (self.temp << 20)
@@ -331,9 +328,9 @@ class EventStart(Event):
     def toSQLIns(self, game_id, event_id, gameInfo, playerCodeToIDMap):
         playerID = self.player_id
         stmt = f"INSERT INTO event_start VALUES({game_id}, {event_id}, "
-        team = gameInfo.hometeam_id
+        team = gameInfo.hometeam
         if self.side == 0:
-            team = gameInfo.visteam_id
+            team = gameInfo.visteam
         stmt += f"'{playerCodeToIDMap[playerID]}', '{team}', {self.bat_pos}, {self.field_pos})"
         return stmt
 
@@ -356,9 +353,9 @@ class EventSub(Event):
     def toSQLIns(self, game_id, event_id, gameInfo, playerCodeToIDMap):
         stmt = f"INSERT INTO event_sub VALUES({game_id}, {event_id}, "
         playerID = self.player_id
-        team = gameInfo.hometeam_id
+        team = gameInfo.hometeam
         if self.side == 0:
-            team = gameInfo.visteam_id
+            team = gameInfo.visteam
         stmt += f"{playerCodeToIDMap[playerID]}, '{team}', {self.bat_pos}, {self.field_pos})"
         return stmt
 
@@ -376,9 +373,9 @@ class EventPlay(Event):
         stmt = f"INSERT INTO event_play VALUES({game_id}, {event_id}, "
         playerID = self.player_id
         
-        team = gameInfo.hometeam_id
+        team = gameInfo.hometeam
         if self.side == 0:
-            team = gameInfo.visteam_id
+            team = gameInfo.visteam
         stmt += f"'{team}', {playerCodeToIDMap[playerID]}, {self.inning}, {valOrNULL(self.batter_count)},"
         stmt += f"'{self.pitch_seq}', '{self.play}')"
         return stmt 
@@ -400,9 +397,9 @@ class EventAdjustment(Event):
             tbl = "event_lineup_adj"
         stmt = f"INSERT INTO {tbl} VALUES({game_id}, {event_id}, "        
         if self.adjType == "ladj":
-            team = gameInfo.hometeam_id
+            team = gameInfo.hometeam
             if self.side == 0:
-                team = gameInfo.visteam_id
+                team = gameInfo.visteam
             stmt += f"'{team}', "
         else:
             playerID = self.player_id
@@ -477,9 +474,9 @@ class StatLine(Event):
               "pline":"player_game_pitching",
               "prline":"player_game_batting"}
         stmt = f"INSERT INTO {mp[self.lineType]} VALUES({game_id}"
-        team = gameInfo.hometeam_id
+        team = gameInfo.hometeam
         if self.side == 0:
-            team = gameInfo.visteam_id
+            team = gameInfo.visteam
         stmt += f", {playerCodeToIDMap[self.player_id]}, '{team}'"
         if self.lineType == "pline":
             stmt += f", {self.seq}, "
@@ -519,7 +516,23 @@ EVENT_TYPE_DICT["presadj"] = EventAdjustment
 
 def insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, events, conn, isUpdate=False):
     curs = conn.cursor()
-    gameInfo.insertIntoDB(curs, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, isUpdate)
+    dt = gameInfo.gameID.date
+    team = gameInfo.gameID.team
+    num = gameInfo.gameID.num
+    doIns = True
+    if dt in gameIDMap:
+        if team in gameIDMap[dt]:
+            if num in gameIDMap[dt][team]:
+                doIns = False
+    if doIns:
+        gameInfo.insertIntoDB(curs, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, isUpdate)
+        if dt not in gameIDMap:
+            gameIDMap[dt] = dict()
+        if team not in gameIDMap[dt]:
+            gameIDMap[dt][team] = dict()
+        gameIDMap[dt][team][num] = gameInfo.gameNumID
+    else:
+        print("skipping gameInfo in, game already in DB")
     if isUpdate:
         # only update gameinfo for now
         return
@@ -616,13 +629,13 @@ def parseEventsFromEVX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scor
                                evts, conn, isUpdate)
     return nextGameNum
 
-def parseBox(v, gameInfo, gameID, nextGameNum):
+def parseBox(v, gameInfo, gameID):
     #print(f"parseEvent: v={v}")
     evtType = v[0]
     if evtType == "info":
         if gameInfo == None:
             #print(f"parseEvent: new info")
-            gameInfo = GameInfo(gameID, nextGameNum)
+            gameInfo = GameInfo(gameID, 0)
         gameInfo.add(v[1:])
         return gameInfo
     elif evtType == "id":
@@ -644,7 +657,7 @@ def parseBoxFromEBX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerC
         evts = []
         
         for row in rdr:
-            evt = parseBox(row, gameInfo, gameID, nextGameNum)
+            evt = parseBox(row, gameInfo, gameID)
             if type(evt) == type(GameID()):
                 # insert all events from previous game
                 if gameID is not None:
@@ -652,11 +665,19 @@ def parseBoxFromEBX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerC
                                        evts, conn, isUpdate)
                 gameID = evt
                 gameInfo = None
-                nextGameNum += 1
                 #print("nextGameNum=", nextGameNum)
                 evts.clear()
             elif type(evt) == type(GameInfo()):
-                gameInfo = evt                
+                gameNumID = 0
+                if gameID.date in gameIDMap:
+                    if gameID.team in gameIDMap[gameID.date]:
+                        if gameID.num in gameIDMap[gameID.date][gameID.team]:
+                            gameNumID = gameIDMap[gameID.date][gameID.team][gameID.num]
+                if gameNumID == 0:
+                    gameNumID = nextGameNum
+                    nextGameNum += 1
+                gameInfo = evt
+                gameInfo.gameNumID = gameNumID                
             elif evt is not None:
                 evts.append(evt)
         

@@ -16,8 +16,6 @@ import PlayerInput from './PlayerInput.jsx'
 const SituationFilters = ({filter, boxScoreFiltOpts, onFiltChange, optionClasses, checkClasses}) => {
   return (
     <div>
-    <PlayerInput fieldName="batter" onChange={onFiltChange}/>
-    <PlayerInput fieldName="pitcher" onChange={onFiltChange}/>
     <OptionWithCheck fieldName="sit_innhalf" label="Inning Half" 
       options={boxScoreFiltOpts.inning_halves} 
       val={filter.values.get("sit_innhalf")} 

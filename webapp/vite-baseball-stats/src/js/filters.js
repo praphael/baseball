@@ -155,7 +155,7 @@ boxScoreFiltDefaults.values.set("game_low", "");
 boxScoreFiltDefaults.values.set("game_high", "");
 boxScoreFiltDefaults.values.set("league", "");
 boxScoreFiltDefaults.values.set("_league", "");
-boxScoreFiltDefaults.values.set("season", "");
+boxScoreFiltDefaults.values.set("season", "Reg");
 boxScoreFiltDefaults.values.set("round", "");
 boxScoreFiltDefaults.values.set("daynight", "");
 boxScoreFiltDefaults.values.set("fieldcond", "");

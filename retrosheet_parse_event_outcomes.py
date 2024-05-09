@@ -837,8 +837,7 @@ class LineupAdjEvent(Event):
         if l is not None:
             # destructure
             self.game_id, self.event_id, self.team_id = l[0:3]
-            self.adj = l[3:]
-            self.adj = int(chr(self.adj))
+            self.adj = int(l[3:])
     def print(self):
         DEBUG_PRINT(f"***** Lineup adjustment: {self.team} {self.adj}")
 
@@ -1268,7 +1267,10 @@ class GameState:
                 i += 1
                 batStats.add(st)
                 #insertIntoDB(self, cur, game_id, player_num_id, team, seq, pos):
-                st.insertIntoDB(cur, self.gameID, pID, tm_id, o, i+1)
+                try:
+                    st.insertIntoDB(cur, self.gameID, pID, tm_id, o, i+1)
+                except Exception as e:
+                    pass
 
         # fielding stats
         DEBUG_PRINT(tm, "fielding")
@@ -1287,7 +1289,11 @@ class GameState:
                 st.print()
                 i += 1
                 fieldStats.add(st)
-                st.insertIntoDB(cur, self.gameID, pID, tm_id, o, i+1)
+                try:
+                    st.insertIntoDB(cur, self.gameID, pID, tm_id, o, i+1)
+                except Exception as e:
+                    pass
+        
                 
         pitchStats = PitcherStats()
         DEBUG_PRINT(tm, " pitching")
@@ -1298,7 +1304,10 @@ class GameState:
             DEBUG_PRINT(pID, end="")
             st.print()
             pitchStats.add(st)
-            st.insertIntoDB(cur, self.gameID, pID, tm_id, i)
+            try:
+                st.insertIntoDB(cur, self.gameID, pID, tm_id, i)
+            except Exception as e:
+                pass
             i += 1
 
         return batStats, fieldStats, pitchStats
@@ -1789,7 +1798,7 @@ class GameState:
                 rn = self.baseRunners[b]
                 nxtBase = self.movedRunners[b]
                 if nxtBase is not None:
-                    nxtBase = int(nxtBase)
+                    nxtBase = baseToNum(nxtBase)
 
                 if rn is not None:    
                     runIdx, runnerID = self.baseRunners[b]
@@ -2210,7 +2219,10 @@ def parseGame(gameID, plays, conn):
     t1 = time.time()
     dt = t1 - tStart
     #print(f"apply plays took {dt*1000} ms")
-    game.compileGameStats(cur)
+    try:
+        game.compileGameStats(cur)
+    except Exception as e:
+        print(e)
 
     #compareStatsToBoxScore(game, htbf, conn, cur)
     
@@ -2238,9 +2250,6 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=[0, 200000], quit_on_err=
         DEBUG_PRINT("num_plays= ", len(tups))
         plays = []
         gameID = None
-        
-        
-
         stmt = f"SELECT player_num_id, player_id FROM player"
         cur.execute(stmt)
         tups2 = cur.fetchall()
@@ -2253,12 +2262,13 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=[0, 200000], quit_on_err=
                 game_id = tup[0]
                 if game_id != gameID:  # new game
                     if gameID != None:
-                        print(f"parsing game {gameID}")
+                        print(f"parsing game {gameID} ")
                         total += 1
                         try:
                             err = parseGame(gameID, plays, conn)
                         except KeyboardInterrupt as e:
                             print("broken by keyboard interrupt")
+                            kbInt = True
                             break
                         except Exception as e:
                             traceback.print_exc()
@@ -2274,7 +2284,7 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=[0, 200000], quit_on_err=
                                     delFailed = False
                                 except KeyboardInterrupt as e:
                                     print("broken by keyboard interrupt")
-                                    break
+                                    exit(1)
                                 except Exception as e:
                                     time.sleep(0.1)
                                     pass
@@ -2296,7 +2306,7 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=[0, 200000], quit_on_err=
                                     uncommited = False
                                 except KeyboardInterrupt as e:
                                     print("broken by keyboard interrupt")
-                                    break
+                                    exit(1)
                                 except Exception as e:
                                     print(e)
                         # clear debugging output to save mem/CPU
@@ -2334,7 +2344,7 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=[0, 200000], quit_on_err=
                 err = parseGame(gameID, plays, conn)
             except KeyboardInterrupt as e:
                 print("broken by keyboard interrupt")
-                break
+                exit(1)
             except Exception as e:
                 traceback.print_exc()
                 err = True

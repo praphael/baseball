@@ -25,27 +25,8 @@ const orderFields = new Array();
 orderFields.push(...filterFields);
 orderFields.push(...statTypesArr);
 
-const seasonValMapDefault = new Map();
-seasonValMapDefault.set("Reg", true)
-seasonValMapDefault.set("Post", false)
-
 const BoxScoreFilters = ({boxScoreFiltOpts, filter, onFiltChange, order, onOrderChange, updateData}) => {
-  const [ seasonValMap, setSeasonValMap] = useState(seasonValMapDefault);
 
-  const onSeasonChange = (v, st) =>  {
-    const newMap = new Map(seasonValMap);
-    console.log("onSeasonChange v=", v, " st=", st);
-    newMap.set(v, st);
-    // both true or both false
-    if (newMap.get("Post") == newMap.get("Reg"))
-      onFiltChange("season", "", false);
-    else if (newMap.get("Post"))
-      onFiltChange("season", "Post", false);
-    else
-      onFiltChange("season", "Reg", false);
-    // filter.values.get("season")
-    setSeasonValMap(newMap);
-  }
 
   console.log("BoxScoreFilters filter=", filter);
   console.log("BoxScoreFilters filter.group=", filter.group);
@@ -65,22 +46,10 @@ const BoxScoreFilters = ({boxScoreFiltOpts, filter, onFiltChange, order, onOrder
               aria-labelledby="headingOne" data-bs-parent="#filtersAccordion">
               <div className="accordion-body">
                       
-        <ButtonGroup fieldName="season" label="Season: "
-            options={boxScoreFiltOpts.season} 
-            valMap={seasonValMap}
-            onButtonChange={onSeasonChange}
-            buttonClasses={{divClass:"", labelClass:"me-2"}}/>
         <OptionWithCheck fieldName="round" label="Round"
             options={boxScoreFiltOpts.postseries} 
             val={filter.values.get("round")}
             checkVal={filter.group.has("round")} 
-            onChange={onFiltChange}
-            optionClasses={optionClasses}
-            checkClasses={checkClasses}/>
-        <OptionWithCheck fieldName="team" label="Team/Batting"
-            options={boxScoreFiltOpts.teams} 
-            val={filter.values.get("team")}
-            checkVal={filter.group.has("team")} 
             onChange={onFiltChange}
             optionClasses={optionClasses}
             checkClasses={checkClasses}/>

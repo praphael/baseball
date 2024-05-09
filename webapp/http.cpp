@@ -138,6 +138,9 @@ handle_request(
         http::response<http::string_body> res{http::status::bad_request, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, "text/html");
+        res.set("Access-Control-Allow-Origin", "*");
+        res.set("Access-Control-Allow-Headers", "*");
+
         res.keep_alive(req.keep_alive());
         res.body() = std::string(why);
         res.prepare_payload();
@@ -151,6 +154,9 @@ handle_request(
         http::response<http::string_body> res{http::status::not_found, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, "text/html");
+        res.set("Access-Control-Allow-Origin", "*");
+        res.set("Access-Control-Allow-Headers", "*");
+
         res.keep_alive(req.keep_alive());
         res.body() = "The resource '" + std::string(target) + "' was not found.";
         res.prepare_payload();
@@ -164,6 +170,9 @@ handle_request(
         http::response<http::string_body> res{http::status::internal_server_error, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, "text/html");
+        res.set("Access-Control-Allow-Origin", "*");
+        res.set("Access-Control-Allow-Headers", "*");
+
         res.keep_alive(req.keep_alive());
         res.body() = "An error occurred: '" + std::string(what) + "'";
         res.prepare_payload();
@@ -285,7 +294,6 @@ handle_request(
     // Cache the size since we need it after the move
     auto const size = resp_body.size();
     cout << endl << "size= " << size;
-
 
     // Respond to OPTIONS request, for CORS headers
     if(req.method() == http::verb::options)

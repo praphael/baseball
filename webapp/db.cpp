@@ -1,6 +1,8 @@
 #include <iostream>
 #include <cstring>
 #include <sstream>
+#include <algorithm>
+#include <utility>
 
 #include "db.h"
 #include "baseball_tables.h"
@@ -635,6 +637,109 @@ int handleGamelogRequest(sqlite3 *pdb, const string &qy, string& resp, string &m
     return 0;
 }
 
+int initPlayerIDMap(sqlite3 *pdb, 
+                    NameTrie& playerLastTrie,
+                    NameTrie& playerOtherTrie,
+                    unordered_map<int, string>& playerIDMap,
+                    string& errMsg)
+{
+    query_result_t result, resultStarts, resultSubs;
+    vector<string> columnNames;
+    unordered_map<int, unordered_map<string, int>> numApps;
+
+    cout << endl << "initializing playerIDMap";
+    auto qy = "SELECT name_last, name_other, player_num_id"s;
+    // qy += ", SUBSTR(debut, 0, 5) as debut, SUBSTR(last_game, 0, 5) as last_game"s;
+    qy += " FROM player "s;
+    auto err = doQuery(pdb, qy, {}, result, columnNames, errMsg);
+    if(err) { 
+        cerr << endl << "handlePlayerRequest( " << __LINE__ << "): doQuery failed err=";
+        cerr << err;
+        return err;
+    }
+    // games played for each team
+    cout << endl << "handlePlayerRequest: fetching starts";
+    qy = "SELECT player_num_id, team, COUNT(*) AS gp FROM event_start GROUP BY player_num_id, team";
+    err = doQuery(pdb, qy, {}, resultStarts, columnNames, errMsg);
+    if(err) {
+        cerr << endl << "handlePlayerRequest( " << __LINE__ << "): doQuery failed err=";
+        cerr << err;
+        return err;
+    }
+
+    cout << endl << "handlePlayerRequest: fetching subs";
+    qy = "SELECT player_num_id, team, COUNT(*) AS gp FROM event_sub GROUP BY player_num_id, team";
+    err = doQuery(pdb, qy, {}, resultStarts, columnNames, errMsg);
+    if(err) { 
+        cerr << endl << "handlePlayerRequest( " << __LINE__ << "): doQuery failed err=";
+        cerr << err;
+        return err;
+    }
+    cout << endl << "building appearances map";
+    for (const auto& row : resultStarts) {
+        int id = stoi(row[0]);
+        auto team = row[1];
+        int apps = stoi(row[2]);
+        if (numApps.count(id) == 0)
+            numApps[id] = unordered_map<string, int>();
+        auto &tmMap = numApps[id];
+        tmMap[team] = apps;
+    }
+    for (const auto& row : resultSubs) {
+        int id = stoi(row[0]);
+        auto team = row[1];
+        int apps = stoi(row[2]);
+        if (numApps.count(id) == 0)
+            numApps[id] = unordered_map<string, int>();
+        auto &tmMap = numApps[id];
+        tmMap[team] += apps;
+    }
+    cout << endl << "building playerIDMap";
+    for (const auto& row : result) {
+        //cout << endl << "adding " << row[0] << " " << row[1];
+        //cout << " " << row[2];
+        int id = stoi(row[2]);
+        auto last = string(row[0]);
+        auto other = string(row[1]);
+        auto &apps = numApps[id];
+        // sort number of appearances by team
+        using tmApp_t = std::pair<string, int>;
+        vector<tmApp_t> tmApps;
+        for(auto pr : apps) {
+            tmApps.push_back(pr);
+        }
+        auto sortFcn = [](tmApp_t a, tmApp_t b) {
+            bool gt = a.second > b.second;
+            return gt;
+        };
+
+        std::sort(tmApps.begin(), tmApps.end(), sortFcn); 
+        cout << endl;
+        for(auto ta : tmApps) {
+            cout << " " << ta.first << " " << ta.second;
+        }
+        //cout << endl << "last";
+        addToTrie(playerLastTrie, last, id);
+        //cout << endl << "first";
+        addToTrie(playerOtherTrie, other, id);
+        auto pID = other + " " + last + " ";
+        auto i = 0;
+        for (auto a : tmApps) {
+            if (i > 2) {
+                pID += to_string((tmApps.size() - i)) + " others/";
+                break;
+            }
+            pID += a.first + "/";
+            i++;
+        }
+        pID.pop_back(); // remove last '/'
+        cout << endl << pID;
+
+        playerIDMap[id] = pID;
+    }
+    return 0;
+}
+
 int handlePlayerRequest(sqlite3 *pdb, const string &qy,
                         string& resp, string &mimeType,
                         NameTrie& playerLastTrie,
@@ -647,25 +752,10 @@ int handlePlayerRequest(sqlite3 *pdb, const string &qy,
     int err = 0;
     resp.clear();
     if (playerIDMap.size() == 0) {
-        auto qy = "SELECT name_last, name_other, player_num_id FROM player";
-        err = doQuery(pdb, qy, {}, result, columnNames, resp);
-        if(err) { 
-            cerr << endl << "handlePlayerRequest( " << __LINE__ << "): doQuery failed err=";
-            cerr << err;
+        err = initPlayerIDMap(pdb, playerLastTrie, playerOtherTrie, playerIDMap, resp);
+        if(err) {
             mimeType = MIME_TEXT;
             return 400;
-        }
-        for (const auto& row : result) {
-            //cout << endl << "adding " << row[0] << " " << row[1];
-            //cout << " " << row[2];
-            int id = stoi(row[2]);
-            auto last = string(row[0]);
-            auto other = string(row[1]);
-            //cout << endl << "last";
-            addToTrie(playerLastTrie, last, id);
-            //cout << endl << "first";
-            addToTrie(playerOtherTrie, other, id);
-            playerIDMap[id] = other + " " + last;
         }
     }
     auto idSet = std::set<int>();
@@ -702,7 +792,6 @@ int handlePlayerRequest(sqlite3 *pdb, const string &qy,
         idSet.insert(ids1.begin(), ids1.end());
         idSet.insert(ids2.begin(), ids2.end());
     }
-    
 
     // build JSON response
     resp += "{ \"players\":[";
@@ -717,8 +806,11 @@ int handlePlayerRequest(sqlite3 *pdb, const string &qy,
     return 0;
 }
 
-int handlePlayerGameRequest(sqlite3 *pdb, const std::string &qy, std::string& resp, std::string &mimeType,
-                            const std::unordered_map<std::string, std::string>& teamsMap )
+int handlePlayerGameRequest(sqlite3 *pdb, 
+                            const std::string &qy,
+                            string& resp,
+                            string &mimeType,
+                            const unordered_map<string, string>& teamsMap )
 {
     string player_qry;
     vector<field_val_t> prms;
@@ -784,7 +876,7 @@ int handleSituationRequest(sqlite3 *pdb, const std::string &qy, std::string& res
     cout << endl << "handleSituationRequest( " << __LINE__ << "): calling buildSituationSQLQuery() qy=" << qy;
     auto err = buildSituationSQLQuery(qy, situation_qry, prms, resp, args);
     cout << endl << "handleSituationRequest( " << __LINE__ << "): situation_qry=" << situation_qry;
-    if(err) { 
+    if(err) {
         cerr << endl << "handleSituationRequest( " << __LINE__ << "): buildSituationSQLQuery failed err=";
         cerr << err;
         return 400;

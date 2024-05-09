@@ -51,6 +51,11 @@ COPY ./webapp/vite-baseball-stats /baseball/webapp/vite-baseball-stats
 RUN cd /baseball && \
     ./retrosheet_init_db.py && \
     ./retrosheet_data_to_sql.py && \
+    ./retrosheet_boxscores_to_sql.py
+
+RUN cd /baseball && \
+    ./retrosheet_parse_event_outcomes.py 0 200000 && \
+    sqlite3 < create_situation_indexes.sql && \
     mv baseball.db webapp && \
     rm -r alldata 
 

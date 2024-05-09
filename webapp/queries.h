@@ -17,6 +17,7 @@ using query_result_t = std::vector<std::vector<std::string>>;
 
 enum valType {NOT_SET, INT, STR, INT_RANGE};
 enum queryType {ALL, GAMELOG, PLAYERGAME, SITUATION};
+enum playerGameQueryType {BATTING, PITCHING, FIELDING};
 
 struct range_t {
     int low;
@@ -52,6 +53,7 @@ struct args_t {
     bool isOldTime;
     std::vector<std::string> stats;
     std::vector<std::string> order;
+    playerGameQueryType pgQryType;
     // min games played for gamelog or player game queries
     unsigned int minGP; 
 
