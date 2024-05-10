@@ -12,19 +12,19 @@ allTables["player"]="""CREATE TABLE player (
     name_last char(64) NOT NULL,
     name_first char(64) NOT NULL,
     name_other char(64) NOT NULL,
-    birth date,
+    birth char(12),
     birth_city char(64),
     birth_state char(64),
     birth_country char(64),
-    debut date,
-    last_game date,
-    manager_debut date,
-    manager_last_game date,
-    coach_debut date,
-    coach_last_game date,
-    ump_debut date,
-    ump_last_game date,
-    death date,
+    debut char(12),
+    last_game char(12),
+    manager_debut char(12),
+    manager_last_game char(12),
+    coach_debut char(12),
+    coach_last_game char(12),
+    ump_debut char(12),
+    ump_last_game char(12),
+    death char(12),
     death_city char(64),
     death_state char(64),
     death_country char(64),
@@ -49,8 +49,8 @@ allTables["park"]="""CREATE TABLE park (
     park_aka varchar(64),
     park_city varchar(64),
     park_state varchar(4),
-    park_open date, 
-    park_close date,
+    park_open char(12), 
+    park_close char(12),
     park_league varchar(64),
     notes varchar(128)
 )"""
@@ -117,7 +117,7 @@ allTables["scorer"] = """CREATE TABLE scorer (
 # store year/month as separate fields for easier search/indexing
 allTables["game_info"]="""CREATE TABLE game_info (
     game_id integer PRIMARY KEY,
-    game_date date NOT NULL,
+    game_date char(12) NOT NULL,
     year smallint NOT NULL,
     month smallint NOT NULL,
     dow smallint,
@@ -245,7 +245,7 @@ allTables["score_by_inning"]="""CREATE TABLE score_by_inning (
 
 allTables["completion"]="""CREATE TABLE completion (
     game_id integer PRIMARY KEY,
-    completion_date date NOT NULL,
+    completion_date char(12) NOT NULL,
     completion_park char(5) NOT NULL,
     visitor_score_int smallint NOT NULL,
     home_score_int smallint NOT NULL,
@@ -378,7 +378,7 @@ allTables["event_play"]="""CREATE TABLE event_play (
     team char(3),
     player_num_id smallint,
     inning smallint,
-    batter_count smallint,
+    batter_count char(2),
     pitch_seq char(32),
     play char(64),
     PRIMARY KEY(game_id, event_id),
@@ -537,9 +537,9 @@ allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
     LEFT JOIN (SELECT * FROM winddir) wd
     ON wd.num=(7 & (i.cond >> 10) )
     LEFT JOIN (SELECT * FROM team) htm
-    ON htm.team_id=home_team
+    ON htm.team_id=i.home_team
     LEFT JOIN (SELECT * FROM team) atm
-    ON atm.team_id=away_team
+    ON atm.team_id=i.away_team
     LEFT JOIN (SELECT * FROM player) wpit
     ON wpit.player_num_id=i.win_pitcher_num_id
     LEFT JOIN (SELECT * FROM player) lpit
@@ -554,6 +554,83 @@ allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
     ON forf.num=(3 & (i.flags >> 7))
     LEFT JOIN (SELECT * FROM protest) prot
     ON prot.num=(7 & (i.flags >> 9))
+"""
+
+game_info_view_clickhouse = """CREATE VIEW game_info_view AS SELECT
+        i.game_id,
+        i.game_date,
+        i.year,
+        i.month,
+        i.dow,
+        i.start_time,
+        seas.d AS season,
+        post.d AS post_series,
+        bitAnd(3, bitShiftRight(game_type_num, 6)) AS dh_num,
+        atm.team_id AS away_team, 
+        atm.team_city AS away_team_city, 
+        atm.team_nickname AS away_team_name, 
+        i.away_league,
+        i.away_division,
+        i.away_game_num,
+        htm.team_id AS home_team, 
+        htm.team_city AS home_team_city, 
+        htm.team_nickname AS home_team_name,
+        i.home_league,
+        i.home_division,
+        i.home_game_num,
+        i.park AS park_id,
+        prk.park_name AS park,
+        i.attendance,
+        i.game_duration_min,
+        dn.d AS daynight,
+        fc.d AS field_cond,
+        pr.d AS precip,
+        sk.d AS sky,
+        wd.d AS winddir,
+        bitAnd(63, bitShiftRight(cond, 14)) AS windspeed,
+        bitAnd(128, bitShiftRight(cond, 20)) AS temp,
+        bitAnd(1, bitShiftRight(flags, 2)) AS home_team_bat_first,
+        bitAnd(1, bitShiftRight(flags, 3)) AS use_dh,
+        bitAnd(1, bitShiftRight(flags, 6)) AS complete,
+        forf.d AS forfeit,
+        prot.d AS protest,
+        wpit.name_last||', '||SUBSTR(wpit.name_other, 1, 2) AS win_pitcher,
+        lpit.name_last||', '||SUBSTR(lpit.name_other, 1, 2) AS loss_pitcher,
+        spit.name_last||', '||SUBSTR(spit.name_other, 1, 2) AS save_pitcher,
+        gwr.name_last||', '||SUBSTR(gwr.name_other, 1, 2) AS gw_rbi
+    FROM game_info i
+    LEFT JOIN (SELECT * FROM season) seas
+    ON seas.num=bitAnd(7, i.game_type_num)
+    LEFT JOIN (SELECT * FROM postseason_series) post
+    ON post.num=bitAnd(7, bitShiftRight(i.game_type_num, 3))
+    LEFT JOIN (SELECT * FROM daynight) dn
+    ON dn.num=bitAnd(1, i.cond) 
+    LEFT JOIN (SELECT * FROM fieldcond) fc
+    ON fc.num=bitAnd(7, bitShiftRight(i.cond, 1))
+    LEFT JOIN (SELECT * FROM precip) pr
+    ON pr.num=bitAnd(7, bitShiftRight(i.cond, 4))
+    LEFT JOIN (SELECT * FROM sky) sk
+    ON sk.num=bitAnd(7, bitShiftRight(i.cond, 7))
+    LEFT JOIN (SELECT * FROM winddir) wd
+    ON wd.num=bitAnd(7, bitShiftRight(i.cond, 10))
+    LEFT JOIN (SELECT * FROM team) htm
+    ON htm.team_id=i.home_team
+    LEFT JOIN (SELECT * FROM team) atm
+    ON atm.team_id=i.away_team
+    LEFT JOIN (SELECT * FROM player) wpit
+    ON wpit.player_num_id=i.win_pitcher_num_id
+    LEFT JOIN (SELECT * FROM player) lpit
+    ON lpit.player_num_id=i.loss_pitcher_num_id
+    LEFT JOIN (SELECT * FROM player) spit
+    ON spit.player_num_id=i.save_pitcher_num_id
+    LEFT JOIN (SELECT * FROM player) gwr
+    ON gwr.player_num_id=i.gw_rbi_num_id
+    LEFT JOIN (SELECT * FROM park) prk
+    ON prk.park_id=i.park
+    LEFT JOIN (SELECT * FROM forfeit) forf
+    ON forf.num=bitAnd(3, bitShiftRight(i.flags, 7))
+    LEFT JOIN (SELECT * FROM protest) prot
+    ON prot.num=bitAnd(7, bitShiftRight(i.flags, 9))
 """
 
 allViews["gamelog_view"] = """CREATE VIEW gamelog_view AS SELECT
@@ -705,7 +782,7 @@ allViews["gamelog_view"] = """CREATE VIEW gamelog_view AS SELECT
     s25.home_score AS h25,
     s25.away_score AS a25
     FROM gamelog l
-    LEFT JOIN (SELECT * FROM game_info2) i
+    LEFT JOIN (SELECT * FROM game_info_view) i
     ON l.game_id=i.game_id    
     LEFT JOIN (SELECT * FROM score_by_inning) s1
     ON l.game_id=s1.game_id AND s1.inning=1
@@ -962,6 +1039,14 @@ allTables["game_situation_base_run_mod"] = """CREATE TABLE game_situation_base_r
     PRIMARY KEY(game_id, event_id, src, seq)
 )"""
 
+allTables["game_situation_coms"] = """CREATE TABLE game_situation_coms (
+    game_id integer,
+    event_id smallint,
+    com_id smallint,
+    PRIMARY KEY(game_id, event_id, com_id)
+)"""
+
+
 allTables["play_baserun"] = """ CREATE TABLE play_baserun (
     play char(4) PRIMARY KEY
 )"""
@@ -1034,7 +1119,7 @@ allViews["player_game_batting_view"] = """CREATE VIEW player_game_batting_view A
     b.GIDP,
     b.INTF
     FROM player_game_batting b
-    LEFT JOIN game_info2 i
+    LEFT JOIN game_info_view i
     ON b.game_id=i.game_id    
     LEFT JOIN player pl
     ON b.batter_num_id=pl.player_num_id
@@ -1050,7 +1135,6 @@ allViews["player_game_fielding_view"] = """CREATE VIEW player_game_fielding_view
     i.game_date,
     i.year,
     i.month,
-    i.day,
     i.dow,
     i.start_time,
     i.season,
@@ -1093,7 +1177,7 @@ allViews["player_game_fielding_view"] = """CREATE VIEW player_game_fielding_view
     f.TP,
     f.PB
     FROM player_game_fielding f
-    LEFT JOIN game_info2 i
+    LEFT JOIN game_info_view i
     ON f.game_id=i.game_id
     LEFT JOIN player pl
     ON f.fielder_num_id=pl.player_num_id
@@ -1108,7 +1192,6 @@ allViews["player_game_pitching_view"] = """CREATE VIEW player_game_pitching_view
     i.game_date,
     i.year,
     i.month,
-    i.day,
     i.dow,
     i.start_time,
     i.season,
@@ -1161,7 +1244,7 @@ allViews["player_game_pitching_view"] = """CREATE VIEW player_game_pitching_view
     p.SH,
     p.SF
     FROM player_game_pitching p
-    LEFT JOIN game_info2 i
+    LEFT JOIN game_info_view i
     ON p.game_id=i.game_id
     LEFT JOIN player pl
     ON p.pitcher_num_id=pl.player_num_id
@@ -1177,15 +1260,11 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     i.start_time,
     i.season,
     i.post_series,
-    i.dh_num,
+    i.dh_num AS num,
     i.away_team, 
-    i.away_team_city, 
-    i.away_team_name, 
     i.away_league,
     i.away_game_num,
-    i.home_team,
-    i.home_team_city, 
-    i.home_team_name,
+    i.home_team,    
     i.home_league,
     i.home_game_num,
     i.park,
@@ -1198,27 +1277,16 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     i.winddir,
     i.windspeed,
     i.temp,
-    i.home_team_bat_first,
-    i.use_dh,
-    i.complete,
-    i.forfeit,
-    i.protest,
-    i.win_pitcher,
-    i.loss_pitcher,
-    i.save_pitcher,
-    i.gw_rbi,
     s.batter_num_id,
     pgb.team AS batter_team,
     pgb.pos AS batter_pos,
     pgb.seq AS batter_seq,
-    bat.name_last AS batter_last,
-    bat.name_other AS batter_other,
+    bat.name_last||' '||bat.name_other AS batter,
     bat_lr.d AS batter_side,
     s.pitcher_num_id,
     pgp.team AS pitcher_team,
     pgp.seq AS pitcher_seq,
-    pit.name_last AS pitcher_last,
-    pit.name_other AS pitcher_other,
+    pit.name_last||' '||pit.name_other AS pitcher,
     pit_lr.d AS pitcher_side,
     s.inning,
     s.inning_half,
@@ -1233,30 +1301,29 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     s.outs_made,
     s.runs_scored,
 
-    brun1.name_last as brun1_name_last,
-    brun1.name_other as brun1_name_other,
-    brun2.name_last as brun2_name_last,
-    brun2.name_other as brun2_name_other,
-    brun3.name_last as brun3_name_last,
-    brun3.name_other as brun3_name_other,
+    brun1.name_last||' '||SUBSTR(brun1.name_other, 0, 2) AS first,
+    brun2.name_last||' '||SUBSTR(brun2.name_other, 0, 2) AS second,
+    brun3.name_last||' '||SUBSTR(brun3.name_other, 0, 2) AS third,
     
     r2.play_result AS play_result2,
     r2.play_base AS play_base2,
     r3.play_result AS play_result3,
     r3.play_base AS play_base3,
 
-    fa1.fielder_num_id AS ass1,
-    fa2.fielder_num_id AS ass2,
-    fa3.fielder_num_id AS ass3,
-    fa4.fielder_num_id AS ass4,
-    fa5.fielder_num_id AS ass5,
-    fa6.fielder_num_id AS ass6,
-    fpo1.fielder_num_id AS po1,
-    fpo2.fielder_num_id AS po2,
-    fpo3.fielder_num_id AS po3,
-    fe1.fielder_num_id AS err1,
-    fe2.fielder_num_id AS err2,
-    fe3.fielder_num_id AS err3,
+    fldr_a1.name_last||' '||SUBSTR(fldr_a1.name_other, 0, 2) AS ass1,
+    fldr_a2.name_last||' '||SUBSTR(fldr_a2.name_other, 0, 2) AS ass2,
+    fldr_a3.name_last||' '||SUBSTR(fldr_a3.name_other, 0, 2) AS ass3,
+    fldr_a4.name_last||' '||SUBSTR(fldr_a4.name_other, 0, 2) AS ass4,
+    fldr_a5.name_last||' '||SUBSTR(fldr_a5.name_other, 0, 2) AS ass5,
+    fldr_a6.name_last||' '||SUBSTR(fldr_a6.name_other, 0, 2) AS ass6,
+
+    fldr_po1.name_last||' '||SUBSTR(fldr_po1.name_other, 0, 2) AS po1,
+    fldr_po2.name_last||' '||SUBSTR(fldr_po2.name_other, 0, 2) AS po2,
+    fldr_po3.name_last||' '||SUBSTR(fldr_po3.name_other, 0, 2) AS po3,
+    
+    fldr_e1.name_last||' '||SUBSTR(fldr_e1.name_other, 0, 2) AS err1,
+    fldr_e2.name_last||' '||SUBSTR(fldr_e2.name_other, 0, 2) AS err2,
+    fldr_e3.name_last||' '||SUBSTR(fldr_e3.name_other, 0, 2) AS err3,    
 
     r1m1.mod AS r1m1,
     r1m1.prm AS r1m1prm,
@@ -1304,7 +1371,7 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
 
     FROM game_situation s
 
-    LEFT JOIN game_info2 i
+    LEFT JOIN game_info_view i
     ON s.game_id=i.game_id
     LEFT JOIN game_situation_bases b
     ON s.game_id=b.game_id AND s.event_id=b.event_id
@@ -1396,7 +1463,34 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     ON brun2.player_num_id=b.bases_second
     LEFT JOIN player brun3
     ON brun3.player_num_id=b.bases_third
+
+    LEFT JOIN player fldr_a1
+    ON fldr_a1.player_num_id=fa1.fielder_num_id
+    LEFT JOIN player fldr_a2
+    ON fldr_a2.player_num_id=fa2.fielder_num_id
+    LEFT JOIN player fldr_a3
+    ON fldr_a3.player_num_id=fa3.fielder_num_id
+    LEFT JOIN player fldr_a4
+    ON fldr_a4.player_num_id=fa4.fielder_num_id
+    LEFT JOIN player fldr_a5
+    ON fldr_a5.player_num_id=fa5.fielder_num_id
+    LEFT JOIN player fldr_a6
+    ON fldr_a6.player_num_id=fa6.fielder_num_id
     
+    LEFT JOIN player fldr_po1
+    ON fldr_po1.player_num_id=fpo1.fielder_num_id
+    LEFT JOIN player fldr_po2
+    ON fldr_po2.player_num_id=fpo2.fielder_num_id
+    LEFT JOIN player fldr_po3
+    ON fldr_po3.player_num_id=fpo3.fielder_num_id
+
+    LEFT JOIN player fldr_e1
+    ON fldr_e1.player_num_id=fe1.fielder_num_id
+    LEFT JOIN player fldr_e2
+    ON fldr_e2.player_num_id=fe2.fielder_num_id
+    LEFT JOIN player fldr_e3
+    ON fldr_e3.player_num_id=fe3.fielder_num_id
+
     LEFT JOIN player_game_batting pgb 
     ON s.batter_num_id=pgb.batter_num_id AND pgb.game_id=s.game_id
     LEFT JOIN player_game_pitching pgp
@@ -1407,6 +1501,256 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     ON pit.bats=pit_lr.lr AND pit.player_num_id=pit.player_num_id   
 """
 
+game_situation_view_clickhouse = """CREATE VIEW game_situation_view AS SELECT
+    s.game_id,
+    s.event_id,
+    i.game_date,
+    i.year,
+    i.month,
+    i.dow,
+    i.start_time,
+    i.season,
+    i.post_series,
+    i.dh_num AS num,
+    i.away_team, 
+    i.away_league,
+    i.away_game_num,
+    i.home_team,    
+    i.home_league,
+    i.home_game_num,
+    i.park,
+    i.attendance,
+    i.game_duration_min,
+    i.daynight,
+    i.field_cond,
+    i.precip,
+    i.sky,
+    i.winddir,
+    i.windspeed,
+    i.temp,
+    s.batter_num_id,
+    pgb.team AS batter_team,
+    pgb.pos AS batter_pos,
+    pgb.seq AS batter_seq,
+    bat.name_last||' '||bat.name_other AS batter,
+    bat_lr.d AS batter_side,
+    s.pitcher_num_id,
+    pgp.team AS pitcher_team,
+    pgp.seq AS pitcher_seq,
+    pit.name_last||' '||pit.name_other AS pitcher,
+    pit_lr.d AS pitcher_side,
+    s.inning,
+    s.inning_half,
+    s.outs,
+    s.pitch_cnt,
+    s.bat_team_score,
+    s.pitch_team_score,
+    s.play_result,
+    s.play_base,
+    s.hit_loc,
+    s.hit_type,
+    s.outs_made,
+    s.runs_scored,
+
+    brun1.name_last||' '||SUBSTR(brun1.name_other, 1, 2) AS first,
+    brun2.name_last||' '||SUBSTR(brun2.name_other, 1, 2) AS second,
+    brun3.name_last||' '||SUBSTR(brun3.name_other, 1, 2) AS third,
+    
+    r2.play_result AS play_result2,
+    r2.play_base AS play_base2,
+    r3.play_result AS play_result3,
+    r3.play_base AS play_base3,
+
+    fldr_a1.name_last||' '||SUBSTR(fldr_a1.name_other, 1, 2) AS ass1,
+    fldr_a2.name_last||' '||SUBSTR(fldr_a2.name_other, 1, 2) AS ass2,
+    fldr_a3.name_last||' '||SUBSTR(fldr_a3.name_other, 1, 2) AS ass3,
+    fldr_a4.name_last||' '||SUBSTR(fldr_a4.name_other, 1, 2) AS ass4,
+    fldr_a5.name_last||' '||SUBSTR(fldr_a5.name_other, 1, 2) AS ass5,
+    fldr_a6.name_last||' '||SUBSTR(fldr_a6.name_other, 1, 2) AS ass6,
+
+    fldr_po1.name_last||' '||SUBSTR(fldr_po1.name_other, 1, 2) AS po1,
+    fldr_po2.name_last||' '||SUBSTR(fldr_po2.name_other, 1, 2) AS po2,
+    fldr_po3.name_last||' '||SUBSTR(fldr_po3.name_other, 1, 2) AS po3,
+    
+    fldr_e1.name_last||' '||SUBSTR(fldr_e1.name_other, 1, 2) AS err1,
+    fldr_e2.name_last||' '||SUBSTR(fldr_e2.name_other, 1, 2) AS err2,
+    fldr_e3.name_last||' '||SUBSTR(fldr_e3.name_other, 1, 2) AS err3,    
+
+    r1m1.mod AS r1m1,
+    r1m1.prm AS r1m1prm,
+    r1m2.mod AS r1m2,
+    r1m2.prm AS r1m2prm,
+    r1m3.mod AS r1m3,
+    r1m3.prm AS r1m3prm,
+
+    br0.dst AS br0_dst,
+    br0.out AS br0_out,
+    br1.dst AS br1_dst,
+    br1.out AS br1_out,
+    br2.dst AS br2_dst,
+    br2.out AS br2_out,
+    br3.dst AS br3_dst,
+    br3.out AS br3_out,
+
+    br0_m1.mod AS br0_mod1,
+    br0_m1.prm AS br0_mod1_prm,
+    br0_m2.mod AS br0_mod2,
+    br0_m2.prm AS br0_mod2_prm,
+    br0_m3.mod AS br0_mod3,
+    br0_m3.prm AS br0_mod3_prm, 
+
+    br1_m1.mod AS br1_mod1,
+    br1_m1.prm AS br1_mod1_prm, 
+    br1_m2.mod AS br1_mod2,
+    br1_m2.prm AS br1_mod2_prm, 
+    br1_m3.mod AS br1_mod3,
+    br1_m3.prm AS br1_mod3_prm, 
+
+    br2_m1.mod AS br2_mod1,
+    br2_m1.prm AS br2_mod1_prm, 
+    br2_m2.mod AS br2_mod2,
+    br2_m2.prm AS br2_mod2_prm, 
+    br2_m3.mod AS br2_mod3,
+    br2_m3.prm AS br2_mod3_prm, 
+
+    br3_m1.mod AS br3_mod1,
+    br3_m1.prm AS br3_mod1_prm, 
+    br3_m2.mod AS br3_mod2,
+    br3_m2.prm AS br3_mod2_prm, 
+    br3_m3.mod AS br3_mod3,
+    br3_m3.prm AS br3_mod3_prm
+
+    FROM game_situation s
+
+    LEFT JOIN game_info_view i
+    ON s.game_id=i.game_id
+    LEFT JOIN game_situation_bases b
+    ON s.game_id=b.game_id AND s.event_id=b.event_id
+
+    LEFT JOIN game_situation_result2 r2
+    ON s.game_id=r2.game_id AND s.event_id=r2.event_id
+    LEFT JOIN game_situation_result3 r3
+    ON s.game_id=r3.game_id AND s.event_id=r3.event_id
+    
+    LEFT JOIN game_situation_fielder_assist fa1
+    ON s.game_id=fa1.game_id AND fa1.seq=1 AND s.event_id=fa1.event_id
+    LEFT JOIN game_situation_fielder_assist fa2
+    ON s.game_id=fa2.game_id AND fa2.seq=2 AND s.event_id=fa2.event_id
+    LEFT JOIN game_situation_fielder_assist fa3
+    ON s.game_id=fa3.game_id AND fa3.seq=3 AND s.event_id=fa3.event_id
+    LEFT JOIN game_situation_fielder_assist fa4
+    ON s.game_id=fa4.game_id AND fa4.seq=4 AND s.event_id=fa4.event_id
+    LEFT JOIN game_situation_fielder_assist fa5
+    ON s.game_id=fa5.game_id AND fa5.seq=5 AND s.event_id=fa5.event_id
+    LEFT JOIN game_situation_fielder_assist fa6
+    ON s.game_id=fa6.game_id AND fa6.seq=6 AND s.event_id=fa6.event_id
+    
+    LEFT JOIN game_situation_fielder_putout fpo1
+    ON s.game_id=fpo1.game_id AND fpo1.seq=1 AND s.event_id=fpo1.event_id
+    LEFT JOIN game_situation_fielder_putout fpo2
+    ON s.game_id=fpo2.game_id AND fpo2.seq=2 AND s.event_id=fpo2.event_id
+    LEFT JOIN game_situation_fielder_putout fpo3
+    ON s.game_id=fpo3.game_id AND fpo3.seq=3 AND s.event_id=fpo3.event_id
+
+    LEFT JOIN game_situation_fielder_error fe1
+    ON s.game_id=fe1.game_id AND fe1.seq=1 AND s.event_id=fe1.event_id
+    LEFT JOIN game_situation_fielder_error fe2
+    ON s.game_id=fe2.game_id AND fe2.seq=2 AND s.event_id=fe2.event_id
+    LEFT JOIN game_situation_fielder_error fe3
+    ON s.game_id=fe3.game_id AND fe3.seq=3 AND s.event_id=fe3.event_id
+    
+    LEFT JOIN game_situation_result1_mod r1m1
+    ON s.game_id=r1m1.game_id AND r1m1.seq=1 AND s.event_id=r1m1.event_id
+    LEFT JOIN game_situation_result1_mod r1m2
+    ON s.game_id=r1m2.game_id AND r1m2.seq=2 AND s.event_id=r1m2.event_id
+    LEFT JOIN game_situation_result1_mod r1m3
+    ON s.game_id=r1m3.game_id AND r1m3.seq=3 AND s.event_id=r1m3.event_id    
+    
+    LEFT JOIN game_situation_base_run br0
+    ON s.game_id=br0.game_id AND br0.src=0 AND s.event_id=br0.event_id
+    LEFT JOIN game_situation_base_run br1
+    ON s.game_id=br1.game_id AND br1.src=1 AND s.event_id=br1.event_id
+    LEFT JOIN game_situation_base_run br2
+    ON s.game_id=br2.game_id AND br2.src=2 AND s.event_id=br2.event_id 
+    LEFT JOIN game_situation_base_run br3
+    ON s.game_id=br3.game_id AND br3.src=3 AND s.event_id=br3.event_id    
+    
+    LEFT JOIN game_situation_base_run_mod br0_m1
+    ON s.game_id=br0_m1.game_id AND br0_m1.seq=1 AND s.event_id=br0_m1.event_id
+    LEFT JOIN game_situation_base_run_mod br0_m2
+    ON s.game_id=br0_m2.game_id AND br0_m2.seq=2 AND s.event_id=br0_m2.event_id
+    LEFT JOIN game_situation_base_run_mod br0_m3
+    ON s.game_id=br0_m3.game_id AND br0_m3.seq=3 AND s.event_id=br0_m3.event_id
+    
+    LEFT JOIN game_situation_base_run_mod br1_m1
+    ON s.game_id=br1_m1.game_id AND br1_m1.seq=1 AND s.event_id=br1_m1.event_id
+    LEFT JOIN game_situation_base_run_mod br1_m2
+    ON s.game_id=br1_m2.game_id AND br1_m2.seq=2 AND s.event_id=br1_m2.event_id
+    LEFT JOIN game_situation_base_run_mod br1_m3
+    ON s.game_id=br1_m3.game_id AND br1_m3.seq=3 AND s.event_id=br1_m3.event_id
+
+    LEFT JOIN game_situation_base_run_mod br2_m1
+    ON s.game_id=br2_m1.game_id AND br2_m1.seq=1 AND s.event_id=br2_m1.event_id
+    LEFT JOIN game_situation_base_run_mod br2_m2
+    ON s.game_id=br2_m2.game_id AND br2_m2.seq=2 AND s.event_id=br2_m2.event_id
+    LEFT JOIN game_situation_base_run_mod br2_m3
+    ON s.game_id=br2_m3.game_id AND br2_m3.seq=3 AND s.event_id=br2_m3.event_id
+
+    LEFT JOIN game_situation_base_run_mod br3_m1
+    ON s.game_id=br3_m1.game_id AND br3_m1.seq=1 AND s.event_id=br3_m1.event_id
+    LEFT JOIN game_situation_base_run_mod br3_m2
+    ON s.game_id=br3_m2.game_id AND br3_m2.seq=2 AND s.event_id=br3_m2.event_id
+    LEFT JOIN game_situation_base_run_mod br3_m3
+    ON s.game_id=br3_m3.game_id AND br3_m3.seq=3 AND s.event_id=br3_m3.event_id
+    
+    LEFT JOIN player bat
+    ON bat.player_num_id=s.batter_num_id
+    LEFT JOIN player pit
+    ON pit.player_num_id=s.pitcher_num_id
+
+    LEFT JOIN player brun1
+    ON brun1.player_num_id=b.bases_first
+    LEFT JOIN player brun2
+    ON brun2.player_num_id=b.bases_second
+    LEFT JOIN player brun3
+    ON brun3.player_num_id=b.bases_third
+
+    LEFT JOIN player fldr_a1
+    ON fldr_a1.player_num_id=fa1.fielder_num_id
+    LEFT JOIN player fldr_a2
+    ON fldr_a2.player_num_id=fa2.fielder_num_id
+    LEFT JOIN player fldr_a3
+    ON fldr_a3.player_num_id=fa3.fielder_num_id
+    LEFT JOIN player fldr_a4
+    ON fldr_a4.player_num_id=fa4.fielder_num_id
+    LEFT JOIN player fldr_a5
+    ON fldr_a5.player_num_id=fa5.fielder_num_id
+    LEFT JOIN player fldr_a6
+    ON fldr_a6.player_num_id=fa6.fielder_num_id
+    
+    LEFT JOIN player fldr_po1
+    ON fldr_po1.player_num_id=fpo1.fielder_num_id
+    LEFT JOIN player fldr_po2
+    ON fldr_po2.player_num_id=fpo2.fielder_num_id
+    LEFT JOIN player fldr_po3
+    ON fldr_po3.player_num_id=fpo3.fielder_num_id
+
+    LEFT JOIN player fldr_e1
+    ON fldr_e1.player_num_id=fe1.fielder_num_id
+    LEFT JOIN player fldr_e2
+    ON fldr_e2.player_num_id=fe2.fielder_num_id
+    LEFT JOIN player fldr_e3
+    ON fldr_e3.player_num_id=fe3.fielder_num_id
+
+    LEFT JOIN player_game_batting pgb 
+    ON s.batter_num_id=pgb.batter_num_id AND pgb.game_id=s.game_id
+    LEFT JOIN player_game_pitching pgp
+    ON s.pitcher_num_id=pgp.pitcher_num_id AND pgp.game_id=s.game_id
+    LEFT JOIN left_right bat_lr 
+    ON bat.bats=bat_lr.lr AND bat.player_num_id=bat.player_num_id
+    LEFT JOIN left_right pit_lr 
+    ON pit.bats=pit_lr.lr AND pit.player_num_id=pit.player_num_id   
+"""
 allValues = dict()
 allValues["day_in_week"] = ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
 allValues["month"] = ("", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -1467,28 +1811,36 @@ if __name__ == "__main__":
         # Connect to an existing database
         conn = psycopg.connect("dbname=postgres user=postgres")
         cur = conn.cursor()
+    elif db == "clickhouse":
+        from clickhouse_driver import Client
+        client = Client(host='localhost')
+        cur = client
+        allViews["game_info_view"] = game_info_view_clickhouse
+        allViews["game_situation_view"] = game_situation_view_clickhouse
     else:
         print("unrecognized db", db)
         exit()
 
     for table, createStmt in allTables.items():
         try:
-            if db == "postgres":
+            if db in ("postgres", "clickhouse"):
                 #print(f"dropping table {table}")
                 cur.execute(f"DROP TABLE IF EXISTS {table}")
-                conn.commit()
+                if db == "postgres":
+                    conn.commit()
         except Exception as e:
             pass
         #print(createStmt)
         print("creating table ", table)
         if db == "sqlite":
             createStmt += " WITHOUT ROWID"
+             
         #print(createStmt)
         cur.execute(createStmt)
 
     for view, createStmt in allViews.items():
         try:
-            if db == "postgres":
+            if db in ("postgres", "clickhouse"):
                 cur.execute(f"DROP VIEW IF EXISTS {view}")
         except Exception as e:
             pass
@@ -1516,8 +1868,8 @@ if __name__ == "__main__":
     cur.execute(stmt)
     stmt = "INSERT INTO left_right VALUES('S', 'Switch')"
     cur.execute(stmt)
-
     
     insertDummyValues(cur)
-    conn.commit()
-    conn.close()
+    if db != "clickhouse":
+        conn.commit()
+        conn.close()

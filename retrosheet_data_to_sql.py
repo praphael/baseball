@@ -9,9 +9,29 @@ from retrosheet_event_to_sql import processEventFiles
 # parse park names, teams names from Retrosheet data
 # game info and events from EVX files
 baseDir = "alldata"
+clickhouse = False
+
+PLAYER_FIELDS= """player_num_id, player_id, name_last, name_first,
+    name_other, birth, birth_city, birth_state, birth_country, debut,
+    last_game, manager_debut, manager_last_game, coach_debut, coach_last_game,
+    ump_debut, ump_last_game, death, death_city, death_state, death_country,
+    bats, throws, height, weight,cemetary, cemetary_city, cemetary_state,
+    cemetary_country, cemetary_note, birth_name, name_change, bat_change,
+    hall_of_fame
+""" 
+
+PARK_FIELDS= """park_id, park_name, park_aka, park_city, park_state,
+    park_open, park_close, park_league, notes"""
+
+TEAM_FIELDS="""team_id, team_league, team_city, team_nickname,
+    team_first, team_last"""
+
+UMPIRE_FIELDS="""ump_num_id, ump_id, ump_name_last, ump_name_first"""
+
+click_vals = []
 
 # convert CSV to dataase
-def fromCSV(fPath, tableName, conn, rowIDFirst=False, rowIDMapField=None, rowIDOffset=0):    
+def fromCSV(fPath, tableName, conn, rowIDFirst=False, rowIDMapField=None, rowIDOffset=0, numericCols=set()):    
     cur = conn.cursor()
     print(f"processing file {fPath}")
     rowIDMap = None
@@ -22,6 +42,7 @@ def fromCSV(fPath, tableName, conn, rowIDFirst=False, rowIDMapField=None, rowIDO
         first = True
         rowNum = 1
         #header = []
+        ins_stmts = []
         for row in rdr:
             # skip header
             if first:
@@ -31,21 +52,26 @@ def fromCSV(fPath, tableName, conn, rowIDFirst=False, rowIDMapField=None, rowIDO
                 #print("header=", header)
                 continue
             ln = f"INSERT INTO {tableName} VALUES("
-            vals = ""
+            vals = ()
             if rowIDFirst:
-                vals += f"{rowNum+rowIDOffset}, "
+                vals += (rowNum+rowIDOffset,)
             col = 0
             for v in row:
                 vr = v
-                if len(v) == 0:
-                    #vals += "NULL, "
-                    vals += "'', "
+                if col in numericCols:
+                    if vr == "":
+                        vals += (0,)
+                    else:
+                        vals += (int(vr), )
+                elif len(v) == 0:
+                    vals += ('',)
+                    #vals += "'', "
                 else:
                     # replace single ' with two '' so we don't escape string
                     vr = v.replace("'", "''")
                     #if header[col] == "BAT.CHG":
                     #    print("BAT.CHG=", vr)
-                    vals += f"'{vr}', "
+                    vals += (vr,)
                 col += 1
 
             # build lookup table for each field
@@ -56,9 +82,21 @@ def fromCSV(fPath, tableName, conn, rowIDFirst=False, rowIDMapField=None, rowIDO
                 rowIDMap[v] = rowNum
                 rowNum += 1
 
-            vals = vals[:-2] # drop last comma
-            ln += vals + ")"
             #print(ln)
+            if clickhouse:
+                click_vals.append(vals)
+            else:
+                def fn(x):
+                    if type(x) == type(""):
+                        return "'" + x + "'"
+                    elif type(x) == type(0):
+                        return str(x)
+                    elif x is None:
+                        return "NULL"
+                ins_stmts.append(ln + ", ".join(map(fn, vals)) + ")")
+
+        for ln in ins_stmts:
+            print(ln)
             cur.execute(ln)
         conn.commit()
     return rowIDMap
@@ -66,16 +104,26 @@ def fromCSV(fPath, tableName, conn, rowIDFirst=False, rowIDMapField=None, rowIDO
 def parks(conn):
     fName = "ballparks.csv"
     fPath = os.path.join(baseDir, fName)
-    return fromCSV(fPath, "park", conn)
+    fromCSV(fPath, "park", conn)
+    if clickhouse:
+        stmt = "INSERT INTO park (" + PARK_FIELDS + ") VALUES"
+        cur = conn.cursor()
+        cur.execute(stmt, click_vals)
+        click_vals.clear()
 
 def teams(conn):
     fName = "teams.csv"
     fPath = os.path.join(baseDir, fName)
 
-    fromCSV(fPath, "team", conn)
+    fromCSV(fPath, "team", conn, numericCols={4, 5})
+    cur = conn.cursor()
+
+    if clickhouse:
+        stmt = "INSERT INTO team (" + TEAM_FIELDS + ") VALUES"
+        cur.execute(stmt, click_vals)
+        click_vals.clear()
 
     # insert all-star for each league as a team
-    cur = conn.cursor()
 
     # this team appears in boxscores but there is no info about them 
     # probably team from Baltimore
@@ -92,7 +140,12 @@ def teams(conn):
 def players(conn):
     fName = "biofile.csv"
     fPath = os.path.join(baseDir, fName)
-    fromCSV(fPath, "player", conn, rowIDFirst=True, rowIDMapField=0)
+    fromCSV(fPath, "player", conn, rowIDFirst=True, rowIDMapField=0, numericCols={23})
+    if clickhouse:
+        stmt = "INSERT INTO player (" + PLAYER_FIELDS + ") VALUES"
+        cur = conn.cursor()
+        cur.execute(stmt, click_vals)
+        click_vals.clear()
 
 
 def umpires(conn):
@@ -102,29 +155,62 @@ def umpires(conn):
         fPath = os.path.join(baseDir, "umpires", fName)
         umpMap = fromCSV(fPath, "umpire", conn, rowIDFirst=True, rowIDMapField=0, rowIDOffset=offset)    
         offset += len(umpMap)
+    if clickhouse:
+        stmt = "INSERT INTO umpire (" + UMPIRE_FIELDS + ") VALUES"
+        cur = conn.cursor()
+        cur.execute(stmt, click_vals)
+        click_vals.clear()
 
 if __name__ == "__main__":
-    connectPG = False
-    connectSqlite = True
-    useDB = connectPG or connectSqlite
-    writeFiles = False
+    db = "sqlite"
     startYear = 1871
     endYear = 2023
     if len(sys.argv) > 1:
-        startYear = int(sys.argv[1])
+        db = sys.argv[1]
     if len(sys.argv) > 2:
-        endYear = int(sys.argv[2])
+        startYear = int(sys.argv[2])
+    if len(sys.argv) > 3:
+        endYear = int(sys.argv[3])
 
-    if connectSqlite:
+    if db == "sqlite":
         import sqlite3
         conn = sqlite3.connect("baseball.db")
-
-    if connectPG:
+    elif db == "postgres":
         import psycopg
         # Connect to an existing database
         conn = psycopg.connect("dbname=postgres user=postgres")
+    elif db == "clickhouse":
+        clickhouse = True
+        from clickhouse_driver import Client
+        client = Client(host='localhost')
+        class ClickCurs:
+            def __init__(self, client):
+                self.client = client
+
+            def execute(self, q, prm=None):
+                #print(q)
+                if prm == None:
+                    self.data = self.client.execute(q)
+                else:
+                    self.data = self.client.execute(q, prm)
+
+            def fetchall(self):
+                return self.data
+            
+        class ClickConn: 
+            def __init__(self, client):
+                self.client = client
+
+            def cursor(self):
+                return ClickCurs(self.client)
+            
+            def commit(self):
+                pass
+
+        conn = ClickConn(client)
 
     cur = conn.cursor()
+
     idxs = (("event_play_idx", "event_play(game_id)"),
             ("event_start_idx", "event_start(game_id)"),
             ("event_sub_idx", "event_sub(game_id)"),
@@ -141,7 +227,7 @@ if __name__ == "__main__":
     parks(conn)
     players(conn)
     umpires(conn)
-    processEventFiles(startYear, endYear, conn, True)
+    processEventFiles(startYear, endYear, conn, True, clickhouseDB=clickhouse)
     print("creating indices")
     # these indices significantly speeds up parsing event outcomes
     # also helps in later view joins when querying on specific params (e.g. team name)
@@ -152,5 +238,6 @@ if __name__ == "__main__":
     #    endYear = 1968
     #getPlayerStats(startYear, endYear, gameIDMap, playerIDMap, conn, cur, True)
     
-    conn.commit()
-    conn.close()
+    if db != "clickhouse":
+        conn.commit()
+        conn.close()

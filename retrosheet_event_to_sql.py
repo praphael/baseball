@@ -10,6 +10,18 @@ baseDirPost = "alldata/postseason"
 baseDirBox = "alldata/boxes"
 baseDirAS = "alldata/allstar"
 
+clickhouse = False
+click_vals_gameinfo = []
+click_vals_event_play = []
+click_vals_event_start = []
+click_vals_event_sub = []
+click_vals_event_com = []
+click_vals_event_plyr_adj = []
+click_vals_event_lineup_adj = []
+click_vals_batline = []
+click_vals_fldline = []
+click_vals_pitline = []
+
 
 # fields present in EVX 
 INFO_FIELDS = ( "date", "number", "gametype",
@@ -239,16 +251,9 @@ class GameInfo:
             print(f"unknown game type '{self.gametype}'")
 
         dt = self.game_date
-        game_date = f"DATE('{dt[0]}-{dt[1]}-{dt[2]}')"
+        game_date = f"'{dt[0]}-{dt[1]}-{dt[2]}'"
         year = int(dt[0])
         month = int(dt[1])
-        if isUpdate:
-            stmt += f" start_time={self.starttime}, game_type_num={game_num_type}"
-        else:
-            # NULL values are for league/division which are not supplied 
-            # leagues present in gamelogs, division TBD
-            stmt += f"{self.gameNumID}, {game_date}, {year}, {month}, 0, {self.starttime}, {game_num_type}"
-            stmt += f", '{away}', NULL, NULL, 0, '{home}', NULL, NULL, 0"
         
         # set flags
         flags = self.has_pitch_cnt | (self.has_pitch_cnt << 1) | (self.htbf << 2)
@@ -265,6 +270,20 @@ class GameInfo:
 
         park = self.site
         #print(flags, park, cond)
+
+        if clickhouse:
+            game_date = f"{dt[0]}-{dt[1]}-{dt[2]}"
+
+            click_vals_gameinfo.append((self.gameNumID, game_date, year, month, 0, self.starttime, away, "NULL", "NULL", 0, home, "NULL", "NULL", 0))
+            return None
+
+        if isUpdate:
+            stmt += f" start_time={self.starttime}, game_type_num={game_num_type}"
+        else:
+            # NULL values are for league/division which are not supplied 
+            # leagues present in gamelogs, division TBD
+            stmt += f"{self.gameNumID}, {game_date}, {year}, {month}, 0, {self.starttime}, {game_num_type}"
+            stmt += f", '{away}', NULL, NULL, 0, '{home}', NULL, NULL, 0"
 
         if isUpdate:
             print("precip=", PRECIP_A[self.precip], "sky=", SKYCOND_A[self.sky])
@@ -306,6 +325,9 @@ class EventCom(Event):
         self.com = vals[0]
 
     def toSQLIns(self, game_id, event_id, gameInfo, playerCodeToIDMap):
+        if clickhouse:
+            click_vals_event_com.append((game_id, event_id, self.com))
+            return None
         stmt = f"INSERT INTO event_com VALUES({game_id}, {event_id}, "
         stmt += "'" + self.com.replace("'", "''") + "')"
         return stmt
@@ -331,7 +353,12 @@ class EventStart(Event):
         team = gameInfo.hometeam
         if self.side == 0:
             team = gameInfo.visteam
+        if clickhouse:
+            click_vals_event_start.append((game_id, event_id, team, self.bat_pos, self.field_pos))
+            return None
+
         stmt += f"'{playerCodeToIDMap[playerID]}', '{team}', {self.bat_pos}, {self.field_pos})"
+
         return stmt
 
 class EventSub(Event):
@@ -356,7 +383,12 @@ class EventSub(Event):
         team = gameInfo.hometeam
         if self.side == 0:
             team = gameInfo.visteam
+        if clickhouse:
+            click_vals_event_sub.append((game_id, event_id, team, self.bat_pos, self.field_pos))
+            return None
+
         stmt += f"{playerCodeToIDMap[playerID]}, '{team}', {self.bat_pos}, {self.field_pos})"
+
         return stmt
 
 class EventPlay(Event):
@@ -370,12 +402,16 @@ class EventPlay(Event):
         self.play = vals[5]
 
     def toSQLIns(self, game_id, event_id, gameInfo, playerCodeToIDMap):
-        stmt = f"INSERT INTO event_play VALUES({game_id}, {event_id}, "
         playerID = self.player_id
         
         team = gameInfo.hometeam
         if self.side == 0:
             team = gameInfo.visteam
+        if clickhouse:
+            click_vals_event_play.append((game_id, event_id, team, playerCodeToIDMap[playerID], self.inning, valOrNULL(self.batter_count), valOrNULL(self.pitch_seq), self.play))
+            return None
+
+        stmt = f"INSERT INTO event_play VALUES({game_id}, {event_id}, "
         stmt += f"'{team}', {playerCodeToIDMap[playerID]}, {self.inning}, {valOrNULL(self.batter_count)},"
         stmt += f"'{self.pitch_seq}', '{self.play}')"
         return stmt 
@@ -406,7 +442,12 @@ class EventAdjustment(Event):
             adjTypes = {"badj": 0, "radj":1, "padj":2, "presadj":3}
             stmt += f"{playerCodeToIDMap[playerID]}, {adjTypes[self.adjType]}, "
         stmt += f"'{self.adj}')"
-        
+        if clickhouse:
+            if tbl == "event_player_adj":
+                click_vals_event_plyr_adj.append(())
+            elif tbl == "event_lineup_adj":
+                click_vals_event_lineup_adj.append(())
+            return None
         return stmt
 
 class EventData(Event):
@@ -417,8 +458,11 @@ class EventData(Event):
             self.amt = int(vals[2])
 
     def toSQLIns(self, game_id, event_id, gameInfo, playerCodeToIDMap):
-        stmt = f"INSERT INTO event_data_er VALUES({game_id}, {event_id}, "
         playerID = self.player_id
+        if clickhouse:
+            click_vals_event_data.append((game_id, event_id, playerCodeToIDMap[playerID], self.amt))
+            return None
+        stmt = f"INSERT INTO event_data_er VALUES({game_id}, {event_id}, "
         stmt += f"{playerCodeToIDMap[playerID]}, {self.amt})"
         return stmt
 
@@ -496,6 +540,14 @@ class StatLine(Event):
             data[14] = self.data[2]  # cs
         stmt += ", ".join(map(fn, data))
         stmt += ")"
+        if clickhouse:
+            if tbl == "player_game_batting":
+                click_vals_batline.append(())
+            elif tbl == "player_game_fielding":
+                click_vals_fldline.append(())
+            elif tbl == "player_game_pitching":
+                click_vals_pitline.append(())
+            return None
         
         return stmt
 
@@ -514,6 +566,46 @@ EVENT_TYPE_DICT["ladj"] = EventAdjustment
 EVENT_TYPE_DICT["padj"] = EventAdjustment
 EVENT_TYPE_DICT["presadj"] = EventAdjustment
 
+def insertAllIntoClickhouse(conn):
+    cur = conn.cursor()
+
+    if len(click_vals_gameinfo) > 0:
+        stmt = """INSERT INTO game_info (game_id, game_date, year, month, dow,"
+        start_time, game_type_num,  away_team, away_league, away_division, away_game_num,
+        home_team, home_league, home_division, home_game_num, flags, park, attendance,
+        cond, game_duration_min, scorer_num_id, ump_home_num_id, ump_1b_num_id,
+        ump_2b_num_id, ump_3b_num_id, ump_lf_num_id, ump_rf_num_id, win_pitcher_num_id,
+        loss_pitcher_num_id,save_pitcher_num_id, gw_rbi_num_id) VALUES"""
+        print(click_vals_gameinfo[0])
+        cur.execute(stmt, click_vals_gameinfo)
+
+    stmt = """INSERT INTO event_play (game_id, event_id, team, player_num_id ,
+    inning, batter_count, pitch_seq, play) VALUES"""
+    cur.execute(stmt, click_vals_event_play)
+
+    stmt = """ INSERT INTO event_start (game_id, event_id, player_num_id,
+    team, bat_pos, field_pos) VALUES"""
+    cur.execute(stmt, click_vals_event_start)
+
+    stmt = """ INSERT INTO event_sub (game_id, event_id, player_num_id,
+    team, bat_pos, field_pos) VALUES"""
+    cur.execute(stmt, click_vals_event_sub)
+
+    stmt = """ INSERT INTO event_com (game_id, event_id, com) VALUES"""
+    cur.execute(stmt, click_vals_event_com)
+
+    click_vals_gameinfo.clear()
+    click_vals_event_play.clear()
+    click_vals_event_start.clear()
+    click_vals_event_sub.clear()
+    click_vals_event_com.clear()
+    click_vals_event_plyr_adj.clear()
+    click_vals_event_lineup_adj.clear()
+    click_vals_batline.clear()
+    click_vals_fldline.clear()
+    click_vals_pitline.clear()
+    
+
 def insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap, events, conn, isUpdate=False):
     curs = conn.cursor()
     dt = gameInfo.gameID.date
@@ -531,8 +623,8 @@ def insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, s
         if team not in gameIDMap[dt]:
             gameIDMap[dt][team] = dict()
         gameIDMap[dt][team][num] = gameInfo.gameNumID
-    else:
-        print("skipping gameInfo in, game already in DB")
+    # else:
+    #     print("skipping gameInfo in, game already in DB")
     if isUpdate:
         # only update gameinfo for now
         return
@@ -610,7 +702,7 @@ def parseEventsFromEVX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scor
             evt = parseEvent(row, gameInfo, gameID, nextGameNum)
             if type(evt) == type(GameID()):
                 # insert all events from previous game
-                if gameID is not None:
+                if gameID is not None and not clickhouse:
                     insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap,
                                        evts, conn, isUpdate)
                 gameID = evt
@@ -624,7 +716,7 @@ def parseEventsFromEVX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scor
                 evts.append(evt)
         
         # insert last record
-        if gameID is not None:
+        if gameID is not None and not clickhouse:
             insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap,
                                evts, conn, isUpdate)
     return nextGameNum
@@ -660,7 +752,7 @@ def parseBoxFromEBX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerC
             evt = parseBox(row, gameInfo, gameID)
             if type(evt) == type(GameID()):
                 # insert all events from previous game
-                if gameID is not None:
+                if gameID is not None and not clickhouse:
                     insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap,
                                        evts, conn, isUpdate)
                 gameID = evt
@@ -682,12 +774,13 @@ def parseBoxFromEBX(fPath, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerC
                 evts.append(evt)
         
         # insert last record
-        if gameID is not None:
+        if gameID is not None and not clickhouse:
             insertEventsIntoDB(gameInfo, gameIDMap, playerCodeToIDMap, umpCodeToIDMap, scorerCodeToIDMap,
                                evts, conn, isUpdate)
     return nextGameNum    
     
-def processEventFiles(startYear, endYear, conn, includePayoffs=True, isUpdate=False):
+def processEventFiles(startYear, endYear, conn, includePayoffs=True, isUpdate=False, clickhouseDB=False):
+    clickhouse = clickhouseDB
     #playoffs = ("wc", "dv", "lc", "ws")
     rng = list(range(startYear, endYear+1))
     #rng.extend(playoffs)
@@ -724,6 +817,8 @@ def processEventFiles(startYear, endYear, conn, includePayoffs=True, isUpdate=Fa
             except FileNotFoundError as e:
                 print(fName)
                 print(e)
+        if clickhouse:
+            insertAllIntoClickhouse(conn)
     # postseason
     fList = os.listdir(baseDirPost)
     fList.sort()
@@ -742,6 +837,9 @@ def processEventFiles(startYear, endYear, conn, includePayoffs=True, isUpdate=Fa
                 print(e)
             #except ValueError:
             #    pass
+            if clickhouse:
+                insertAllIntoClickhouse(conn)
+    
     # from box scores
     fList = os.listdir(baseDirBox)
     fList.sort()
@@ -760,7 +858,9 @@ def processEventFiles(startYear, endYear, conn, includePayoffs=True, isUpdate=Fa
                 print(e)
             #except ValueError:
             #    pass            
-                
+            if clickhouse:
+                insertAllIntoClickhouse(conn)
+
     return gameIDMap
 
 if __name__=="__main__":

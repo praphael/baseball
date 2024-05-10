@@ -381,8 +381,11 @@ class PlayEvent(Event):
         run_adv = run_all.split(";")
         DEBUG_PRINT("parseRunnerAdv: run_adv=", run_adv)
         
-        for adv in run_adv:            
-            if "-" in adv: # safe
+        for adv in run_adv:      
+            if "X" in adv and "-" in adv:
+                isSafe = False
+                a = adv.split("X")                
+            elif "-" in adv: # safe
                 isSafe = True
                 a = adv.split("-")
             elif "X" in adv:  # out
@@ -530,7 +533,7 @@ class PlayEvent(Event):
                 return False, "O", None, m.end()
             
             # triple play - ground ball, forceout, explicity or implied runner out at first
-            m = re.match(r"^(\d.*)\(([123])\)(\d.+)\(([123])\)(\d.?)\(B\)?", bat0)
+            m = re.match(r"^(\d.*)\(([123])\)(\d.*)\(([123])\)(\d.?)(\(B\))?", bat0)
             if m is not None:
                 DEBUG_PRINT("triple play")
                 grps = m.groups()
@@ -551,6 +554,37 @@ class PlayEvent(Event):
                 
                 return False, "O", None, m.end()
             
+            # triple play - ground ball 
+            m = re.match(r"^(\d.*)\(([123B])\)(\d.*)\(([123B])\)(\d.*)\(([123B])\)", bat0)
+            if m is not None:
+                DEBUG_PRINT("triple play")
+                grps = m.groups()
+                b1 = baseToNum(grps[1])
+                b2 = baseToNum(grps[3])
+                b3 = baseToNum(grps[5])
+                if b1 != 0:
+                    self.run.out.append((b1, False, b1+1))
+                if b2 != 0:
+                    self.run.out.append((b2, False, b2+1))
+                if b3 != 0:
+                    self.run.out.append((b3, False, b3+1))
+                for f in grps[0]:
+                    if f.isnumeric():
+                        flast = int(f)
+                        self.fielding.assists.append(flast)
+                self.fielding.putouts.append(flast)
+                for f in grps[2]:
+                    if f.isnumeric():
+                        flast = int(f)
+                        self.fielding.assists.append(flast)
+                self.fielding.putouts.append(flast)
+                for f in grps[4]:
+                    if f.isnumeric():
+                        flast = int(f)
+                        self.fielding.assists.append(flast)
+                self.fielding.putouts.append(flast)                    
+                
+                return False, "O", None, m.end()
             
             # double play, either ball caught, runner tagged out
             # or force at first followed by tag of other runner 
@@ -835,9 +869,9 @@ class PlayerAdjEvent(Event):
 class LineupAdjEvent(Event):
     def __init__(self, l=None):
         if l is not None:
-            # destructure
-            self.game_id, self.event_id, self.team_id = l[0:3]
-            self.adj = int(l[3:])
+            # destructure            
+            self.game_id, self.event_id, self.team = l[0:3]
+            self.adj = int(l[3])
     def print(self):
         DEBUG_PRINT(f"***** Lineup adjustment: {self.team} {self.adj}")
 
@@ -851,6 +885,12 @@ class DataEREvent(Event):
     
     def print(self):
         DEBUG_PRINT(f"ER: {self.player_id} {self.er}")
+
+class ComEvent(Event):
+    def __init__(self, d=None):
+        if d is not None:
+            self.game_id, self.event_id, self.com = d[0:3]
+            self.event_id = int(self.event_id)
 
 class Lineup:
     def __init__(self, team_id):
@@ -1186,24 +1226,27 @@ class GameState:
         self.cur_batter[batsTop.team] = 1
         self.cur_batter[batsBot.team] = 1
         self.expectGameEnd = False
+        self.SQLstmts = []
         self.nextHalfInning()
+
+    def finalize(self, cur):
+        for s in self.SQLstmts:
+            DEBUG_PRINT(s)
+            cur.execute(s)
 
     def nextHalfInning(self):
         # calcualte LOB (if we have started game)
         if self.inning > 0:
-            lob = sum(map(lambda x: x is not None, self.baseRunners))
+            lob = sum(map(lambda x: x is not None, self.baseRunners[1:]))
             self.teamStats[self.curBat.team].LOB += lob
             t1 = time.time()
             dt = t1 - self.timeHalfInn
             #print(f"execution took {dt*1000} ms")
-            for s in self.SQLstmts:
-                DEBUG_PRINT(s)
-                cur.execute(s)
-            dt = time.time() - t1
-            #print(f"insertions took {dt*1000} ms")
+            
+            
         self.timeHalfInn = time.time()
         
-        self.SQLstmts = []
+        
 
         # teap batting in the top (usually vistor) took lead, and other team did not
         # tie or retake lead
@@ -1368,6 +1411,7 @@ class GameState:
             scField = scTop
 
         DEBUG_PRINT(f">>>> applyPlay {self.inningHalf}{self.inning} {batsTopTeam} {scTop} {batsBotTeam} {scBot} {self.outs} outs ")
+        DEBUG_PRINT(f"treatBaserunErrorAsOut={treatBaserunErrorAsOut}")
         #DEBUG_PRINT("applyPlay cur_batter=", self.cur_batter, " curBat", self.curBat.team)
         curBatterIdx = self.cur_batter[self.curBat.team]
         batterID = self.curBat.battingOrder[curBatterIdx]
@@ -1992,7 +2036,7 @@ def compareStatsToBoxScore(game, htbf, conn, cur):
         DEBUG_PRINT(tm, " stats discrepancies to boxscore:")
         game.teamStats[tm].compare(stats)
 
-def deleteDBAfterEvent(gameID, savePtEventID):
+def deleteDBAfterEvent(gameID, eventID):
     allTables = ("game_situation", "game_situation_fielder_assist",
                 "game_situation_fielder_putout", "game_situation_fielder_error",
                 "game_situation_fielder_fielded", "game_situation_result1_mod", 
@@ -2000,12 +2044,12 @@ def deleteDBAfterEvent(gameID, savePtEventID):
                 "game_situation_result2",
                 "game_situation_result3", "game_situation_result1_mod",
                 "game_situation_result2_mod", "game_situation_result3_mod", 
-                "game_situation_bases" )
+                "game_situation_bases", "game_situation_coms")
     
     gameTables = ("player_game_batting", "player_game_pitching", "player_game_fielding")
     for tbl in allTables:
         stmt =  f"DELETE FROM {tbl} WHERE game_id={gameID}"
-        stmt += f" AND event_id > {savePtEventID}"
+        stmt += f" AND event_id > {eventID}"
         DEBUG_PRINT(stmt)
         cur.execute(stmt)
     for tbl in gameTables:
@@ -2023,7 +2067,7 @@ def parseGame(gameID, plays, conn):
     if len(tups) > 0:
         print(f"skipping {gameID}")
         return False
-
+    print(f"parsing game {gameID} ")
     stmt = "SELECT home_team_bat_first, win_pitcher, loss_pitcher, save_pitcher, gw_rbi"
     stmt += f" FROM game_info_view WHERE game_id={gameID}"
     DEBUG_PRINT(stmt)
@@ -2060,6 +2104,10 @@ def parseGame(gameID, plays, conn):
     stmt = f"SELECT * FROM event_data_er WHERE game_id={gameID} ORDER BY event_id"
     cur.execute(stmt)
     dataER = cur.fetchall()
+
+    stmt = f"SELECT * FROM event_com WHERE game_id={gameID} ORDER BY event_id"
+    cur.execute(stmt)
+    coms = cur.fetchall()
 
     DEBUG_PRINT("home= ", home_team, " away=", away_team, " date=", game_date)
     home = Lineup(home_team)
@@ -2120,6 +2168,8 @@ def parseGame(gameID, plays, conn):
         events.append(PlayerAdjEvent(pAdj))
     for dER in dataER:
         events.append(DataEREvent(dER))
+    for c in coms:
+        events.append(ComEvent(c))
 
     t1 = time.time()
     dt = t1 - tStart
@@ -2130,7 +2180,7 @@ def parseGame(gameID, plays, conn):
     # replay attempt within half inning
     # if we 
     replayAttempt = 0  
-    maxReplayAttempts = 4
+    maxReplayAttempts = 10
     gameCpyNext = None
     gameCpyBeginInning = deepcopy(game)
     savePtI = -1
@@ -2144,6 +2194,8 @@ def parseGame(gameID, plays, conn):
     # treat each inning as a transaction
     #cur.execute("BEGIN")
     tStart = time.time()
+    coms_play = []
+    prevPlayID = 0
     while i < len(events):
         evt = events[i]
         DEBUG_PRINT("parseGame: i=", i, "event_id", evt.event_id)
@@ -2152,11 +2204,16 @@ def parseGame(gameID, plays, conn):
             if replayAttempt == 1:
                 treatBaserunErrorAsOut = not defaultTreatBaserunErrorAsOut
             elif replayAttempt > 1:
-                treatBaserunErrorAsOut = randint(0, 1)
+                # there can be different interpretations of runners marked as out
+                # even within the same inning
+                # see e.g NYA/CHA 1922-05-10
+                treatBaserunErrorAsOut = bool(randint(0, 1))
             ret = game.applyPlay(evt, treatBaserunErrorAsOut)
             if ret is None:  # for no play
                 i += 1
                 continue
+            elif replayAttempt == 0:
+                prevPlayID = evt.event_id
             err, posssiblySafeDueToError, isNextHalfInning = ret
             DEBUG_PRINT(f"parseGame: posssiblySafeDueToError={posssiblySafeDueToError}, isNextHalfInning={isNextHalfInning}")
             if err:
@@ -2172,7 +2229,7 @@ def parseGame(gameID, plays, conn):
                     # treatBaserunModErrorAsOut = not treatBaserunModErrorAsOut
                     #cur.execute("ROLLBACK")
                     #cur.execute("BEGIN")
-                    deleteDBAfterEvent(gameID, savePtEventID)
+                    # deleteDBAfterEvent(gameID, savePtEventID)
                     continue
                 else: 
                     DEBUG_PRINT("Cannot handle error, skipping rest of game")
@@ -2214,6 +2271,9 @@ def parseGame(gameID, plays, conn):
             game.applyLineupAdj(evt)
         elif type(evt) == type(DataEREvent()):
             game.applyDataER(evt)
+        elif type(evt) == type(ComEvent()):
+            coms_play.append((prevPlayID, evt.event_id))
+
         i += 1
     
     t1 = time.time()
@@ -2224,6 +2284,12 @@ def parseGame(gameID, plays, conn):
     except Exception as e:
         print(e)
 
+    for c in coms_play:
+        stmt = "INSERT INTO game_situation_coms VALUES("
+        stmt += str(game_id) + ", " + str(c[0]) + ", " + str(c[1]) + ")"
+        cur.execute(stmt)
+
+    game.finalize(cur)
     #compareStatsToBoxScore(game, htbf, conn, cur)
     
     #try:
@@ -2256,13 +2322,11 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=[0, 200000], quit_on_err=
         for t in tups2:
             playerCodeToIDMap[t[1]] = int(t[0])
             playerIDToCodeMap[t[0]] = t[1]
-
         try:
             for tup in tups:
                 game_id = tup[0]
                 if game_id != gameID:  # new game
                     if gameID != None:
-                        print(f"parsing game {gameID} ")
                         total += 1
                         try:
                             err = parseGame(gameID, plays, conn)
@@ -2280,7 +2344,7 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=[0, 200000], quit_on_err=
                             delFailed = True
                             while delFailed:
                                 try:
-                                    deleteDBAfterEvent(gameID, 0)
+                                    deleteDBAfterEvent(gameID, -1)
                                     delFailed = False
                                 except KeyboardInterrupt as e:
                                     print("broken by keyboard interrupt")
@@ -2350,7 +2414,7 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=[0, 200000], quit_on_err=
                 err = True
             if err:
                 print(f"failed to reparse {gameID}")
-                deleteDBAfterEvent(gameID, 0)
+                deleteDBAfterEvent(gameID, -1)
             else:
                 reparseSuccess += 1
                 reparsed.add(gameID)
