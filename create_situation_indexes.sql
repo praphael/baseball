@@ -1,9 +1,12 @@
+-- do equiv of MATERIALIZE VIEW , since SQLite lacks this feature
 CREATE TABLE game_info2 AS SELECT * FROM game_info_view;
+DROP VIEW game_info_view;
+ALTER TABLE game_info2 RENAME TO game_info_view;
 
-CREATE INDEX game_info2_idx1 ON game_info2(game_id);
-CREATE INDEX game_info2_idx2 ON game_info2(year, month);
-CREATE INDEX game_info2_idx3 ON game_info2(home_team);
-CREATE INDEX game_info2_idx4 ON game_info2(away_team);
+CREATE INDEX game_info2_idx1 ON game_info_view(game_id);
+CREATE INDEX game_info2_idx2 ON game_info_view(year, month);
+CREATE INDEX game_info2_idx3 ON game_info_view(home_team);
+CREATE INDEX game_info2_idx4 ON game_info_view(away_team);
 
 CREATE INDEX pl_game_bat_idx1 ON player_game_batting(game_id);
 CREATE INDEX pl_game_bat_idx2 ON player_game_batting(batter_num_id);

@@ -46,7 +46,7 @@ const BoxScoreFilters = ({boxScoreFiltOpts, filter, onFiltChange, order, onOrder
               aria-labelledby="headingOne" data-bs-parent="#filtersAccordion">
               <div className="accordion-body">
                       
-        <OptionWithCheck fieldName="round" label="Round"
+        <OptionWithCheck fieldName="round" label="Playoff Round"
             options={boxScoreFiltOpts.postseries} 
             val={filter.values.get("round")}
             checkVal={filter.group.has("round")} 

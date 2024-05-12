@@ -182,6 +182,11 @@ boxScoreFiltDefaults.values.set("sit_hit_loc", "");
 boxScoreFiltDefaults.values.set("sit_hit_type", "");
 boxScoreFiltDefaults.values.set("sit_outs_made", "");
 boxScoreFiltDefaults.values.set("sit_runs_sco", "");
+
+boxScoreFiltDefaults.values.set("showCond", false);
+boxScoreFiltDefaults.values.set("showParkInfo", false);
+boxScoreFiltDefaults.values.set("showWinLossInfo", false);
+
 boxScoreFiltDefaults.group.add("team");
 
 const orderDefaults = [["team", false], ["year", true], ["date", false]]

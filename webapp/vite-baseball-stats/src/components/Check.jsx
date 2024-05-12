@@ -2,19 +2,21 @@ import React from 'react'
 import { useState, useEffect } from 'react'
 
 const Check = ({fieldName, val, onChange, 
-                checkClasses}) => {
+                checkClasses, isGroup=true }) => {
   const onNewVal = (v) => {
     console.log("Check onNewVal", fieldName, " v=", v);
-    onChange(fieldName, v, true);
+    onChange(fieldName, v, isGroup);
   }
   //console.log("Check ", fieldName, " initValue=", initValue)
-  const id = `"filter_${fieldName}_group"`;
+
+  const id = `filter_${fieldName}` + isGroup? "_group":"";
   return (
     <div className={checkClasses.divClass}>
         
+        <label className={checkClasses.labelClass} htmlFor={id}>
         <input className={checkClasses.checkClass} type="checkbox" id={id} checked={val} onChange={
             (e)=>(onNewVal(e.target.checked))} />
-        <label className={checkClasses.labelClass} htmlFor={id}>
+        
             {checkClasses.label}
         </label>
     </div>

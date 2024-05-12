@@ -498,7 +498,8 @@ string getMonth(string month) {
 }
 
 void fixResults(const vector<string>& colummNames, query_result_t& results, 
-                const unordered_map<string, string>& teamsMap) {
+                const unordered_map<string, string>& teamsMap,
+                const unordered_map<int, string> playerIDMap) {
     for (auto& row : results) {
         auto c = 0;
         
@@ -554,7 +555,7 @@ int handleTeamsRequest(sqlite3 *pdb, const string &qy, string& resp, string& mim
     string qry = "SELECT DISTINCT t.team_id, t.team_league, t.team_city," 
                  "t.team_nickname, t.team_first, t.team_last " 
                  " FROM team t" 
-                 " INNER JOIN (SELECT home_team FROM game_info2) i" 
+                 " INNER JOIN (SELECT home_team FROM game_info_view) i" 
                  " ON t.team_id=i.home_team WHERE t.team_last > ? ORDER BY t.team_last";
     
     auto yearSince = 1902;
@@ -610,7 +611,7 @@ int handleGamelogRequest(sqlite3 *pdb, const string &qy, string& resp, string &m
     auto retType = args.ret;
     try { 
         cout << endl << "handleGamelogRequest( " << __LINE__ << "): fixing results";
-        fixResults(columnNames, result, teamsMap);
+        fixResults(columnNames, result, teamsMap, {});
     } catch (std::exception e) {
         cerr << endl << "exception fixing results: " << e.what();
     }
@@ -714,9 +715,9 @@ int initPlayerIDMap(sqlite3 *pdb,
         };
 
         std::sort(tmApps.begin(), tmApps.end(), sortFcn); 
-        cout << endl;
+        // cout << endl;
         for(auto ta : tmApps) {
-            cout << " " << ta.first << " " << ta.second;
+            // cout << " " << ta.first << " " << ta.second;
         }
         //cout << endl << "last";
         addToTrie(playerLastTrie, last, id);
@@ -733,7 +734,7 @@ int initPlayerIDMap(sqlite3 *pdb,
             i++;
         }
         pID.pop_back(); // remove last '/'
-        cout << endl << pID;
+        // cout << endl << pID;
 
         playerIDMap[id] = pID;
     }
@@ -810,7 +811,8 @@ int handlePlayerGameRequest(sqlite3 *pdb,
                             const std::string &qy,
                             string& resp,
                             string &mimeType,
-                            const unordered_map<string, string>& teamsMap )
+                            const unordered_map<string, string>& teamsMap,
+                            const unordered_map<int, string>& playerIDMap )
 {
     string player_qry;
     vector<field_val_t> prms;
@@ -840,7 +842,7 @@ int handlePlayerGameRequest(sqlite3 *pdb,
     auto retType = args.ret;
     try { 
         cout << endl << "handlePlayerGameRequest( " << __LINE__ << "): fixing results";
-        fixResults(columnNames, result, teamsMap);
+        fixResults(columnNames, result, teamsMap, playerIDMap);
     } catch (std::exception e) {
         cerr << endl << "exception fixing results: " << e.what();
     }
@@ -867,8 +869,24 @@ int handlePlayerGameRequest(sqlite3 *pdb,
     return 0;
 }
 
+int fixSiutuationResults(const vector<string> &colNamesIn, const query_result_t &resultIn,
+                         vector<string> &colNamesOut, query_result_t &resultOut) 
+ {
+    colNamesOut.clear();
+    for (auto col : colNamesIn) {
+     // colNamesOut.push
+
+    }
+
+    for(auto r : resultIn) {
+
+    }
+
+}
+
 int handleSituationRequest(sqlite3 *pdb, const std::string &qy, std::string& resp, std::string &mimeType,
-                          const std::unordered_map<std::string, std::string>& teamsMap )
+                          const std::unordered_map<std::string, std::string>& teamsMap,
+                          const unordered_map<int, string>& playerIDMap )
 {
     string situation_qry;
     vector<field_val_t> prms;
@@ -897,7 +915,7 @@ int handleSituationRequest(sqlite3 *pdb, const std::string &qy, std::string& res
     auto retType = args.ret;
     try { 
         cout << endl << "handleSituationRequest( " << __LINE__ << "): fixing results";
-        fixResults(columnNames, result, teamsMap);
+        fixResults(columnNames, result, teamsMap, playerIDMap);
     } catch (std::exception e) {
         cerr << endl << "exception fixing results: " << e.what();
     }

@@ -96,7 +96,7 @@ def fromCSV(fPath, tableName, conn, rowIDFirst=False, rowIDMapField=None, rowIDO
                 ins_stmts.append(ln + ", ".join(map(fn, vals)) + ")")
 
         for ln in ins_stmts:
-            print(ln)
+            #print(ln)
             cur.execute(ln)
         conn.commit()
     return rowIDMap

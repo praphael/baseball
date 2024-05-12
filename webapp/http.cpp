@@ -204,10 +204,12 @@ handle_request(
             cout << endl << "handleRequst tgt=" << tgt;
             curl_free(tgt_dec);
         } else {
+            cout << endl << "curl_easy_unescape: Could not parse query string";
             return bad_request("Could not parse query string");
         }
         curl_easy_cleanup(curl);
     } else {
+        cout << endl << "Could not initialize curl";
         return bad_request("Could not initialize curl");
     } 
 
@@ -230,7 +232,6 @@ handle_request(
     string resp_body;
     auto mime_type = string("text/plain");
     // map from team code (three chars) to team name
-  
 
     cout << endl << "rt_qy= ";
     printVec(rt_qy);
@@ -271,11 +272,11 @@ handle_request(
             }
             else if(rt == "playergame") {
                 cout << endl << "playergame";
-                err = handlePlayerGameRequest(pdb, qy, resp_body, mime_type, teamsMap);
+                err = handlePlayerGameRequest(pdb, qy, resp_body, mime_type, teamsMap, playerIDMap);
             }
             else if(rt == "situation") {
                 cout << endl << "situation";
-                err = handleSituationRequest(pdb, qy, resp_body, mime_type, teamsMap);
+                err = handleSituationRequest(pdb, qy, resp_body, mime_type, teamsMap, playerIDMap);
             }
             else {
                 cout << endl << "unknown route '" << rt << "'";
@@ -626,7 +627,7 @@ int main(int argc, char* argv[])
     // The io_context is required for all I/O
     net::io_context ioc{threads};
     auto address = net::ip::make_address(address_str);
-    std::cout << std::endl << "creating listening port";
+    std::cout << std::endl << "creating listening port " << address << ":" << port;
     // Create and launch a listening port
     std::make_shared<listener>(
         ioc,
@@ -644,6 +645,7 @@ int main(int argc, char* argv[])
         {
             ioc.run();
         });
+    
     std::cout << std::endl << "invoking ioc.run()" << std::endl;
     ioc.run();
 

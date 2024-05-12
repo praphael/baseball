@@ -3,10 +3,13 @@ import { useState, useEffect } from 'react'
 import BoxScoreFilters from './components/BoxScoreFilters.jsx'
 import Results from './components/Results.jsx'
 import StatTypes from './components/StatTypes.jsx';
+import Check from './components/Check.jsx';
+import OptionRangeWithCheck from './components/OptionRangeWithCheck.jsx'
 
 import { doRequest } from './js/requests.js'
 import { makeGamelogQueryJSON, makePlayerGameQueryJSON, makeSituationQueryJSON } from './js/queries.js'
 import { boxScoreFiltOptsDefaults, boxScoreFiltDefaults, filterFields, getParksTeams, orderDefaults } from './js/filters.js'
+
 import { statTypesArr, statSortOrder, statSetsDefault } from './js/stats.js'
 import NumberInputWithCheck from './components/NumberInputWithCheck.jsx';
 import RadioButtonGroup from './components/RadioButtonGroup.jsx';
@@ -141,7 +144,7 @@ function App() {
   }
 
   const onFiltChange = (field, value, isGroup) => {
-    console.log("onFiltChange field=", field, "value=", value);
+    console.log("onFiltChange field=", field, "value=", value, "isGroup=", isGroup);
     //console.log("onFiltChange filter=", filter);
     try {
       // we have to copy, or else React doens't detect state change
@@ -234,6 +237,15 @@ function App() {
             <PlayerInput fieldName="batter" label="Batter" onFiltChange={onFiltChange}/>
             <PlayerInput fieldName="pitcher" label="Pitcher" onFiltChange={onFiltChange}/>
 
+            <OptionRangeWithCheck fieldName="year" label="Years" 
+              options={boxScoreFiltOpts.years} 
+              valLow={filter.values.get("year_low")}
+              valHigh={filter.values.get("year_high")}
+              checkVal={filter.group.has("year")} 
+              onChange={onFiltChange}
+              optionClasses={optionClasses}
+              checkClasses={checkClasses}/>
+
             <h4>Filters/Order:</h4>
             <BoxScoreFilters boxScoreFiltOpts={boxScoreFiltOpts} filter={filter}
                              onFiltChange={onFiltChange} order={order} 
@@ -260,17 +272,32 @@ function App() {
                         <option value="min">Min</option>
                     </select>
                 </div>
-                <div className="col-2">
+                <div className="col-1">
                   <label className="form-label" htmlFor="filter_minGP">Min Games:</label><br/>
                   <input className="input form-input" size="5"
                     type="text" id="filter_minGP" value={minGP}
                     onChange={(e)=>(onNewMinGPVal(e.target.value))} />
                 </div>
-                <div className="col-2">
+                <div className="col-1">
                   <label className="form-label" htmlFor="filter_minGP">Limit:</label><br/>
                   <input className="input form-input" size="5"
                     type="text" id="filter_limit" value={limit}
                     onChange={(e)=>(onNewLimit(e.target.value))} />
+                </div>
+                <div className="col-2">
+                  <Check fieldName="showCond" val={filter.values.get("showCond")} 
+                         onChange={onFiltChange} checkClasses={{ divClass:checkDivClass, checkClass, 
+                          labelClass:checkLabelClass, label:"Show Condition Info" }}  isGroup={false}/>
+                </div>
+                <div className="col-2">
+                  <Check fieldName="showParkInfo" val={filter.values.get("showParkInfo")} 
+                         onChange={onFiltChange} checkClasses={{ divClass:checkDivClass, checkClass, 
+                          labelClass:checkLabelClass, label:"Show Park Info" }} isGroup={false}/>
+                </div>
+                <div className="col-2">
+                  <Check fieldName="showWinLossInfo" val={filter.values.get("showWinLossInfo")} 
+                         onChange={onFiltChange} checkClasses={{ divClass:checkDivClass, checkClass, 
+                          labelClass:checkLabelClass, label:"Show Win/Loss/Save Info" }} isGroup={false}/>
                 </div>
               </div>
               <div className="row mt-3 flex-no-wrap">

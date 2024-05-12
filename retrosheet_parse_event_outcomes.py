@@ -12,6 +12,50 @@ playerCodeToIDMap = dict()
 playerIDToCodeMap = dict()
 #playerIDMap = dict()
 
+SKIP_GAMES = ("1938-05-14SLNCIN0", # this game was protested and replayed later
+)
+
+class BatResult:
+    def __init__(self, results=[], bases=[], hit_type=None, hit_loc=None, mods=[]):
+        self.results = list(results)
+        # base paramters for each result
+        self.bases = list(bases)
+        # G=ground ball, F=fly ball L=line drive, P=pop up
+        self.hit_type = hit_type
+        # roughly where in the field ball was hit, 
+        self.hit_loc = hit_loc
+        self.mods = list(mods)
+
+class FieldingResult:
+    def __init__(self, errors=[], putouts=[], assists=[], fielded=[]):
+        self.errors = list(errors)
+        self.putouts = list(putouts)
+        self.assists = list(assists)
+        self.fielded = list(fielded)
+
+class RunResult:
+    def __init__(self, out=[], adv=[], mods=[]):            
+        self.out = list(out)
+        self.adv = list(adv)
+        self.mods = list(mods)
+
+# the interpretation of results of these plays is ambiguous 
+# amd would be difficul to resolve with general rules
+# therefore the results are entered in manually
+AMBIGUOUS_PLAYS = dict() 
+# game date, home team, away team, double header num (0, 1, 2)
+# innning, inning half, batter code, play count with batter
+br = BatResult(("O",), bases=(None,), hit_type="G", hit_loc="4")
+fr = FieldingResult(errors=[6], assists=(4,), putouts=(3,))
+rr = RunResult(adv=[(1, 2, True)], out=((0, False, 1),))
+
+#S9.2-H(UR);BXH(E9)(932)
+br2 = BatResult(("S",), bases=(None,), hit_loc="9")
+fr2 = FieldingResult(errors=(9,), assists=(9, 3), putouts=[2,])
+rr2 = RunResult(adv=((2, 4, True), (0, 4, False)))
+AMBIGUOUS_PLAYS["1922-05-10NYACHA0"] = { (11, "T", "strua102", 0) : (br, fr, rr),  
+                                         (11, "T", "hooph101", 0) : (br2, fr2, rr2)}
+
 # setting to True will print debugging output for all games
 # if false, only games which fail to parse
 DEBUG = False
@@ -218,6 +262,8 @@ for m in list(modCodeMap.keys()):
 batPlaysNoParse = []
 runPlaysNoParse = []
 
+sqlStmts = []
+
 def baseNumForPOCS(b, play):
     if b is None:
         return None
@@ -382,15 +428,18 @@ class PlayEvent(Event):
         DEBUG_PRINT("parseRunnerAdv: run_adv=", run_adv)
         
         for adv in run_adv:      
-            if "X" in adv and "-" in adv:
-                isSafe = False
-                a = adv.split("X")                
-            elif "-" in adv: # safe
+            idx = adv.find("(")
+            a0 = adv
+            mods = ""
+            if idx != -1:
+                a0 = adv[:idx]
+                mods = adv[idx:]            
+            if "-" in a0: # safe
+                a = a0.split("-")
                 isSafe = True
-                a = adv.split("-")
-            elif "X" in adv:  # out
+            elif "X" in a0:  # out
+                a = a0.split("X")
                 isSafe = False
-                a = adv.split("X")
             else:
                 DEBUG_PRINT("no valid separator found")
                 return True
@@ -399,7 +448,7 @@ class PlayEvent(Event):
                 return True
             srcBase = a[0]
             dstBase = a[1][0]
-            mods = a[1][1:]
+            
             if len(mods) > 0 and mods[0] in ("#", "?", "!"):
                 mods = a[1][2:]
             runMods = self.parseRunnerMods(mods)
@@ -607,7 +656,7 @@ class PlayEvent(Event):
                 return False, "O", None, m.end()
             
             # double play to bags other than first 
-            m = re.match(r"^(\d.*)\(([123])\)(\d.*)\(([123])\)", bat0)
+            m = re.match(r"^(\d.*)\(([123])\)[!]?(\d.*)\(([123])\)", bat0)
             if m is not None:
                 DEBUG_PRINT("double play (bags other than first)")
                 grps = m.groups()
@@ -626,7 +675,7 @@ class PlayEvent(Event):
                 return False, "FO", None, m.end()
             
             # double play - implied or explicit runner out at first
-            m = re.match(r"^(\d.*)\(([123])\)(\d.*)(\(B\))?", bat0)
+            m = re.match(r"^(\d.*)\(([123])\)[!]?(\d.*)(\(B\))?", bat0)
             if m is not None:
                 DEBUG_PRINT("double play - runner out at first")
                 grps = m.groups()
@@ -706,7 +755,7 @@ class PlayEvent(Event):
             elif mod in modCodeMap:
                 mods.append(mod)
                 return False
-            m = re.match(r"([GLFP])(.*)?[#!?+-]", mod)
+            m = re.match(r"([GLFP])(.*)?[#!?+-]?", mod)
             if m is not None:
                 self.bat.hit_type = m.group(1)
                 self.bat.hit_loc = m.group(2)
@@ -814,36 +863,10 @@ class PlayEvent(Event):
             self.player_id = playerIDToCodeMap[self.player_id]
             #print("team=", self.team)
             self.pitchSeq = None
-            self.bat = Event() # dummy value
-            # results (see playCodeMap)
-            # more than one result is possible for e.g, double steals
-            # or plays at the plate combined with steals
-            self.bat.results = []
-            # base paramters for each result
-            self.bat.bases = []                        
-            # G=ground ball, F=fly ball L=line drive, P=pop up
-            self.bat.hit_type = None
-            # roughly where in the field ball was hit, fielder pos
-            self.bat.hit_loc = None
-            self.bat.mods = []
-
-            self.fielding = Event() # dummy value
-            # fielder 
-            self.fielding.errors = []
-            self.fielding.putouts = []
-            self.fielding.assists = []
-            # situations where fielder touched ball not involved above, e.g. a base hit
-            self.fielding.fielded = []  
+            self.bat = BatResult() 
+            self.fielding = FieldingResult()
+            self.run = RunResult()
             
-            self.run = Event()
-            # baserunners which were out on the play
-            self.run.out = []
-
-            # baserunner advances (including outs)
-            self.run.adv = []
-            # mod for each advance
-            self.run.mods = []
-            # self.parsePitchSeq()    
             
 class SubEvent(Event):
     def __init__(self, s=None):
@@ -900,7 +923,7 @@ class Lineup:
         # order 0 has no meaning, or could be interpted as the P when using a DH
         self.battingOrder = [None]*10
         # map between field position, with 1=pitcher 2=catcher, 3=1B etc.
-        #zposition has no meaning, or could be interpted as the DH
+        # 0 position has no meaning, or could be the DH
         self.fieldPos = [None]*10
         self.battingOrderStart = [None]*10
         self.battingOrderSubs = [[] for i in range(10)]
@@ -1176,8 +1199,9 @@ class TeamStats:
 class GameState:
     # batsTop = lineup of team batting at the top of the inning
     # batsBot = lineup of team batting at the bottom of the inning
-    def __init__(self, batsTop, batsBot, gameID):
+    def __init__(self, batsTop, batsBot, gameID, gameKey, tiebreakbase, inningsSched):
         self.gameID = gameID
+        self.gameKey = gameKey
         # score for each team
         self.score = dict()
         self.score[batsTop.team_id] = 0
@@ -1186,7 +1210,11 @@ class GameState:
         self.teamStats = dict()
         self.teamStats[batsTop.team_id] = TeamStats()
         self.teamStats[batsBot.team_id] = TeamStats()
-
+        self.tiebreakbase = tiebreakbase
+        self.inningsSched = inningsSched
+        if(inningsSched < 7):
+            print("inningsSched= ", inningsSched, " ?!")
+            exit(1)
         self.batsTop = batsTop
         self.batsBot = batsBot
 
@@ -1245,12 +1273,12 @@ class GameState:
             
             
         self.timeHalfInn = time.time()
+        self.batterPlayCnt = 0
+        self.lastBatter = None
         
-        
-
         # teap batting in the top (usually vistor) took lead, and other team did not
         # tie or retake lead
-        if self.inning >= 9 and self.inningHalf == "B":
+        if self.inning >= self.inningsSched and self.inningHalf == "B":
             isTrailing = self.score[self.curBat.team] < self.score[self.curField.team]
             if isTrailing:
                 DEBUG_PRINT("end of game expected")
@@ -1265,14 +1293,23 @@ class GameState:
         self.curField = self.batsBot
         if self.inningHalf == "B":
             self.curBat = self.batsBot
-            self.curField = self.batsTop
+            self.curField = self.batsTop        
         
         self.outs = 0
         # 0=home (batter)
-        self.baseRunners = [None]*4        
+        self.baseRunners = [None]*4
         isLeading = self.score[self.curBat.team] > self.score[self.curField.team]
         if self.inning == 9 and self.inningHalf == "B" and isLeading:
             self.expectGameEnd = True
+        # place baserunner on tiebreakbase
+        if self.inning > self.inningsSched and self.tiebreakbase > 0:
+            # place batter to get last out on base
+            prevBatterIdx = self.cur_batter[self.curBat.team] - 1 
+            if prevBatterIdx == 0:
+                prevBatterIdx = 9
+            prevBatter = self.curBat.battingOrder[prevBatterIdx]
+            DEBUG_PRINT(self.inningHalf, self.inning, " placing ", prevBatter, " on ", self.tiebreakbase)
+            self.baseRunners[self.tiebreakbase] = (prevBatterIdx, prevBatter)
 
     def nextBatter(self):
         batTeam = self.curBat.team
@@ -1307,13 +1344,13 @@ class GameState:
                 #DEBUG_PRINT(playerIDMap[pID][0], end=lst)
                 DEBUG_PRINT(pID, end=lst)
                 st.print()
-                i += 1
                 batStats.add(st)
                 #insertIntoDB(self, cur, game_id, player_num_id, team, seq, pos):
                 try:
                     st.insertIntoDB(cur, self.gameID, pID, tm_id, o, i+1)
                 except Exception as e:
                     pass
+                i += 1
 
         # fielding stats
         DEBUG_PRINT(tm, "fielding")
@@ -1330,12 +1367,12 @@ class GameState:
                 DEBUG_PRINT(pID, end=lst)
                 #DEBUG_PRINT(playerIDMap[pID][0], end=lst)
                 st.print()
-                i += 1
                 fieldStats.add(st)
                 try:
                     st.insertIntoDB(cur, self.gameID, pID, tm_id, o, i+1)
                 except Exception as e:
                     pass
+                i += 1
         
                 
         pitchStats = PitcherStats()
@@ -1396,6 +1433,7 @@ class GameState:
         if p.bat.results[0] == "NP": # no play
             DEBUG_PRINT("applyPlay(): no play")
             return None
+        
         #DEBUG_PRINT("applyPlay batterID=", batterID, "pitcherID=", pitcherID)
         
         curFieldTeam = self.curField.team
@@ -1416,6 +1454,7 @@ class GameState:
         curBatterIdx = self.cur_batter[self.curBat.team]
         batterID = self.curBat.battingOrder[curBatterIdx]
         pitcherID = self.curField.fieldPos[1]  # position 1 (pitcher)
+
         #expBat = playerIDMap[batterID][0]
         expBat = batterID
         #pit = playerIDMap[pitcherID][0]
@@ -1433,6 +1472,19 @@ class GameState:
             err = True
         
         DEBUG_PRINT(curBatTeam, curBatterIdx, expBat, "at bat", curFieldTeam, pit, " pitching ",)
+        
+        if self.lastBatter == batterID:
+            self.batterPlayCnt += 1
+        else:
+            self.batterPlayCnt = 0
+        self.lastBatter = batterID
+        if self.gameKey in AMBIGUOUS_PLAYS:
+            ambPlays = AMBIGUOUS_PLAYS[self.gameKey]
+            sit = (self.inning, self.inningHalf, batterID, self.batterPlayCnt)
+            if sit in ambPlays:
+                DEBUG_PRINT("?????  Ambigious play - replacing parsed result with manual")
+                p.bat, p.fielding, p.run  = ambPlays[sit]
+
         batterID = p.player_id
         
         # -1 = last index (current player)
@@ -1669,7 +1721,8 @@ class GameState:
             elif r == "E":
                 stBat.AB += 1
                 self.teamStats[curBatTeam].AB += 1
-                self.movedRunners[0] = 1   
+                if rNum == 1:
+                    self.movedRunners[0] = 1   
             elif r == "WP": # wildpitch
                 DEBUG_PRINT("wild pitch")
                 if rNum == 1: # handle combo plays
@@ -1860,8 +1913,9 @@ class GameState:
                     if nxtBase == 4:
                         runs += 1
                         self.statsBat[curBatTeam][runIdx][-1][1].R += 1
-                        stBat.RBI += 1
-                        self.teamStats[curBatTeam].RBI += 1
+                        if p.bat.results[0] not in ("WP", "PB", "BK", "SB", "E") and not isDoublePlay:
+                            stBat.RBI += 1
+                            self.teamStats[curBatTeam].RBI += 1
                     elif nxtBase is not None and nxtBase > 0:
                         baseRunNxt[nxtBase] = (runIdx, runnerID)
             return runs, outs, baseRunNxt
@@ -2051,65 +2105,40 @@ def deleteDBAfterEvent(gameID, eventID):
         stmt =  f"DELETE FROM {tbl} WHERE game_id={gameID}"
         stmt += f" AND event_id > {eventID}"
         DEBUG_PRINT(stmt)
-        cur.execute(stmt)
+        try: 
+            cur.execute(stmt)
+        except KeyboardInterrupt as e:
+            exit(1)
+        except Exception as e:
+            print(e)
+
     for tbl in gameTables:
         stmt =  f"DELETE FROM {tbl} WHERE game_id={gameID}"
         DEBUG_PRINT(stmt)
-        cur.execute(stmt)
+        try:
+            cur.execute(stmt)
+        except KeyboardInterrupt as e:
+            exit(1)
+        except Exception as e:
+            print(e)
 
-def parseGame(gameID, plays, conn):
+def parseGame(game_info_tup, plays, starts, subs, lineupAdjs, playerAdjs, dataER, coms, conn):
     # detect if already parsed game
     cur = conn.cursor()
     tStart = time.time() 
-    stmt = f"SELECT * from game_situation WHERE game_id={gameID}"
-    cur.execute(stmt)
-    tups = cur.fetchall()    
-    if len(tups) > 0:
-        print(f"skipping {gameID}")
-        return False
-    print(f"parsing game {gameID} ")
-    stmt = "SELECT home_team_bat_first, win_pitcher, loss_pitcher, save_pitcher, gw_rbi"
-    stmt += f" FROM game_info_view WHERE game_id={gameID}"
-    DEBUG_PRINT(stmt)
-    cur.execute(stmt)
-    tups = cur.fetchall()
-    if len(tups) != 1:
-        print("got more than one result from SELECT")
-        return False
-    htbf, win_p, lose_p, save_p, gw_rbi = tups[0]
+
+    gameID, home_team, away_team, game_date, dh_num, tiebreakbase, innSched, htbf = game_info_tup
     htbf = bool(htbf)
-    stmt = f"SELECT home_team, away_team, game_date FROM game_info_view WHERE game_id={gameID}"
-    DEBUG_PRINT(stmt)
-    cur.execute(stmt)
-    tups = cur.fetchall()
-    if len(tups) != 1:
-        print("got more than one result from SELECT")
+
+    gameKey = game_date + home_team + away_team + str(dh_num)
+    if gameKey in SKIP_GAMES:
+        print("explicitly skipping ", gameKey)
         return False
-    home_team, away_team, game_date = tups[0]    
-    stmt = f"SELECT * FROM event_start WHERE game_id={gameID} ORDER BY event_id"
-    cur.execute(stmt)
-    starts = cur.fetchall()
-    stmt = f"SELECT * FROM event_sub WHERE game_id={gameID} ORDER BY event_id"
-    cur.execute(stmt)
-    subs = cur.fetchall()
+    print(f"parsing game {gameID} {gameKey}")
 
-    stmt = f"SELECT * FROM event_lineup_adj WHERE game_id={gameID} ORDER BY event_id"
-    cur.execute(stmt)
-    lineupAdjs = cur.fetchall()
+    DEBUG_PRINT("home= ", home_team, " away=", away_team, " date=", game_date, " dh_num", dh_num)
 
-    stmt = f"SELECT * FROM event_player_adj WHERE game_id={gameID} ORDER BY event_id"
-    cur.execute(stmt)
-    playerAdjs = cur.fetchall()
 
-    stmt = f"SELECT * FROM event_data_er WHERE game_id={gameID} ORDER BY event_id"
-    cur.execute(stmt)
-    dataER = cur.fetchall()
-
-    stmt = f"SELECT * FROM event_com WHERE game_id={gameID} ORDER BY event_id"
-    cur.execute(stmt)
-    coms = cur.fetchall()
-
-    DEBUG_PRINT("home= ", home_team, " away=", away_team, " date=", game_date)
     home = Lineup(home_team)
     away = Lineup(away_team)
     for st in starts:
@@ -2151,7 +2180,8 @@ def parseGame(gameID, plays, conn):
     if htbf:
         batsTop = home
         batsBot = away
-    game = GameState(batsTop, batsBot, gameID)
+
+    game = GameState(batsTop, batsBot, gameID, gameKey, tiebreakbase, innSched)
     events = []
     tStart = time.time()
     for p in plays:
@@ -2181,10 +2211,8 @@ def parseGame(gameID, plays, conn):
     # if we 
     replayAttempt = 0  
     maxReplayAttempts = 10
-    gameCpyNext = None
-    gameCpyBeginInning = deepcopy(game)
-    savePtI = -1
-    savePtEventID = events[0].event_id - 1
+    gameCpyBeginInning = [None]*50
+    IBeginInning = [-1]*50
     posssiblySafeDueToErrorInInning = 0
     defaultTreatBaserunErrorAsOut = False
     treatBaserunErrorAsOut = defaultTreatBaserunErrorAsOut    
@@ -2196,6 +2224,8 @@ def parseGame(gameID, plays, conn):
     tStart = time.time()
     coms_play = []
     prevPlayID = 0
+    gameCpyBeginInning[0] = deepcopy(game)
+    IBeginInning[0] = 0
     while i < len(events):
         evt = events[i]
         DEBUG_PRINT("parseGame: i=", i, "event_id", evt.event_id)
@@ -2221,11 +2251,15 @@ def parseGame(gameID, plays, conn):
                 if replayAttempt < maxReplayAttempts and posssiblySafeDueToErrorInInning > 0 or posssiblySafeDueToError:
                     DEBUG_PRINT(f"###### REPLAYING HALF INNING ######")
                     DEBUG_PRINT(f"treatBaserunErrorAsOut={treatBaserunErrorAsOut}")
+                    DEBUG_PRINT(f"isNextHalfInning={isNextHalfInning}")
                     # restore and replay
                     replayAttempt += 1
                     posssiblySafeDueToErrorInInning = 0
-                    game = deepcopy(gameCpyBeginInning)                    
-                    i = savePtI+1
+                    idx = 2*(game.inning-1) + (game.inningHalf == "B")
+                    if isNextHalfInning:
+                        idx -= 1
+                    game = deepcopy(gameCpyBeginInning[idx])  
+                    i = IBeginInning[idx] + 1
                     # treatBaserunModErrorAsOut = not treatBaserunModErrorAsOut
                     #cur.execute("ROLLBACK")
                     #cur.execute("BEGIN")
@@ -2245,7 +2279,6 @@ def parseGame(gameID, plays, conn):
                 inningEndedPriorPlay = True
                 gameCpyNext = deepcopy(game)
                 nextSavePtI = i
-                nextSavePtEventID = evt.event_id                
 
             # since we are sure that starting a fresh inning does not '
             # misalign roster, we can reset vars 
@@ -2255,9 +2288,9 @@ def parseGame(gameID, plays, conn):
                 DEBUG_PRINT("parseGame: inningEndedPriorPlay")
                 replayAttempt = 0
                 inningEndedPriorPlay = False
-                gameCpyBeginInning = gameCpyNext
-                savePtI = nextSavePtI
-                savePtEventID = nextSavePtEventID
+                idx = 2*(game.inning-1) + (game.inningHalf == "B")
+                gameCpyBeginInning[idx] = gameCpyNext
+                IBeginInning[idx] = nextSavePtI                
                 posssiblySafeDueToErrorInInning = 0
                 if posssiblySafeDueToError:
                     posssiblySafeDueToErrorInInning = 1
@@ -2281,15 +2314,21 @@ def parseGame(gameID, plays, conn):
     #print(f"apply plays took {dt*1000} ms")
     try:
         game.compileGameStats(cur)
+    except KeyboardInterrupt as e:
+        exit(1)
     except Exception as e:
         print(e)
 
     for c in coms_play:
         stmt = "INSERT INTO game_situation_coms VALUES("
-        stmt += str(game_id) + ", " + str(c[0]) + ", " + str(c[1]) + ")"
-        cur.execute(stmt)
+        stmt += str(gameID) + ", " + str(c[0]) + ", " + str(c[1]) + ")"
+        # cur.execute(stmt)
+        sqlStmts.append(stmt)
 
-    game.finalize(cur)
+
+    #game.finalize(cur)
+    sqlStmts.extend(game.SQLstmts)
+
     #compareStatsToBoxScore(game, htbf, conn, cur)
     
     #try:
@@ -2307,77 +2346,163 @@ def parseEventOutcomesGatherStats(conn, cur, gameRange=[0, 200000], quit_on_err=
     failed = 0
     total = 0
     failedGames = []
+    stmt = f"SELECT player_num_id, player_id FROM player"
+    cur.execute(stmt)
+    tups2 = cur.fetchall()
+    delAll = False
+
+    for t in tups2:
+        playerCodeToIDMap[t[1]] = int(t[0])
+        playerIDToCodeMap[t[0]] = t[1]
+
     while lastGameID < gameRange[1]:
-        whereClause = f"WHERE game_id >= {lastGameID+1} AND game_id <= {lastGameID+gamesPerBatch}"
-        lastGameID += (gamesPerBatch + 1)
-        stmt = f"SELECT * FROM event_play {whereClause} ORDER BY game_id"
+        whereClause = f"WHERE game_id BETWEEN {lastGameID} AND {lastGameID+gamesPerBatch-1}"
+
+        stmt = f"SELECT game_id, home_team, away_team, game_date, dh_num, tiebreakbase, inn_sched, home_team_bat_first FROM game_info_view " + whereClause
+        DEBUG_PRINT(stmt)
         cur.execute(stmt)
-        tups = cur.fetchall()
-        DEBUG_PRINT("num_plays= ", len(tups))
-        plays = []
-        gameID = None
-        stmt = f"SELECT player_num_id, player_id FROM player"
+        game_info_tups = cur.fetchall()
+
+        orderBy = " ORDER BY game_id, event_id"
+        stmt = f"SELECT * FROM event_play " + whereClause + orderBy
         cur.execute(stmt)
-        tups2 = cur.fetchall()
-        for t in tups2:
-            playerCodeToIDMap[t[1]] = int(t[0])
-            playerIDToCodeMap[t[0]] = t[1]
+        plays = cur.fetchall()
+        stmt = f"SELECT * FROM event_start " + whereClause + orderBy
+        cur.execute(stmt)
+        starts = cur.fetchall()
+        stmt = f"SELECT * FROM event_sub " + whereClause + orderBy
+        cur.execute(stmt)
+        subs = cur.fetchall()
+        stmt = f"SELECT * FROM event_lineup_adj " + whereClause + orderBy
+        cur.execute(stmt)
+        lineupAdjs = cur.fetchall()
+        stmt = f"SELECT * FROM event_player_adj " + whereClause + orderBy
+        cur.execute(stmt)
+        playerAdjs = cur.fetchall()
+        stmt = f"SELECT * FROM event_data_er " + whereClause + orderBy
+        cur.execute(stmt)
+        dataER = cur.fetchall()
+        stmt = f"SELECT * FROM event_com " + whereClause + orderBy
+        cur.execute(stmt)
+        coms = cur.fetchall()
+
+        gameSits = set()
+        if not delAll:
+            stmt = f"SELECT game_id FROM game_situation " + whereClause + " ORDER BY game_id"
+            cur.execute(stmt)
+            for g in cur.fetchall():
+                gameSits.add(g[0])
+
+        lastGameID += gamesPerBatch
+        
+        plays_i = 0
+        starts_i = 0
+        subs_i = 0
+        lineupAdjs_i = 0
+        playerAdjs_i = 0
+        dataER_i = 0
+        coms_i = 0
+        plays_i_nxt = 0
+        starts_i_nxt = 0
+        subs_i_nxt = 0
+        lineupAdjs_i_nxt = 0
+        playerAdjs_i_nxt = 0
+        dataER_i_nxt = 0
+        coms_i_nxt = 0
+
         try:
-            for tup in tups:
-                game_id = tup[0]
-                if game_id != gameID:  # new game
-                    if gameID != None:
-                        total += 1
+            for tup in game_info_tups:
+                total += 1
+                gameID = tup[0]
+                if delAll:
+                    deleteDBAfterEvent(gameID, -1)
+                elif gameID in gameSits:
+                    print(f"skipping {gameID}, already parsed")
+                    continue
+                while plays_i_nxt < len(plays) and plays[plays_i_nxt][0] == gameID:
+                    plays_i_nxt += 1
+                while starts_i_nxt < len(starts) and starts[starts_i_nxt][0] == gameID:
+                    starts_i_nxt += 1
+                while subs_i_nxt < len(subs) and subs[subs_i_nxt][0] == gameID:
+                    subs_i_nxt += 1
+                while lineupAdjs_i_nxt < len(lineupAdjs) and lineupAdjs[lineupAdjs_i_nxt][0] == gameID:
+                    lineupAdjs_i_nxt += 1
+                while playerAdjs_i_nxt < len(playerAdjs) and playerAdjs[playerAdjs_i_nxt][0] == gameID:
+                    playerAdjs_i_nxt += 1
+                while dataER_i_nxt < len(dataER) and dataER[dataER_i_nxt][0] == gameID:
+                    dataER_i_nxt += 1
+                while coms_i_nxt < len(coms) and coms[coms_i_nxt][0] == gameID:
+                    coms_i_nxt += 1
+
+                try:
+                    err = parseGame(tup, plays[plays_i:plays_i_nxt], starts[starts_i:starts_i_nxt],
+                                    subs[subs_i:subs_i_nxt], lineupAdjs[lineupAdjs_i:lineupAdjs_i_nxt],
+                                    playerAdjs[playerAdjs_i:playerAdjs_i_nxt], dataER[dataER_i:dataER_i_nxt], 
+                                    coms[coms_i:coms_i_nxt], conn)
+                except KeyboardInterrupt as e:
+                    print("broken by keyboard interrupt")
+                    kbInt = True
+                    break
+                except Exception as e:
+                    traceback.print_exc()
+                    err = True
+                if err:
+                    print(f"failed to parse {gameID}")
+                    failed += 1
+                    failedGames.append((gameID, plays))
+                    delFailed = True
+                    while delFailed:
                         try:
-                            err = parseGame(gameID, plays, conn)
+                            deleteDBAfterEvent(gameID, -1)
+                            delFailed = False
                         except KeyboardInterrupt as e:
                             print("broken by keyboard interrupt")
-                            kbInt = True
-                            break
+                            exit(1)
                         except Exception as e:
-                            traceback.print_exc()
-                            err = True
-                        if err:
-                            print(f"failed to parse {gameID}")
-                            failed += 1
-                            failedGames.append((gameID, plays))
-                            delFailed = True
-                            while delFailed:
-                                try:
-                                    deleteDBAfterEvent(gameID, -1)
-                                    delFailed = False
-                                except KeyboardInterrupt as e:
-                                    print("broken by keyboard interrupt")
-                                    exit(1)
-                                except Exception as e:
-                                    time.sleep(0.1)
-                                    pass
+                            time.sleep(0.1)
+                            pass
 
-                            if quit_on_err:
-                                PRINT_DEBUG_OUT()
-                                exit(1)
-                            #PRINT_DEBUG_OUT()
-                            #print(f"parsed ", total, "before failure")
-                            #exit(1)                        
-                        else:
-                            # try to commit to DB
-                            # we could get "database locked" error,
-                            # so keep trying
-                            uncommited = True
-                            while uncommited:
-                                try:
-                                    conn.commit()
-                                    uncommited = False
-                                except KeyboardInterrupt as e:
-                                    print("broken by keyboard interrupt")
-                                    exit(1)
-                                except Exception as e:
-                                    print(e)
-                        # clear debugging output to save mem/CPU
-                        DEBUG_OUT = []
-                    gameID = game_id
-                    plays = []
-                plays.append(tup)
+                    if quit_on_err:
+                        PRINT_DEBUG_OUT()
+                        exit(1)
+                    #PRINT_DEBUG_OUT()
+                    #print(f"parsed ", total, "before failure")
+                    #exit(1)                        
+                else:
+                    # try to commit to DB
+                    # we could get "database locked" error,
+                    # so keep trying
+                    uncommited = True
+                    while uncommited:
+                        try:
+                            conn.commit()
+                            uncommited = False
+                        except KeyboardInterrupt as e:
+                            print("broken by keyboard interrupt")
+                            exit(1)
+                        except Exception as e:
+                            print(e)
+                plays_i = plays_i_nxt
+                starts_i = starts_i_nxt
+                subs_i = subs_i_nxt
+                lineupAdjs_i = lineupAdjs_i_nxt
+                playerAdjs_i = playerAdjs_i_nxt
+                dataER_i = dataER_i_nxt
+                coms_i = coms_i_nxt
+
+                # clear debugging output to save mem/CPU
+                DEBUG_OUT = []  
+                
+            for stmt in sqlStmts:
+                try:
+                    cur.execute(stmt)
+                except KeyboardInterrupt as e:
+                    print("broken by keyboard interrupt")
+                    exit(1)
+                except Exception as e:
+                    DEBUG_PRINT(stmt)
+                    print(e)
+            sqlStmts.clear()
         except KeyboardInterrupt as e:
             print("broken by keyboard interrupt")
             exit(1)
@@ -2432,13 +2557,13 @@ if __name__ == "__main__":
     connectSqlite = True
     useDB = connectPG or connectSqlite
     
-    gameRange = None
-    quit_on_err = True
+    gameRange = (0, 200000)
+    quit_on_err = False
     if len(sys.argv) > 2:
         gameRange = (int(sys.argv[1]), int(sys.argv[2]))
     if len(sys.argv) > 3:
-        if sys.argv[3] in ("0", "F"):
-            quit_on_err = False
+        if sys.argv[3] in ("1", "T"):
+            quit_on_err = True
     if len(sys.argv) > 4:
         if sys.argv[4] in ("1", "T"):
             DEBUG = True

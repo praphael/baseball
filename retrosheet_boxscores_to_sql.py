@@ -279,6 +279,21 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
             game_type = 1
             playoff_type = playoffGTMap[f]
 
+        ump_home_id = None
+        ump_1b_id = None
+        ump_2b_id = None
+        ump_3b_id = None
+        ump_2b_id = None
+        ump_3b_id = None
+        away_mgr = None
+        home_mgr = None
+        win_pit = None
+        loss_pit = None
+        save_pit = None
+        gw_rbi = None
+        parkID = None
+        attendance = None
+
         gameIDMap = dict()
         # flag map from gameID, for setting forfeit/protest/compelted
         flags = dict() 
@@ -385,6 +400,8 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                         if v != "":
                             game_len_outs = int(v)
                         stmt += f", {game_len_outs}"
+                    elif i == 12:
+                        daynight = v
                     elif i == 13:  # completion
                         #stmt += f", '{v}'"
                         # completion info, including date on which game was completed
@@ -402,6 +419,12 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                         forfeit = v
                     elif i == 15:
                         protest = v
+                    elif i == 16:
+                        if v != "":
+                            parkID = v
+                    elif i == 17:
+                        if v != "":
+                            attendance = int(v)
                     elif i == 18:
                         game_len_min = 0
                         if v != "":
@@ -429,6 +452,42 @@ def getBoxScoreData(yearStart, yearEnd, conn, includePayoffs=True, db="sqlite"):
                             stmt += f", NULL"
                         else:
                             stmt += f", {int(v)}"
+                    elif i == 77:
+                        if v not in ("", "(none)"):
+                            ump_home_id = v
+                    elif i == 79:
+                        if v not in ("", "(none)"):
+                            ump_1b_id = v
+                    elif i == 81:
+                        if v not in ("", "(none)"):
+                            ump_2b_id = v
+                    elif i == 83:
+                        if v not in ("", "(none)"):
+                            ump_3b_id = v
+                    elif i == 85:
+                        if v not in ("", "(none)"):
+                            ump_2b_id = v
+                    elif i == 87:
+                        if v not in ("", "(none)"):
+                            ump_3b_id = v
+                    elif i == 89:
+                        if v not in ("", "(none)"):
+                            away_mgr = v
+                    elif i == 91:
+                        if v not in ("", "(none)"):
+                            home_mgr = v
+                    elif i == 93:
+                        if v not in ("", "(none)"):
+                            win_pit = v
+                    elif i == 95:
+                        if v not in ("", "(none)"):
+                            loss_pit = v
+                    elif i == 97:
+                        if v not in ("", "(none)"):
+                            save_pit = v
+                    elif i == 99:
+                        if v not in ("", "(none)"):
+                            gw_rbi = v                        
                     i += 1
                 # end for v in row
 

@@ -84,8 +84,8 @@ allTables["scorer"] = """CREATE TABLE scorer (
 # 7-9: sky: 000 U=unknown; 001 S=sunny 010 C=cloudy, 011 D=dome, 100 N=night, 101 O=overcast 
 # 10-13: winddir = 0000 U=unknown. 0001 FC=fromcf, 0010 FL=fromlf, 0011 FR=fromrf, 
 #           0100 LR=ltor, 0101 RT=rtol, 0110 TC=tocf, 0111 TL=tolf, 1000 TR=torf,
-# 14-19: windspeed+1, 0= unknnwn value 
-# 20-27: temp:  7 bits (0-128) 0 = unknown value Temperature is in degrees Fahrenheit with 0 being the not known value.
+# 14-20: windspeed+1, 0= unknnwn value 
+# 21-27: temp:  7 bits (0-128) 0 = unknown value Temperature is in degrees Fahrenheit with 0 being the not known value.
 
 # attendance value=0 for 1st game of double-headers also
 #flags 
@@ -477,6 +477,17 @@ allTables["daynight"] = """CREATE TABLE daynight (
     num smallint PRIMARY KEY,
     d char(16) NOT NULL
 )"""
+
+allTables["play_desc"] = """CREATE TABLE play_desc (
+    k char(5) PRIMARY KEY,
+    d char(32) NOT NULL
+)"""
+
+allTables["mod_desc"] = """CREATE TABLE mod_desc (
+    k char(5) PRIMARY KEY,
+    d char(32) NOT NULL
+)"""
+
 #####  views  #####
 
 allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
@@ -510,11 +521,13 @@ allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
         pr.d AS precip,
         sk.d AS sky,
         wd.d AS winddir,
-        63 & (cond >> 14) AS windspeed,
-        128 & (cond >> 20) AS temp,
+        127 & (cond >> 14) AS windspeed,
+        127 & (cond >> 21) AS temp,
         (1 & (flags >> 2)) AS home_team_bat_first,
         (1 & (flags >> 3)) AS use_dh,
+        (3 & (flags >> 4)) AS tiebreakbase,
         (1 & (flags >> 6)) AS complete,
+        (15 & (game_type_num >> 8)) AS inn_sched, 
         forf.d AS forfeit,
         prot.d AS protest,
         wpit.name_last||', '||SUBSTR(wpit.name_other, 0, 2) AS win_pitcher,
@@ -587,10 +600,11 @@ game_info_view_clickhouse = """CREATE VIEW game_info_view AS SELECT
         pr.d AS precip,
         sk.d AS sky,
         wd.d AS winddir,
-        bitAnd(63, bitShiftRight(cond, 14)) AS windspeed,
-        bitAnd(128, bitShiftRight(cond, 20)) AS temp,
+        bitAnd(127, bitShiftRight(cond, 14)) AS windspeed,
+        bitAnd(127, bitShiftRight(cond, 21)) AS temp,
         bitAnd(1, bitShiftRight(flags, 2)) AS home_team_bat_first,
         bitAnd(1, bitShiftRight(flags, 3)) AS use_dh,
+        bitAnd(3, bitShiftRight(flags, 4)) AS tiebreakbase,
         bitAnd(1, bitShiftRight(flags, 6)) AS complete,
         forf.d AS forfeit,
         prot.d AS protest,
@@ -915,7 +929,7 @@ allTables["game_situation"] = """CREATE TABLE game_situation (
     inning smallint NOT NULL,
     inning_half char(1) NOT NULL,
     outs smallint NOT NULL,
-    pitch_cnt char(2),
+    bat_pitch_cnt char(2),
     bat_team_score smallint NOT NULL,
     pitch_team_score smallint NOT NULL,
     play_result char(3),
@@ -1257,7 +1271,6 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     i.year,
     i.month,
     i.dow,
-    i.start_time,
     i.season,
     i.post_series,
     i.dh_num AS num,
@@ -1269,6 +1282,7 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     i.home_game_num,
     i.park,
     i.attendance,
+    i.start_time,
     i.game_duration_min,
     i.daynight,
     i.field_cond,
@@ -1281,21 +1295,21 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     pgb.team AS batter_team,
     pgb.pos AS batter_pos,
     pgb.seq AS batter_seq,
-    bat.name_last||' '||bat.name_other AS batter,
+    bat.name_last||' '||bat.name_other AS batter_name,
     bat_lr.d AS batter_side,
     s.pitcher_num_id,
     pgp.team AS pitcher_team,
     pgp.seq AS pitcher_seq,
-    pit.name_last||' '||pit.name_other AS pitcher,
+    pit.name_last||' '||pit.name_other AS pitcher_name,
     pit_lr.d AS pitcher_side,
     s.inning,
     s.inning_half,
     s.outs,
-    s.pitch_cnt,
+    s.bat_pitch_cnt,
     s.bat_team_score,
     s.pitch_team_score,
-    s.play_result,
-    s.play_base,
+    r1_d.d AS result1,
+    s.play_base AS base1,
     s.hit_loc,
     s.hit_type,
     s.outs_made,
@@ -1305,10 +1319,10 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     brun2.name_last||' '||SUBSTR(brun2.name_other, 0, 2) AS second,
     brun3.name_last||' '||SUBSTR(brun3.name_other, 0, 2) AS third,
     
-    r2.play_result AS play_result2,
-    r2.play_base AS play_base2,
-    r3.play_result AS play_result3,
-    r3.play_base AS play_base3,
+    r2_d.d AS result2, 
+    r2.play_base AS base2,
+    r3_d.d AS result3, 
+    r3.play_base AS base3,
 
     fldr_a1.name_last||' '||SUBSTR(fldr_a1.name_other, 0, 2) AS ass1,
     fldr_a2.name_last||' '||SUBSTR(fldr_a2.name_other, 0, 2) AS ass2,
@@ -1325,11 +1339,11 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     fldr_e2.name_last||' '||SUBSTR(fldr_e2.name_other, 0, 2) AS err2,
     fldr_e3.name_last||' '||SUBSTR(fldr_e3.name_other, 0, 2) AS err3,    
 
-    r1m1.mod AS r1m1,
+    r1m1_d.d AS r1m1,
     r1m1.prm AS r1m1prm,
-    r1m2.mod AS r1m2,
+    r1m2_d.d AS r1m2,
     r1m2.prm AS r1m2prm,
-    r1m3.mod AS r1m3,
+    r1m3_d.d AS r1m3,
     r1m3.prm AS r1m3prm,
 
     br0.dst AS br0_dst,
@@ -1380,6 +1394,13 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     ON s.game_id=r2.game_id AND s.event_id=r2.event_id
     LEFT JOIN game_situation_result3 r3
     ON s.game_id=r3.game_id AND s.event_id=r3.event_id
+
+    LEFT JOIN play_desc r1_d
+    ON s.play_result=r1_d.k
+    LEFT JOIN play_desc r2_d
+    ON r2.play_result=r2_d.k
+    LEFT JOIN play_desc r3_d
+    ON r3.play_result=r3_d.k
     
     LEFT JOIN game_situation_fielder_assist fa1
     ON s.game_id=fa1.game_id AND fa1.seq=1 AND s.event_id=fa1.event_id
@@ -1415,6 +1436,14 @@ allViews["game_situation_view"] = """CREATE VIEW game_situation_view AS SELECT
     LEFT JOIN game_situation_result1_mod r1m3
     ON s.game_id=r1m3.game_id AND r1m3.seq=3 AND s.event_id=r1m3.event_id    
     
+
+    LEFT JOIN mod_desc r1m1_d 
+    ON r1m1.mod=r1m1_d.k
+    LEFT JOIN mod_desc r1m2_d 
+    ON r1m2.mod=r1m2_d.k
+    LEFT JOIN mod_desc r1m3_d 
+    ON r1m3.mod=r1m3_d.k
+
     LEFT JOIN game_situation_base_run br0
     ON s.game_id=br0.game_id AND br0.src=0 AND s.event_id=br0.event_id
     LEFT JOIN game_situation_base_run br1
@@ -1508,7 +1537,6 @@ game_situation_view_clickhouse = """CREATE VIEW game_situation_view AS SELECT
     i.year,
     i.month,
     i.dow,
-    i.start_time,
     i.season,
     i.post_series,
     i.dh_num AS num,
@@ -1520,6 +1548,7 @@ game_situation_view_clickhouse = """CREATE VIEW game_situation_view AS SELECT
     i.home_game_num,
     i.park,
     i.attendance,
+    i.start_time,
     i.game_duration_min,
     i.daynight,
     i.field_cond,
@@ -1542,7 +1571,7 @@ game_situation_view_clickhouse = """CREATE VIEW game_situation_view AS SELECT
     s.inning,
     s.inning_half,
     s.outs,
-    s.pitch_cnt,
+    s.bat_pitch_cnt,
     s.bat_team_score,
     s.pitch_team_score,
     s.play_result,
@@ -1769,19 +1798,93 @@ allValues["protest"] = ("", "Unidentified", "Disallow Away", "Disallow Home", "U
 
 play_baserun = ("SB", "CS", "PO", "POCS", "DI", "OA")
 
+playDesc = dict()
+playDesc["BB"] = "Walk"
+playDesc["S"] = "Single"
+playDesc["O"] = "Out"
+playDesc["FC"] = "Fielders choice"
+playDesc["HBP"] = "Hit by pitch"
+playDesc["K"] = "Strikeout"
+playDesc["D"] = "Double"
+playDesc["DGR"] = "Double (ground rule)"
+playDesc["E"] = "Error"
+playDesc["BK"] = "Balk"
+playDesc["WP"] = "Wild pitch"
+playDesc["PO"] = "Pick off"
+playDesc["SB"] = "Stolen base"
+playDesc["FO"] = "Force out"
+playDesc["IBB"] = "Intentional walk"
+playDesc["PB"] = "Passed ball"
+playDesc["CS"] = "Caught stealng"
+playDesc["T"] = "Triple"
+playDesc["HR"] = "Home run"
+playDesc["FLE"] = "Foul ball error"
+playDesc["POCS"] = "Picked off/caught stealing"
+playDesc["OA"] = "Other advance"
+playDesc["DI"] = "Defensive indifference"
+playDesc["CI"] = "Catcher interference"
+
+
+modDesc = dict()
+
+modDesc["SH"] = "Sac hit"
+modDesc["C"] = "Called strike"
+modDesc["G"] = "Ground ball"
+modDesc["F"] = "Fly ball"
+modDesc["TH"] = "Throw"
+modDesc["FO"] = "Force out"
+modDesc["FL"] = "Foul"
+modDesc["L"] = "Line drive"
+modDesc["P"] = "Pop up"
+modDesc["LDP"] = "Lined into double play"
+modDesc["GDP"] = "Ground into double play"
+modDesc["BG"] = "Bunt ground ball"
+modDesc["DP"] = "Doulbe play"
+modDesc["BINT"] = "Batter interference"
+modDesc["BP"] = "Bunt pop-up"
+modDesc["SF"] = "Sac fly"
+modDesc["IPHR"] = "Inside the park home run"
+modDesc["INT"] = "Interference"
+modDesc["BF"] = "Bunt foul"
+modDesc["BR"] = ""
+modDesc["E"] = "Error"
+modDesc["AP"] = "Appeal"
+modDesc["TP"] = "Triple play"
+modDesc["UINT"] = "Umpire interference"
+modDesc["IF"] = "Infield fly"
+modDesc["NDP"] = "No double play credit"
+modDesc["FDP"] = "Fly ball double play"
+modDesc["LTP"] = "Lined into triple play"
+modDesc["COUR"] = "Courtesy batter"
+modDesc["OBS"] = "Obstruction"
+modDesc["TH"] = "Throw"
+modDesc["BL"] = "Bunt line drive"
+modDesc["R"] = "Relay throw"
+modDesc["BPDP"] = "Bunt pop-up double play"
+modDesc["RINT"] = "Runner interference"
+modDesc["GTP"] = "Ground into triple play"
+modDesc["PASS"] = "Runner passed"
+modDesc["BOOT"] = "Boot"
+modDesc["COUF"] = "Courtesy fielder"
+modDesc["FDP"] = "Fly ball double play"
+modDesc["BGDP"] = "Bunt ground ball double play"
+modDesc["FINT"] = "Fan interference"
+modDesc["UREV"] = "Umpire review"
+modDesc["MREV"] = "Manager review"
+
+
 # add WITHOUT ROWID to these tables
 tablesWithoutROWID = ["player", "umpire", "game_info", "gamelog", "event_play",
                       "event_start", "event_sub", "event_com",
                       "player_game_batting", "player_game_pitching",
                       "player_game_fielding",
                       "game_situation", "game_situation_bases",
-                      "game_situation_result_mod",
+                      "game_situation_result1_mod", "game_situation_result2_mod",
+                      "game_situation_result3_mod",
                       "game_situation_baserun", "game_situation_baserun_mod"
                       "game_situation_result2", "game_situation_fielder_assist",
                       "game_situation_fielder_putout", "game_situation_fielder_error",
                       "game_situation_result1_mod", "game_situation_result2_mod"]
-
-
 
 
 def insertDummyValues(cur):
@@ -1868,7 +1971,18 @@ if __name__ == "__main__":
     cur.execute(stmt)
     stmt = "INSERT INTO left_right VALUES('S', 'Switch')"
     cur.execute(stmt)
-    
+
+    for k, v in playDesc.items():
+        stmt = "INSERT INTO play_desc VALUES(" 
+        stmt += f"'{k}', '{v}')"
+        cur.execute(stmt)
+
+    for k, v in modDesc.items():
+        stmt = "INSERT INTO mod_desc VALUES(" 
+        stmt += f"'{k}', '{v}')"
+        cur.execute(stmt)
+
+
     insertDummyValues(cur)
     if db != "clickhouse":
         conn.commit()

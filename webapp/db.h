@@ -32,8 +32,10 @@ int handlePlayerRequest(sqlite3 *pdb, const std::string &qy, std::string& resp,
 
 // per-game player stats, aggregated 
 int handlePlayerGameRequest(sqlite3 *pdb, const std::string &qy, std::string& resp, std::string &mimeType,
-                            const std::unordered_map<std::string, std::string>& teamsMap );
+                            const std::unordered_map<std::string, std::string>& teamsMap,
+                            const std::unordered_map<int, std::string>& playerIDMap );
 
 int handleSituationRequest(sqlite3 *pdb, const std::string &qy, std::string& resp, std::string &mimeType,
-                          const std::unordered_map<std::string, std::string>& teamsMap );
+                          const std::unordered_map<std::string, std::string>& teamsMap,
+                          const std::unordered_map<int, std::string>& playerIDMap );
 

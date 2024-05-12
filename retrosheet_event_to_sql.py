@@ -129,27 +129,27 @@ class GameInfo:
             self.game_num = gameID.num
             # unique numeric game id for DB
             self.gameNumID = gameNumID
-            for fld in INFO_FIELDS:
-                setattr(self, fld, None)
-            self.starttime = 0
-            self.timeofgame = 0
-            self.season = 0
-            self.playoff = 0
-            self.daynight = 0
-            self.precip = 0
-            self.fieldcond = 0
-            self.sky = 0
-            self.winddir = 0
-            self.windspeed = -1
-            self.temp = -1
-            self.site = "unkwn"
+        for fld in INFO_FIELDS:
+            setattr(self, fld, None)
+        self.starttime = 0
+        self.timeofgame = 0
+        self.season = 0
+        self.playoff = 0
+        self.daynight = 0
+        self.precip = 0
+        self.fieldcond = 0
+        self.sky = 0
+        self.winddir = 0
+        self.windspeed = -1
+        self.temp = -1
+        self.site = "unkwn"
 
-            self.innings = 9
-            self.use_dh = False
-            self.htbf = False
-            self.has_pitch_cnt = False
-            self.has_pitch_seq = False
-            self.tiebreak_base = 0
+        self.innings = 9
+        self.use_dh = False
+        self.htbf = False
+        self.has_pitch_cnt = False
+        self.has_pitch_seq = False
+        self.tiebreak_base = 0
 
     def add(self, vals):
         f = vals[0]
@@ -187,9 +187,12 @@ class GameInfo:
         elif f in ("innings", "windspeed", "temp", "timeofgame", "attendance"):
             try:
                 val = int(v)
-                if f == "windspeed" and val > 60:
-                    print("windspeed", val, "> 60, truncating to 60")
-                    val = 60
+                if f == "windspeed" and val > 126:
+                    print("windspeed", val, "> 126, truncating to 126")
+                    val = 126
+                if f == "temp" and val > 126:
+                    print("temperature", val, "> 126, truncating to 126")
+                    val = 126
             except ValueError as e:
                 #print(f"GameInfo: failure to parse integer field ", f, ",  v=", v)
                 return 
@@ -232,8 +235,15 @@ class GameInfo:
 
         away = self.visteam
         home = self.hometeam
+        if self.innings not in (7, 9):
+            print("Innings scheduled=" , self.innings, " ?!")
+        if self.windspeed > 50:
+            print("Excessive wind= ", self.windspeed, " ?!")
+        if self.temp > 105:
+            print("Excessive temp= ", self.temp, " ?!")
+
         #print("home=", home, "away=", away)
-        game_num_type = (self.game_num << 6) + (self.innings << 8)
+        game_num_type = (self.game_num << 6) | (self.innings << 8)
         # tiebreaker playoff games considered part of the regular season
         if self.gametype=="playoff":
             game_num_type = game_num_type | (5 << 3)
@@ -266,7 +276,7 @@ class GameInfo:
         #     print("sky=", self.sky)
         cond = self.daynight | (self.fieldcond << 1) | (self.precip << 4)
         cond = cond | (self.sky << 7) | (self.winddir << 10) | ((self.windspeed+1)<<14)
-        cond = cond | (self.temp << 20)
+        cond = cond | (self.temp << 21)
 
         park = self.site
         #print(flags, park, cond)

@@ -5,23 +5,28 @@ function makeQueryJSONBase(filter, agg, statTypes, order, minGP, limit) {
     let skip = false;
     filter.values.forEach((v, k) => {
         console.log("makeQueryJSON", k, v);
-        v = v.trim();
+        if(typeof(v) == typeof(""))
+            v = v.trim();
         skip = false;
         if(filter.query == "gamelog" || filter.query == "playergame") {
             if (k.startsWith("sit_"))
                 skip = true;
-            else if (filter.query == "gamelog" && (k == "batter" || k == "pitcher" || k == "fielder")) 
+            else if (filter.query == "gamelog" && (k == "batter" || k == "pitcher")) 
                 skip = true;
         }
 
         if (!skip) {
             // extract id (number between parentheses)
-            if (k == "batter" || k == "pitcher" || k == "fielder") {
+            if (k == "batter" || k == "pitcher") {
                 const idx1 = v.indexOf("(");
                 const idx2 = v.indexOf(")");
                 if(idx1 >= 0 && idx2 >= 0) {
                     v = parseInt(v.substr(idx1+1, idx2-idx1-1));
-                    qy[k] = v;
+                    // for playergame fielding queries, interpret batter as fielder
+                    if(k == "batter" && filter.subType == "fld")
+                        qy["fielder"] = v;  
+                    else
+                        qy[k] = v;
                 }
             }
             // range 
@@ -96,6 +101,7 @@ function makeQueryJSONBase(filter, agg, statTypes, order, minGP, limit) {
 
 function makeGamelogQueryJSON(filter, agg, statTypes, order, minGP, limit) {
     filter.query = "gamelog";
+    filter.subType = "";
     const qy = makeQueryJSONBase(filter, agg, statTypes, order, minGP, limit);
     return JSON.stringify(qy);
 }
@@ -109,6 +115,7 @@ function makePlayerGameQueryJSON(playerGameQueryType, filter, agg, statTypes, or
     } else if (playerGameQueryType == "fld") {
         statTypes = ["IF3", "PO", "A", "E", "PB", "DP", "TP"];
     }
+    filter.subType = playerGameQueryType;
     const qy = makeQueryJSONBase(filter, agg, statTypes, order, minGP, limit);
     qy["pgqy_t"] = playerGameQueryType;
     return JSON.stringify(qy);
@@ -116,6 +123,7 @@ function makePlayerGameQueryJSON(playerGameQueryType, filter, agg, statTypes, or
 
 function makeSituationQueryJSON(filter, agg, statTypes, order, minGP, limit) {
     filter.query = "situation";
+    filter.subType = "";
     const qy = makeQueryJSONBase(filter, agg, statTypes, order, minGP, limit);
     return JSON.stringify(qy);
 }

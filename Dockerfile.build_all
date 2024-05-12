@@ -54,8 +54,16 @@ RUN cd /baseball && \
     ./retrosheet_boxscores_to_sql.py
 
 RUN cd /baseball && \
-    ./retrosheet_parse_event_outcomes.py 0 200000 && \
-    sqlite3 < create_situation_indexes.sql && \
+    ./retrosheet_parse_event_outcomes.py 0 50000 && \
+    ./retrosheet_parse_event_outcomes.py 50000 100000 && \
+    ./retrosheet_parse_event_outcomes.py 100000 120000 && \
+    ./retrosheet_parse_event_outcomes.py 120000 140000 && \
+    ./retrosheet_parse_event_outcomes.py 140000 150000 && \
+    ./retrosheet_parse_event_outcomes.py 150000 160000 && \
+    ./retrosheet_parse_event_outcomes.py 170000 180000 && \
+    ./retrosheet_parse_event_outcomes.py 180000 190000 && \
+    ./retrosheet_parse_event_outcomes.py 190000 200000 && \
+    sqlite3 baseball.db < create_situation_indexes.sql && \
     mv baseball.db webapp && \
     rm -r alldata 
 

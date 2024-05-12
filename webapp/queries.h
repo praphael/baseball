@@ -68,6 +68,12 @@ struct args_t {
     // e.g. SB/CS/WP/PB/DI/OA
     bool excludeBaseRun;
 
+    // add game conditions, such as temperature, wind, etc.
+    bool addCond;
+
+    // add park and attendance info
+    bool addParkInfo;
+
     unsigned int limit;
     std::string ret;
     std::string retopts;
