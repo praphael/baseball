@@ -18,7 +18,7 @@ const RadioBtn = ({btnname, id, lbl, opt, onRadioChange, isChecked}) => {
         </>
 }
 const RadioButtonGroup = ({fieldName, label, options, val, 
-    onRadioChange, radioClasses}) => {
+    onRadioChange, radioClasses={divClass:"", labelClass:""}}) => {
 
     //console.log("RadioButtonGroup val=", val)
     const id = "radio_"+{fieldName}

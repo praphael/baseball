@@ -16,6 +16,7 @@ import RadioButtonGroup from './components/RadioButtonGroup.jsx';
 import ButtonGroup from './components/ButtonGroup.jsx';
 import PlayerInput from './components/PlayerInput.jsx';
 import OptionWithCheck from './components/OptionWithCheck.jsx';
+import CommonFilters from './components/CommonFilters.jsx';
 
 const statSets = statSetsDefault;
 
@@ -36,9 +37,6 @@ const checkClasses = { divClass:checkDivClass, checkClass, labelClass:checkLabel
 
 const queryTypes = [["Team", "gamelog"], ["Player","playergame"], ["Situation","situation"]];
 
-const seasonValMapDefault = new Map();
-seasonValMapDefault.set("Reg", true)
-seasonValMapDefault.set("Post", false)
 
 const RANGE_FIELDS = new Set();
 RANGE_FIELDS.add("year");
@@ -58,22 +56,8 @@ function App() {
   const [boxScoreFiltOpts, setBoxScoreFiltOpts] = useState(boxScoreFiltOptsDefaults);
   const [minGP, setMinGP] = useState(1);
   const [limit, setLimit] = useState(30);
-  const [seasonValMap, setSeasonValMap] = useState(seasonValMapDefault);
 
-  const onSeasonChange = (v, st) =>  {
-    const newMap = new Map(seasonValMap);
-    console.log("onSeasonChange v=", v, " st=", st);
-    newMap.set(v, st);
-    // both true or both false
-    if (newMap.get("Post") == newMap.get("Reg"))
-      onFiltChange("season", "", false);
-    else if (newMap.get("Post"))
-      onFiltChange("season", "Post", false);
-    else
-      onFiltChange("season", "Reg", false);
-    // filter.values.get("season")
-    setSeasonValMap(newMap);
-  }
+  
 
   console.log("boxScoreFiltOptsDefaults=", boxScoreFiltOptsDefaults);
   useEffect(() => {
@@ -208,113 +192,103 @@ function App() {
       <div className="container-fluid mt-4 ml-3">
         <div className="row">
           <h2>Baseball stats</h2>
-          <p>If questions like "what are the worst performances 
-             for earned runs in a month by an MLB team", or "how many home runs were hit by each team over the last ten years"
-             you may have come to the right place. This tool allows one to into various groupings and splits from different statics.
-             MLB data derived from individual game going back to 1903. 
-             All data was sourced from <a href="https://www.retrosheet.org/gamelogs/index.html#">Retrosheet</a>. 
-             </p><p>
-             Source available on Github here <a href="https://github.com/praphael/baseball">here</a>. 
-             Feel free to leave comments/suggestions there as well. 
-             Keep in this is a side/learning project, using a combo of ReactJS, C++ for backend and sqlite3 in-memory database for speed.
-             Some combinations of parameters may not make sense.
+            <p>If questions like "what are the worst performances 
+                for earned runs in a month by an MLB team", or "how many home runs were hit by each team over the last ten years"
+                you may have come to the right place. This tool allows one to into various groupings and splits from different statics.
+                MLB data derived from individual game going back to 1903. 
+                All data was sourced from <a href="https://www.retrosheet.org/gamelogs/index.html#">Retrosheet</a>. 
              </p>
-            </div>
+             <p>
+                Source available on Github here <a href="https://github.com/praphael/baseball">here</a>. 
+                Feel free to leave comments/suggestions there as well. 
+                Keep in this is a side/learning project, using a combo of ReactJS, C++ for backend and sqlite3 in-memory database for speed.
+                Some combinations of parameters may not make sense.
+             </p>
+        </div>
+            
+
         <div className="row overflow-x-scroll flex-no-wrap">
-          <div className="col-auto">
-            <ButtonGroup fieldName="season" label="Season: "
-                options={boxScoreFiltOpts.season} 
-                valMap={seasonValMap}
-                onButtonChange={onSeasonChange}
-                buttonClasses={{divClass:"", labelClass:"me-2"}}/>
-            <OptionWithCheck fieldName="team" label="Team/Batting"
-                options={boxScoreFiltOpts.teams} 
-                val={filter.values.get("team")}
-                checkVal={filter.group.has("team")} 
-                onChange={onFiltChange}
-                optionClasses={optionClasses}
-                checkClasses={checkClasses}/>
-            <PlayerInput fieldName="batter" label="Batter" onFiltChange={onFiltChange}/>
-            <PlayerInput fieldName="pitcher" label="Pitcher" onFiltChange={onFiltChange}/>
+          
+          <div className="col-auto border">
+            <h4>Options</h4>
+            <CommonFilters boxScoreFiltOpts={boxScoreFiltOpts} filter={filter}
+                            onFiltChange={onFiltChange} optionClasses={optionClasses} 
+                            checkClasses={checkClasses} />
+          </div>
 
-            <OptionRangeWithCheck fieldName="year" label="Years" 
-              options={boxScoreFiltOpts.years} 
-              valLow={filter.values.get("year_low")}
-              valHigh={filter.values.get("year_high")}
-              checkVal={filter.group.has("year")} 
-              onChange={onFiltChange}
-              optionClasses={optionClasses}
-              checkClasses={checkClasses}/>
-
-            <h4>Filters/Order:</h4>
+          <div className="col-auto border">
+            <h4>Filters/Order</h4>
             <BoxScoreFilters boxScoreFiltOpts={boxScoreFiltOpts} filter={filter}
                              onFiltChange={onFiltChange} order={order} 
-                             onOrderChange={onOrderChange} updateData={getData}/>
-          </div>
-          <div className="col">
-            <div className="container">
-              <div className="row">
-                <StatTypes statSet={statSet} onStatSetChange={onStatSetChange} 
-                            updateData={getData}
-                            divClassName={statTypesClassName}/>
-              </div>
-              <div className="row mt-4">
-              { /* aggregation */ }
-                <div className={aggregateDivClass}>
-                { /* <label className={filtOptLabelClass} htmlFor="filter_agg">Total/Avg:</label> */ }
-                    <label>Aggregate:</label>
-                    <select className={aggregateSelectClass} id="filter_agg" value={aggregate}
-                        onInput={(e)=> (onNewAggVal(e.target.value))}>
-                        <option value="no">(no)</option>
-                        <option value="sum">Total</option>
-                        <option value="avg">Average</option>
-                        <option value="max">Max</option>
-                        <option value="min">Min</option>
-                    </select>
-                </div>
-                <div className="col-1">
-                  <label className="form-label" htmlFor="filter_minGP">Min Games:</label><br/>
-                  <input className="input form-input" size="5"
-                    type="text" id="filter_minGP" value={minGP}
-                    onChange={(e)=>(onNewMinGPVal(e.target.value))} />
-                </div>
-                <div className="col-1">
-                  <label className="form-label" htmlFor="filter_minGP">Limit:</label><br/>
-                  <input className="input form-input" size="5"
-                    type="text" id="filter_limit" value={limit}
-                    onChange={(e)=>(onNewLimit(e.target.value))} />
-                </div>
-                <div className="col-2">
-                  <Check fieldName="showCond" val={filter.values.get("showCond")} 
-                         onChange={onFiltChange} checkClasses={{ divClass:checkDivClass, checkClass, 
-                          labelClass:checkLabelClass, label:"Show Condition Info" }}  isGroup={false}/>
-                </div>
-                <div className="col-2">
-                  <Check fieldName="showParkInfo" val={filter.values.get("showParkInfo")} 
-                         onChange={onFiltChange} checkClasses={{ divClass:checkDivClass, checkClass, 
-                          labelClass:checkLabelClass, label:"Show Park Info" }} isGroup={false}/>
-                </div>
-                <div className="col-2">
-                  <Check fieldName="showWinLossInfo" val={filter.values.get("showWinLossInfo")} 
-                         onChange={onFiltChange} checkClasses={{ divClass:checkDivClass, checkClass, 
-                          labelClass:checkLabelClass, label:"Show Win/Loss/Save Info" }} isGroup={false}/>
-                </div>
-              </div>
-              <div className="row mt-3 flex-no-wrap">
-                <div className="hstack gap-3">
-                  <button className={updateButtonClass} onClick={()=>(getData("gamelog"))}>Get Team Stats</button>
-                  <button className={updateButtonClass} onClick={()=>(getData("playergame", "bat"))}>Get Player Batting</button>
-                  <button className={updateButtonClass} onClick={()=>(getData("playergame", "pit"))}>Get Player Pitching</button>
-                  <button className={updateButtonClass} onClick={()=>(getData("playergame", "fld"))}>Get Player Fielding</button>
-                  <button className={updateButtonClass} onClick={()=>(getData("situation"))}>Get Situation Stats</button>
-                </div>
-              </div>
-              <div className="row overflow-x-scroll flex-no-wrap">
-                  <Results resultsTable={results} divClassName={resultsClass}/>
-              </div>
-            </div>
+                             onOrderChange={onOrderChange}/>
           </div>
         </div>
+        <div className="row">
+          <StatTypes statSet={statSet} onStatSetChange={onStatSetChange} 
+                      updateData={getData}
+                      divClassName={statTypesClassName} />
+        </div>
+        
+        <div className="row mt-4">
+              <div className={aggregateDivClass}>
+              
+                  <label>Aggregate:</label>
+                  <select className={aggregateSelectClass} id="filter_agg" value={aggregate}
+                      onInput={(e)=> (onNewAggVal(e.target.value))}>
+                      <option value="no">(no)</option>
+                      <option value="sum">Total</option>
+                      <option value="avg">Average</option>
+                      <option value="max">Max</option>
+                      <option value="min">Min</option>
+                  </select>
+              </div>
+
+              <div className="col-1">
+                <label className="form-label" htmlFor="filter_minGP">Min Games/ Plays:</label><br/>
+                <input className="input form-input" size="5"
+                  type="text" id="filter_minGP" value={minGP}
+                  onChange={(e)=>(onNewMinGPVal(e.target.value))} />
+              </div>
+              <div className="col-1">
+                <label className="form-label" htmlFor="filter_minGP">Limit:</label><br/>
+                <input className="input form-input" size="5"
+                  type="text" id="filter_limit" value={limit}
+                  onChange={(e)=>(onNewLimit(e.target.value))} />
+              </div>
+              <div className="col-2">
+              <div className="container">
+                  <div className="row">
+                    <Check fieldName="showCond" val={filter.values.get("showCond")} 
+                            onChange={onFiltChange} checkClasses={{ divClass:checkDivClass, checkClass, 
+                            labelClass:checkLabelClass, label:"Show Conditions" }}  isGroup={false}/>
+                  </div>
+                  <div className="row">
+                    <Check fieldName="showPark" val={filter.values.get("showPark")} 
+                            onChange={onFiltChange} checkClasses={{ divClass:checkDivClass, checkClass, 
+                            labelClass:checkLabelClass, label:"Show Park Info" }} isGroup={false}/>
+                  </div>
+                </div>
+              </div>
+              <div className="col-2">
+                <Check fieldName="showWLS" val={filter.values.get("showWLS")} 
+                        onChange={onFiltChange} checkClasses={{ divClass:checkDivClass, checkClass, 
+                        labelClass:checkLabelClass, label:"Show Win/Loss/Save" }} isGroup={false}/>
+              </div>
+   
+   
+            <div className="row mt-3 flex-no-wrap">
+              <div className="hstack gap-3">
+                <button className={updateButtonClass} onClick={()=>(getData("gamelog"))}>Get Team Stats</button>
+                <button className={updateButtonClass} onClick={()=>(getData("playergame", "bat"))}>Get Player Batting</button>
+                <button className={updateButtonClass} onClick={()=>(getData("playergame", "pit"))}>Get Player Pitching</button>
+                <button className={updateButtonClass} onClick={()=>(getData("playergame", "fld"))}>Get Player Fielding</button>
+                <button className={updateButtonClass} onClick={()=>(getData("situation"))}>Get Situation Stats</button>
+              </div>
+            </div>
+            <div className="row overflow-x-scroll flex-no-wrap">
+                <Results resultsTable={results} divClassName={resultsClass}/>
+            </div>
+        </div>                         
       </div>
     </>
   )

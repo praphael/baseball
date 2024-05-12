@@ -74,6 +74,9 @@ struct args_t {
     // add park and attendance info
     bool addParkInfo;
 
+    // wining/losing/ pitcher, as well as game-winning RBI when available
+    bool addWinLossSave;
+
     unsigned int limit;
     std::string ret;
     std::string retopts;

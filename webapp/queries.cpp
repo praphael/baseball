@@ -452,10 +452,7 @@ std::string buildCTEWhereClause(bool isHome,
 // make common table expression
 // fieldNames are names that appear in SELECT
 string makeCTE(bool isHome, 
-               bool isOldTime,
-               bool addCond,
-               bool addParkInfo,
-               const string agg,
+               const args_t& args,
                const vector<string>& fieldNames,
                const unordered_map<string, field_val_t> fieldValueMap,
                const vector<string>& group,
@@ -515,7 +512,7 @@ string makeCTE(bool isHome,
     query += "game_id"s;
     selectFields.insert(selectFields.end(), {"team", "score", "_team", "_score"});
     selectFieldsSet.insert({"team", "score", "_team", "_score"});
-    if (agg == "no") {
+    if (args.agg == "no") {
         query += ", year, month, "s + DAY_FIELD + " AS day, dow, dh_num AS num";
         selectFields.insert(selectFields.end(), {"year", "month", "day", "dow", "num", "game", "league", "_game", "_league"});
         selectFieldsSet.insert({"year", "month", "day", "dow", "num", "game", "league", "_game", "_league"});
@@ -524,14 +521,14 @@ string makeCTE(bool isHome,
     if(isHome) {
         query += ", home_team AS team, away_team as _team";
         query += ", home_score AS score, away_score AS _score";
-        if (agg == "no") {
+        if (args.agg == "no") {
             query += ", CAST(home_game_num AS integer) AS game, CAST(away_game_num AS integer) AS _game";
             query += ", home_league AS league, away_league as _league";
         }
     } else {
         query += ", away_team AS team, home_team as _team";
         query += ", away_score AS score, home_score AS _score";
-        if (agg == "no") {
+        if (args.agg == "no") {
             query += ", CAST(away_game_num AS integer) AS game, CAST(home_game_num AS integer) AS _game";
             query += ", away_league as league, home_league AS _league";
         }
@@ -539,16 +536,25 @@ string makeCTE(bool isHome,
        
     statList.clear();
     query += buildStatQueryStr(stats, isHome, "no", statList);
-    if (addCond) {
+    if (args.addCond) {
         //selectFields.insert(selectFields.end(), { "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
         //selectFieldsSet.insert({ "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
         query += ", daynight, start_time, precip, temp, sky, windspeed, winddir, field_cond";
+        selectFields.insert(selectFields.end(), {"win", "loss", "save", "gw_rbi"});
+        selectFieldsSet.insert({"win", "loss", "save", "gw_rbi"});
     }
-    if (addParkInfo) {
+    if (args.addParkInfo) {
          query += ", park, attendance, game_duration_min AS duration, win_pitcher AS win, loss_pitcher AS loss, save_pitcher AS save, gw_rbi, complete, forfeit, protest";
+         selectFields.insert(selectFields.end(), {"win", "loss", "save", "gw_rbi"});
+         selectFieldsSet.insert({"win", "loss", "save", "gw_rbi"});
+    }
+    if (args.addWinLossSave) {
+         query += ", win, loss, save, gw_rbi";
+         selectFields.insert(selectFields.end(), {"win", "loss", "save", "gw_rbi"});
+         selectFieldsSet.insert({"win", "loss", "save", "gw_rbi"});
     }
     query += " FROM gamelog_view"s;
-    query += buildCTEWhereClause(isHome, fieldNames, fieldValueMap, isOldTime, selectFields, prms);
+    query += buildCTEWhereClause(isHome, fieldNames, fieldValueMap, args.isOldTime, selectFields, prms);
     
     return query;
 }
@@ -630,9 +636,7 @@ string makeFinalSelect(bool isSplitYear,
                        const vector<string>& statList,
                        const vector<string>& group,
                        const unordered_set<string>& groupSet,
-                       string agg,
-                       bool addCond,
-                       bool addParkInfo, 
+                       const args_t& args,
                        unordered_set<string>& selectFieldsSetOut) 
 {       
     string query = " SELECT ";
@@ -648,10 +652,10 @@ string makeFinalSelect(bool isSplitYear,
         //    continue;
 
         
-        if((selectFieldsSet.count(p_name) > 0 && (agg == "no" || p_isagg)) )
+        if((selectFieldsSet.count(p_name) > 0 && (args.agg == "no" || p_isagg)) )
         {
             // skip 'homeaway' column if it is not in select or group
-            if (agg != "no" && SKIP_COLS.count(p_name) > 0) {
+            if (args.agg != "no" && SKIP_COLS.count(p_name) > 0) {
                   if (groupSet.count(p_name) + fieldValueMap.count(p_name) == 0) 
                      continue;
                  // fieldValueMap.count("team") + groupSet.count("team") == 0)
@@ -679,33 +683,38 @@ string makeFinalSelect(bool isSplitYear,
         }
     }
     // add on games played/records
-    if(agg != "no") {
+    if(args.agg != "no") {
         query += ", COUNT(*) AS gp";
         query += ", SUM(score > _score) AS won";
         query += ", SUM(_score > score) AS lost";
         query += ", ROUND(1000*SUM(score > _score)/(1.0*COUNT(*)))/1000.00 AS rec";
         selectFieldsSetOut.insert({"gp", "won", "lost", "rec"});
-        if(agg == "avg") {
+        if(args.agg == "avg") {
             for (auto s : statList)
                 query += ", ROUND(1000*AVG(" + s + "))/1000.00 AS " + s;
         }
         else {
             for (auto s : statList)
-                query += ", " + agg + "(" + s + ") AS " + s;
+                query += ", " + args.agg + "(" + s + ") AS " + s;
         }
     }
     else
         query += ", " + joinStr(statList, ", ");
 
-    if (addCond) {
+    if (args.addCond) {
         query += ", daynight, start_time, precip, sky, temp, windspeed, winddir, field_cond";
         //selectFieldsSet.insert({ "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
         selectFieldsSetOut.insert({"daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond"});
     }
 
-    if (addParkInfo) {
-        query += ", park, attendance, duration, win, loss, save, gw_rbi, complete, forfeit, protest";
-        selectFieldsSetOut.insert({"park", "attendance", "duration", "win", "loss", "save", "winddir", "gw_rbi", "complete", "forfeit", "protest"});
+    if (args.addParkInfo) {
+        query += ", park, attendance, duration, complete, forfeit, protest";
+        selectFieldsSetOut.insert({"park", "attendance", "duration", "complete", "forfeit", "protest"});
+    }
+
+    if (args.addWinLossSave) {
+         query += ", win, loss, save, gw_rbi";
+         selectFieldsSetOut.insert({"win", "loss", "save", "gw_rbi"});
     }
         //selectFieldsSet.insert({ "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
     // in the case where team is not selected or grouped
@@ -764,9 +773,7 @@ int buildLastClause(string &lastClause,
                     const unordered_set<string>& selectFieldsSet,
                     const vector<string>& statList, 
                     vector<string>& group,
-                    string agg,
-                    bool addCond, 
-                    bool addParkInfo,
+                    const args_t& args,
                     bool isSplitYear, 
                     unordered_set<string>& selectFieldsSetOut)
 {
@@ -774,8 +781,8 @@ int buildLastClause(string &lastClause,
     for(auto g : group) groupSet.emplace(g);
 
     lastClause = makeFinalSelect(isSplitYear, selectFields, selectFieldsSet,
-                                 fieldValueMap, statList, group, groupSet, agg,
-                                 addCond, addParkInfo, selectFieldsSetOut);
+                                 fieldValueMap, statList, group, groupSet, args,
+                                 selectFieldsSetOut);
 
     cout << endl << "buildLastClause: final_select=" << lastClause;
 
@@ -908,13 +915,18 @@ int getArgs(string argstr,
         args.excludeBaseRun = j_args["excludeBaseRun"].get<bool>();
     }
     args.addCond = false;
-    if (j_args.contains("addCond")) {
-        args.addCond = j_args["addCond"].get<bool>();
+    if (j_args.contains("showCond")) {
+        args.addCond = j_args["showCond"].get<bool>();
     }
 
     args.addParkInfo = false;
-    if (j_args.contains("addParkInfo")) {
-        args.addParkInfo = j_args["addParkInfo"].get<bool>();
+    if (j_args.contains("showPark")) {
+        args.addParkInfo = j_args["showPark"].get<bool>();
+    }
+
+    args.addWinLossSave = false;
+    if (j_args.contains("showWLS")) {
+        args.addParkInfo = j_args["showWLS"].get<bool>();
     }
 
     args.limit = 100;
@@ -967,8 +979,7 @@ int buildSQLQuery(string argstr, string &qy,
     qy = "WITH"s;
     // add field conditions
     if(args.isHome) {
-        qy += makeCTE(true, args.isOldTime, args.addCond, args.addParkInfo, args.agg, fieldNames, 
-                     fieldValueMap, args.grp, args.stats, selectFields,
+        qy += makeCTE(true, args, fieldNames, fieldValueMap, args.grp, args.stats, selectFields,
                      selectFieldsSet, statList, prms);
         qy += "), ";
     } else {
@@ -976,7 +987,7 @@ int buildSQLQuery(string argstr, string &qy,
         qy += " home_t as (SELECT 1 WHERE 1=0), "; 
     }
     if(args.isAway) {
-        qy += makeCTE(false, args.isOldTime, args.addCond, args.addParkInfo, args.agg, fieldNames,
+        qy += makeCTE(false, args, fieldNames,
                       fieldValueMap, args.grp, args.stats, selectFields,
                       selectFieldsSet, statList, prms);
         qy += "), ";
@@ -1005,8 +1016,8 @@ int buildSQLQuery(string argstr, string &qy,
     string lastClause;
     unordered_set<string> selectFieldsSetOut;
     err = buildLastClause(lastClause, fieldValueMap, selectFields,
-                          selectFieldsSet, statList, args.grp, args.agg, 
-                          args.addCond, args.addParkInfo, isSplitYear, selectFieldsSetOut);
+                          selectFieldsSet, statList, args.grp, args, 
+                          isSplitYear, selectFieldsSetOut);
     cout << endl << "lastClause=" << lastClause;
     
     // need to wrap around last select by another select, since the minGP cannot be selected for
@@ -1067,10 +1078,7 @@ string renderHTMLTable(vector<string> headers, query_result_t result,
 // fieldNames are names that appear in SELECT
 string makeCTEPG(playerGameQueryType pgQryT, 
                bool isHome, 
-               bool isOldTime,
-               bool addCond,
-               bool addParkInfo,
-               const string agg,
+               const args_t& args,
                const vector<string>& fieldNames,
                const unordered_map<string, field_val_t> fieldValueMap,
                const vector<string>& group,
@@ -1146,7 +1154,7 @@ string makeCTEPG(playerGameQueryType pgQryT,
     }
 
     query += "game_id"s;
-    if (agg == "no") {
+    if (args.agg == "no") {
         query += ", year, month, "s + DAY_FIELD + " AS day, dow, dh_num AS num";
         selectFields.insert(selectFields.end(), {"year", "month", "day", "dow", "num", "team", "_team"});
         selectFieldsSet.insert({"year", "month", "day", "dow", "num", "team", "_team"});
@@ -1173,20 +1181,25 @@ string makeCTEPG(playerGameQueryType pgQryT,
         query += ", " + st;
     }
    // query += buildStatQueryStr(stats, isHome, "no", statList);
-    if (addCond) {
+    if (args.addCond) {
         query += ", daynight, start_time, precip, sky, temp, windspeed, winddir, field_cond";
         selectFields.insert(selectFields.end(), {"daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond"});
         selectFieldsSet.insert({"daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond"});
     }
 
-    if (addParkInfo) {
+    if (args.addParkInfo) {
         query += ", park, attendance, duration, win, loss, save, gw_rbi, complete, forfeit, protest";
-        selectFields.insert(selectFields.end(), {"park", "attendance", "duration", "win", "loss", "save", "winddir", "gw_rbi", "complete", "forfeit", "protest"});
-        selectFieldsSet.insert({"park", "attendance", "duration", "win", "loss", "save", "winddir", "gw_rbi", "complete", "forfeit", "protest"});
+        selectFields.insert(selectFields.end(), {"park", "attendance", "duration", "complete", "forfeit", "protest"});
+        selectFieldsSet.insert({"park", "attendance", "duration", "complete", "forfeit", "protest"});
+    }
+    if (args.addWinLossSave) {
+         query += ", win, loss, save, gw_rbi";
+         selectFields.insert(selectFields.end(), {"win", "loss", "save", "gw_rbi"});
+         selectFieldsSet.insert({"win", "loss", "save", "gw_rbi"});
     }
     
     query += " FROM "s + tbl;
-    query += buildCTEWhereClause(isHome, fieldNames, fieldValueMap, isOldTime, selectFields, prms);
+    query += buildCTEWhereClause(isHome, fieldNames, fieldValueMap, args.isOldTime, selectFields, prms);
     if(isHome)
         query += " AND team=home_team";
     else 
@@ -1201,9 +1214,7 @@ string makeFinalSelectPG(bool isSplitYear,
                        const vector<string>& statList,
                        const vector<string>& group,
                        const unordered_set<string>& groupSet,
-                       string agg,
-                       bool addCond, 
-                       bool addParkInfo,
+                       const args_t& args,
                        unordered_set<string>& selectFieldsSetOut) 
 {       
     string query = " SELECT ";
@@ -1219,10 +1230,10 @@ string makeFinalSelectPG(bool isSplitYear,
         //    continue;
 
         
-        if((selectFieldsSet.count(p_name) > 0 && (agg == "no" || p_isagg)) )
+        if((selectFieldsSet.count(p_name) > 0 && (args.agg == "no" || p_isagg)) )
         {
             // skip 'homeaway' column if it is not in select or group
-            if (agg != "no" && SKIP_COLS.count(p_name) > 0) {
+            if (args.agg != "no" && SKIP_COLS.count(p_name) > 0) {
                   if (groupSet.count(p_name) + fieldValueMap.count(p_name) == 0) 
                      continue;
                  // fieldValueMap.count("team") + groupSet.count("team") == 0)
@@ -1250,29 +1261,32 @@ string makeFinalSelectPG(bool isSplitYear,
         }
     }
     // add on games played/records
-    if(agg != "no") {
+    if(args.agg != "no") {
         query += ", COUNT(*) AS gp";
         selectFieldsSetOut.insert({"gp"});
-        if(agg == "avg") {
+        if(args.agg == "avg") {
             for (auto s : statList)
                 query += ", ROUND(1000*AVG(" + s + "))/1000.00 AS " + s;
         }
         else {
             for (auto s : statList)
-                query += ", " + agg + "(" + s + ") AS " + s;
+                query += ", " + args.agg + "(" + s + ") AS " + s;
         }
     }
     else
         query += ", " + joinStr(statList, ", ");
 
-    if (addCond) {
+    if (args.addCond) {
         query += ", daynight, start_time, precip, sky, temp, windspeed, winddir, field_cond";
         selectFieldsSetOut.insert({"daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond"});
     }
-
-    if (addParkInfo) {
-        query += ", park, attendance, duration, win, loss, save, gw_rbi, complete, forfeit, protest";
-        selectFieldsSetOut.insert({"park", "attendance", "duration", "win", "loss", "save", "winddir", "gw_rbi", "complete", "forfeit", "protest"});
+    if (args.addParkInfo) {
+        query += ", park, attendance, duration, complete, forfeit, protest";
+        selectFieldsSetOut.insert({"park", "attendance", "duration", "complete", "forfeit", "protest"});
+    }
+    if (args.addWinLossSave) {
+         query += ", win, loss, save, gw_rbi";
+         selectFieldsSetOut.insert({"win", "loss", "save", "gw_rbi"});
     }
         //selectFieldsSet.insert({ "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
     // in the case where team is not selected or grouped
@@ -1292,9 +1306,7 @@ int buildLastClausePG(string &lastClause,
                     const unordered_set<string>& selectFieldsSet,
                     const vector<string>& statList, 
                     vector<string>& group,
-                    string agg,
-                    bool addCond, 
-                    bool addParkInfo, 
+                    const args_t& args,
                     bool isSplitYear, 
                     unordered_set<string>& selectFieldsSetOut)
 {
@@ -1302,8 +1314,8 @@ int buildLastClausePG(string &lastClause,
     for(auto g : group) groupSet.emplace(g);
 
     lastClause = makeFinalSelectPG(isSplitYear, selectFields, selectFieldsSet,
-                                 fieldValueMap, statList, group, groupSet, agg,
-                                 addCond, addParkInfo, selectFieldsSetOut);
+                                 fieldValueMap, statList, group, groupSet, args,
+                                 selectFieldsSetOut);
 
     cout << endl << "buildLastClause: final_select=" << lastClause;
 
@@ -1359,7 +1371,7 @@ int buildPlayerGameSQLQuery(string argstr,
     auto addCond = args.addCond;
     auto addParkInfo = args.addParkInfo;
     if(args.isHome) {
-        qy += makeCTEPG(args.pgQryType, true, args.isOldTime, addCond, addParkInfo, args.agg, fieldNames, 
+        qy += makeCTEPG(args.pgQryType, true, args, fieldNames, 
                      fieldValueMap, args.grp, args.stats, selectFields,
                      selectFieldsSet, statList, prms);
         qy += "), ";
@@ -1368,7 +1380,7 @@ int buildPlayerGameSQLQuery(string argstr,
         qy += " home_t as (SELECT 1 WHERE 1=0), "; 
     }
     if(args.isAway) {
-        qy += makeCTEPG(args.pgQryType, false, args.isOldTime, addCond, addParkInfo, args.agg, fieldNames,
+        qy += makeCTEPG(args.pgQryType, false, args, fieldNames,
                       fieldValueMap, args.grp, args.stats, selectFields,
                       selectFieldsSet, statList, prms);
         qy += "), ";
@@ -1398,7 +1410,7 @@ int buildPlayerGameSQLQuery(string argstr,
     unordered_set<string> selectFieldsSetOut;
     err = buildLastClausePG(lastClause, fieldValueMap, selectFields,
                           selectFieldsSet, statList, args.grp, 
-                          args.agg, args.addCond, args.addParkInfo, isSplitYear, 
+                          args, isSplitYear, 
                           selectFieldsSetOut);
     cout << endl << "lastClause=" << lastClause;
     
@@ -1416,9 +1428,7 @@ int buildPlayerGameSQLQuery(string argstr,
 }
 
 // CTE clause for situation
-std::string buildCTESitWhereClause(bool excludeBaseRun,
-                                   bool addCond,
-                                   bool addParkInfo,
+std::string buildCTESitWhereClause(const args_t& args,
                                    const vector<string>& fieldNames,
                                    const unordered_map<string, field_val_t> fieldValueMap,
                                    const vector<string>& selectFields,
@@ -1449,7 +1459,7 @@ std::string buildCTESitWhereClause(bool excludeBaseRun,
         prms.push_back(fieldValueMap.at(f));
     }
 
-    if (excludeBaseRun) {
+    if (args.excludeBaseRun) {
         query += " AND play_result NOT IN (SELECT * FROM play_baserun)";
     }
 
@@ -1458,13 +1468,10 @@ std::string buildCTESitWhereClause(bool excludeBaseRun,
 
 // CTE for situation query
 string makeCTESit(bool isHome,
-                  bool excludeBaseRun,
-                  bool addCond,
-                  bool addParkInfo,
+                  const args_t& args,
                   const vector<string>& fieldNames,
                   const unordered_map<string, field_val_t> fieldValueMap,
                   const vector<string>& group,
-                  const string agg,
                   vector<string> &selectFields,   // output
                   unordered_set<string> &selectFieldsSet,   // output
                   vector<field_val_t> &prms)       // output
@@ -1544,7 +1551,7 @@ string makeCTESit(bool isHome,
 
 
     query += "game_id, event_id";
-    if (agg == "no") {
+    if (args.agg == "no") {
         query += ", year, month, "s + DAY_FIELD + " AS day, dow, num";
 
         selectFields.insert(selectFields.end(), {"year", "month", "day", "dow", "num"});
@@ -1572,24 +1579,22 @@ string makeCTESit(bool isHome,
     }
 
     query += " FROM game_situation_view"s;
-    query += buildCTESitWhereClause(excludeBaseRun, addCond, addParkInfo, fieldNames, fieldValueMap, selectFields, prms);
+    query += buildCTESitWhereClause(args, fieldNames, fieldValueMap, selectFields, prms);
     query += ")";
 
     return query;
 }
 
 string makeSitFinalSelect(bool isSplitYear,
-                          bool addCond, 
-                          bool addParkInfo,
+                          const args_t& args,
                           const vector<string>& selectFields,
                           const unordered_set<string>& selectFieldsSet,
                           const unordered_map<string, field_val_t>& fieldValueMap,
                           const vector<string>& group,
                           const unordered_set<string>& groupSet,
-                          string agg,
                           unordered_set<string>& selectFieldsSetOut) 
 {       
-string query = " SELECT ";
+    string query = " SELECT "; 
     auto isFirst = true;
     const auto SKIP_COLS = unordered_set<string>({"homeaway", "team", "_team", "_league", "league"});
     for (auto p : SELECT_PARAMS_ORDER) {
@@ -1602,10 +1607,10 @@ string query = " SELECT ";
         //    continue;
 
         
-        if((selectFieldsSet.count(p_name) > 0 && (agg == "no" || p_isagg)) )
+        if((selectFieldsSet.count(p_name) > 0 && (args.agg == "no" || p_isagg)) )
         {
             // skip 'homeaway' column if it is not in select or group
-            if (agg != "no" && SKIP_COLS.count(p_name) > 0) {
+            if (args.agg != "no" && SKIP_COLS.count(p_name) > 0) {
                   if (groupSet.count(p_name) + fieldValueMap.count(p_name) == 0) 
                      continue;
                  // fieldValueMap.count("team") + groupSet.count("team") == 0)
@@ -1633,7 +1638,7 @@ string query = " SELECT ";
         }
     }
     // add on games played/records
-    if(agg != "no") {
+    if(args.agg != "no") {
         query += ", COUNT(*) AS plays";
         selectFieldsSetOut.insert({"plays"});
         // if(agg == "avg") {
@@ -1648,14 +1653,17 @@ string query = " SELECT ";
     // else
     //     query += ", " + joinStr(statList, ", ");
 
-    if (addCond) {
+    if (args.addCond) {
         query += ", daynight, start_time, precip, sky, temp, windspeed, winddir, field_cond";
         selectFieldsSetOut.insert({"daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond"});
     }
-
-    if (addParkInfo) {
-        query += ", park, attendance, duration, win, loss, save, gw_rbi, complete, forfeit, protest";
-        selectFieldsSetOut.insert({"park", "attendance", "duration", "win", "loss", "save", "winddir", "gw_rbi", "complete", "forfeit", "protest"});
+    if (args.addParkInfo) {
+        query += ", park, attendance, duration, complete, forfeit, protest";
+        selectFieldsSetOut.insert({"park", "attendance", "duration",  "complete", "forfeit", "protest"});
+    }
+    if (args.addWinLossSave) {
+         query += ", win, loss, save, gw_rbi";
+         selectFieldsSetOut.insert({"win", "loss", "save", "gw_rbi"});
     }
     //selectFieldsSet.insert({ "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
     // in the case where team is not selected or grouped
@@ -1666,7 +1674,7 @@ string query = " SELECT ";
         query += " FROM both_t";
 
     // add on # of plays
-    if(agg != "no") {
+    if(args.agg != "no") {
         query += ", COUNT(*) AS plays";
         
         selectFieldsSetOut.insert({"plays"});
@@ -1709,18 +1717,15 @@ int buildSitLastClause(string &lastClause,
                     const vector<string>& selectFields, 
                     const unordered_set<string>& selectFieldsSet,
                     vector<string>& group,
-                    string agg,
                     bool isSplitYear, 
-                    bool addCond, 
-                    bool addParkInfo,
+                    const args_t& args,
                     unordered_set<string>& selectFieldsSetOut)
 {
     unordered_set<string> groupSet;
     for(auto g : group) groupSet.emplace(g);
 
-    lastClause = makeSitFinalSelect(isSplitYear, addCond, addParkInfo, selectFields, selectFieldsSet,
-                                 fieldValueMap, group, groupSet, agg, 
-                                 selectFieldsSetOut);
+    lastClause = makeSitFinalSelect(isSplitYear, args, selectFields, selectFieldsSet,
+                                 fieldValueMap, group, groupSet, selectFieldsSetOut);
 
     cout << endl << "buildSitLastClause: final_select=" << lastClause;
 
@@ -1767,18 +1772,16 @@ int buildSituationSQLQuery(string argstr, string &qy,
     prms.clear();
     qy = "WITH"s;
     if(args.isHome) {
-        qy += makeCTESit(true, args.excludeBaseRun, args.addCond,
-                     args.addParkInfo, fieldNames, fieldValueMap,
-                     args.grp, args.agg, selectFields, selectFieldsSet, prms);
+        qy += makeCTESit(true, args, fieldNames, fieldValueMap,
+                     args.grp, selectFields, selectFieldsSet, prms);
         qy += ", ";
     } else {
         // need empty set so both_t UNION makes sense
         qy += " home_t as (SELECT 1 WHERE 1=0), "; 
     }
     if(args.isAway) {
-         qy += makeCTESit(false, args.excludeBaseRun, args.addCond,
-                     args.addParkInfo, fieldNames, fieldValueMap,
-                     args.grp, args.agg, selectFields, selectFieldsSet, prms);
+         qy += makeCTESit(false, args, fieldNames, fieldValueMap,
+                     args.grp, selectFields, selectFieldsSet, prms);
         qy += ", ";
        
     } else {
@@ -1799,8 +1802,7 @@ int buildSituationSQLQuery(string argstr, string &qy,
     string lastClause;
     unordered_set<string> selectFieldsSetOut;
     err = buildSitLastClause(lastClause, fieldValueMap, selectFields,
-                          selectFieldsSet, args.grp, args.agg,
-                          isSplitYear, args.addCond, args.addParkInfo,
+                          selectFieldsSet, args.grp, isSplitYear, args,
                           selectFieldsSetOut);
     cout << endl << "lastClause=" << lastClause;
     

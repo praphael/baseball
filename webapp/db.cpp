@@ -518,6 +518,9 @@ void fixResults(const vector<string>& colummNames, query_result_t& results,
             else if(col == "game" || col == "_game") {
                 cout << endl << col << " " << row[c];
             }
+            else if(row[c] == "NULL") {
+                row[c] = "-";
+            }
 
             if(row[c] != oldVal)
                 cout << endl << oldVal << "->" << row[c];

@@ -1,6 +1,6 @@
 import React from 'react'
 
-const OutcomeFilters = () => {
+const OutcomeFilters = ({filter, boxScoreFiltOpts, onFiltChange, optionClasses, checkClasses}) => {
   return (
     <div>OutcomeFilters</div>
   )

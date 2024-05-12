@@ -52,7 +52,7 @@ function makeQueryJSONBase(filter, agg, statTypes, order, minGP, limit) {
                     }
                 }
             }
-            else if(v.length > 0) {            
+            else if(typeof(v) == typeof(true) || v.length > 0) {            
                 qy[k] = v;
             }
         }
