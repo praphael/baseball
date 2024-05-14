@@ -1,0 +1,53 @@
+FROM amazonlinux:2023
+
+RUN yum update -y && \
+    yum upgrade -y && \
+    yum install -y \
+        git \ 
+        bzip2 \
+        python3 \
+        tar \
+        less \
+        sqlite \
+        wget \
+        which && \
+        yum clean all
+
+# download retrosheet files
+RUN wget https://www.retrosheet.org/alldata.zip
+    
+# make directories, run scripts to extract data from retrosheet files
+# into Sqlite3 DB
+RUN mkdir /baseball/alldata && \
+    mkdir /baseball && \
+    mkdir /baseball/webapp && \
+    mkdir /baseball/vite-baseball-stats && \
+    unzip -d /baseball/alldata alldata.zip
+
+# copy files
+# don't use bulk copy to avoid copying over junk/temp files
+# use extraneous ARG to ignore cache after this point (force recopy)
+# change ARG at command line to forcd the rebuild
+ARG UPDATE_BUILD
+COPY ./*.py /baseball
+
+RUN cd /baseball && \
+    ./retrosheet_init_db.py && \
+    ./retrosheet_data_to_sql.py && \
+    ./retrosheet_boxscores_to_sql.py
+
+RUN cd /baseball && \
+    ./retrosheet_parse_event_outcomes.py 0 25000 && \
+    ./retrosheet_parse_event_outcomes.py 25000 50000 && \
+    ./retrosheet_parse_event_outcomes.py 50000 75000 && \    
+    ./retrosheet_parse_event_outcomes.py 75000 100000 && \
+    ./retrosheet_parse_event_outcomes.py 100000 120000 && \
+    ./retrosheet_parse_event_outcomes.py 120000 140000 && \
+    ./retrosheet_parse_event_outcomes.py 140000 150000 && \
+    ./retrosheet_parse_event_outcomes.py 150000 160000 && \
+    ./retrosheet_parse_event_outcomes.py 170000 180000 && \
+    ./retrosheet_parse_event_outcomes.py 180000 190000 && \
+    ./retrosheet_parse_event_outcomes.py 190000 200000 && \
+    sqlite3 baseball.db < create_situation_indexes.sql && \
+    bzip2 baseball.db && \
+    rm -r alldata 

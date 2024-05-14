@@ -3,11 +3,11 @@ import React from 'react'
 import OptionWithCheck from './OptionWithCheck.jsx'
 import OptionRangeWithCheck from './OptionRangeWithCheck.jsx'
 
-const ConditionFilters = ({filter, boxScoreFiltOpts, onFiltChange, optionClasses, checkClasses}) => {
+const ConditionFilters = ({divClass="container mt-1", filter, boxScoreFiltOpts, onFiltChange, optionClasses, checkClasses}) => {
   return (
-    <div class="container">  
-      <div class="row">
-        <div class="col-auto">
+    <div className={divClass}>  
+      <div className="row">
+        <div className="col-auto">
           <OptionWithCheck fieldName="daynight" label="Day/Night" 
             options={boxScoreFiltOpts.daynight} 
             val={filter.values.get("daynight")} 

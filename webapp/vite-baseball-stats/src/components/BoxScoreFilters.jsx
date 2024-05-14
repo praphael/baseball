@@ -21,7 +21,7 @@ const selectClass = "col-4 form-select";
 const inputClass = "ml-2 col-8 form-input";
 const optionInputLabelClass = "form-label"
 const optionClasses = { divClass:optionInputDivClass, selectClass, labelClass:optionInputLabelClass } 
-const checkDivClass = "form-check form-check-inline mb-2";
+const checkDivClass = "form-check form-check-inline mt-2 mb-2";
 const checkClass = " ms-1 me-1 form-check-input";
 const checkLabelClass= "form-check-label"
 const checkClasses = { divClass:checkDivClass, checkClass, labelClass:checkLabelClass, label:"Group" }
@@ -46,12 +46,12 @@ const BoxScoreFilters = ({boxScoreFiltOpts, filter, onFiltChange, order, onOrder
 //  console.log("boxScoreFilt.group= ", boxScoreFilt.group);
   console.log("order= ", order);
   return (
-    <div className="container">
+    <div className="container mt-2">
       <div className="row">
           <RadioButtonGroup fieldName="filter_section" label="" options={filterSections}
             val={filtSection} onRadioChange={onFiltSectChange} />
       </div>
-      <div className="row">
+      <div className="row mt-2">
           { filtSection == "time" ? <TimeFilters filter={filter} boxScoreFiltOpts={boxScoreFiltOpts}
               onFiltChange={onFiltChange} optionClasses={optionClasses} checkClasses={checkClasses} /> : "" }
           { filtSection == "who" ? <WhoFilters filter={filter} boxScoreFiltOpts={boxScoreFiltOpts}

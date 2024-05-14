@@ -2,9 +2,9 @@ import React from 'react'
 
 import OptionWithCheck from './OptionWithCheck'
 
-const TimeFilters = ({filter, boxScoreFiltOpts, onFiltChange, optionClasses, checkClasses}) => {
+const TimeFilters = ({divClass="mt-1", filter, boxScoreFiltOpts, onFiltChange, optionClasses, checkClasses}) => {
   return (
-    <div>
+    <div className={divClass}>
         <OptionWithCheck fieldName="round" label="Playoff Round"
             options={boxScoreFiltOpts.postseries} 
             val={filter.values.get("round")}

@@ -4,7 +4,8 @@ import { useState } from 'react'
 
 import { doRequest } from '../js/requests.js'
 
-const inputClass = "ml-2 col-8 form-input";
+import Check from './Check.jsx';
+const inputClass = "ml-2 col-6 form-input";
 
 // map name to numeric ID
 // can just use one universal players map and update
@@ -13,7 +14,7 @@ const inputClass = "ml-2 col-8 form-input";
 const playersMap = new Map();
 
 // 
-const PlayerInput = ({fieldName, label, onFiltChange}) => {
+const PlayerInput = ({fieldName, label, checkVal, onFiltChange, checkClasses}) => {
   const [playersList, setPlayersList] = useState([[]]);
   const [timeoutID, setTimeoutID] = useState(0);
 
@@ -53,14 +54,19 @@ const PlayerInput = ({fieldName, label, onFiltChange}) => {
   const fn_id = fieldName + "_input";
   return (
     <div>
+        <div>
         <h5>{label}</h5><label htmlFor={fn_id}>&#x1F50D;</label>
-        <input className={inputClass} type="text" list={id} id={fn_id} onChange={(e) => onInputChange(e)}/>
+        <input className={inputClass} type="text" list={id} 
+               id={fn_id} onChange={(e) => onInputChange(e)}/>
         <datalist id={id}>
         {playersList.map((p) => (
             <option onSelect={(e)=>(onOptionSelect(e))} 
                     value={p[0] + " (" + p[1] + ")"}>
             </option>)) }
         </datalist>
+        </div>
+        <Check fieldName={fieldName} val={checkVal} onChange={onFiltChange}
+               checkClasses={checkClasses}/>
     </div>
   )
 }

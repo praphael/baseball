@@ -2,9 +2,9 @@ import React from 'react'
 
 import OptionWithCheck from './OptionWithCheck'
 
-const PlaceFilters = ({filter, boxScoreFiltOpts, onFiltChange, optionClasses, checkClasses}) => {
+const PlaceFilters = ({divClass="mt-1", filter, boxScoreFiltOpts, onFiltChange, optionClasses, checkClasses}) => {
   return (
-    <div>
+    <div classNane={divClass}>
         <OptionWithCheck fieldName="homeaway" label="Home/Away"
           options={boxScoreFiltOpts.homeAway}
           val={filter.values.get("homeaway")}

@@ -38,9 +38,9 @@ const sky = [["Sunny","Sunny"], ["Cloudy","Cloudy"], ["Overcast","Overcast"], ["
 const winddir = [["From CF","From CF"], ["From LF","From LF"],["From RF","From RF"],
                  ["RF to LF","RF to LF"], ["To CF","To CF"], ["To LF","To LF"], ["To RF","To RF"]  ]
 const temp = []
-for (let t=40; t<=100; t++) temp.push([t.toString(), t.toString()]);
+for (let t=40; t<=105; t++) temp.push([t.toString(), t.toString()]);
 const windspeed = []
-for (let ws=0; ws<=30; ws++) windspeed.push([ws.toString(), ws.toString()]);
+for (let ws=0; ws<=60; ws++) windspeed.push([ws.toString(), ws.toString()]);
 
 const firstYear = 1901;
 const lastYear = 2023;
@@ -155,7 +155,7 @@ boxScoreFiltDefaults.values.set("game_low", "");
 boxScoreFiltDefaults.values.set("game_high", "");
 boxScoreFiltDefaults.values.set("league", "");
 boxScoreFiltDefaults.values.set("_league", "");
-boxScoreFiltDefaults.values.set("season", "Reg");
+boxScoreFiltDefaults.values.set("season", ["Reg"]);
 boxScoreFiltDefaults.values.set("round", "");
 boxScoreFiltDefaults.values.set("daynight", "");
 boxScoreFiltDefaults.values.set("fieldcond", "");
@@ -171,11 +171,14 @@ boxScoreFiltDefaults.values.set("pitcher", "");
 boxScoreFiltDefaults.values.set("sit_inn_low", "");
 boxScoreFiltDefaults.values.set("sit_inn_high", "");
 boxScoreFiltDefaults.values.set("sit_innhalf", "");
+boxScoreFiltDefaults.values.set("sit_base_1", "?");
+boxScoreFiltDefaults.values.set("sit_base_2", "?");
+boxScoreFiltDefaults.values.set("sit_base_3", "?");
+boxScoreFiltDefaults.values.set("sit_risp", "");
 boxScoreFiltDefaults.values.set("sit_outs_low", "");
 boxScoreFiltDefaults.values.set("sit_outs_high", "");
 boxScoreFiltDefaults.values.set("sit_sco_diff_low", "");
 boxScoreFiltDefaults.values.set("sit_sco_diff_high", "");
-boxScoreFiltDefaults.values.set("sit_bases ", "");
 boxScoreFiltDefaults.values.set("sit_bat_cnt", "");
 boxScoreFiltDefaults.values.set("sit_play_res", "");
 boxScoreFiltDefaults.values.set("sit_hit_loc", "");
@@ -190,5 +193,6 @@ boxScoreFiltDefaults.values.set("showWLS", false);
 boxScoreFiltDefaults.group.add("team");
 
 const orderDefaults = [["team", false], ["year", true], ["date", false]]
+const seasons = [["Reg", "Reg"], ["Post", "Post"]];
 
-export {boxScoreFiltOptsDefaults, boxScoreFiltDefaults, filterFields, orderDefaults, getParksTeams}; //}, boxScoreIdxMaps};
+export {boxScoreFiltOptsDefaults, boxScoreFiltDefaults, filterFields, orderDefaults, getParksTeams, seasons}; //}, boxScoreIdxMaps};

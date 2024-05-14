@@ -488,6 +488,11 @@ allTables["mod_desc"] = """CREATE TABLE mod_desc (
     d char(32) NOT NULL
 )"""
 
+allTables["field_pos_desc"] = """CREATE TABLE field_pos_desc (
+    pos smallint PRIMARY KEY,
+    d char(32) NOT NULL
+)"""
+
 #####  views  #####
 
 allViews["game_info_view"] = """CREATE VIEW game_info_view AS SELECT
@@ -1144,7 +1149,7 @@ allViews["player_game_fielding_view"] = """CREATE VIEW player_game_fielding_view
     f.fielder_num_id,
     pl.name_other||' '||pl.name_last AS fielder_name,
     f.team,
-    f.pos,
+    fld_pos_d.d AS pos,
     f.seq,
     i.game_date,
     i.year,
@@ -1195,6 +1200,8 @@ allViews["player_game_fielding_view"] = """CREATE VIEW player_game_fielding_view
     ON f.game_id=i.game_id
     LEFT JOIN player pl
     ON f.fielder_num_id=pl.player_num_id
+    LEFT JOIN field_pos_desc fld_pos_d
+    ON fld_pos_d.pos=f.pos
 """
 
 allViews["player_game_pitching_view"] = """CREATE VIEW player_game_pitching_view AS SELECT
@@ -1795,6 +1802,7 @@ allValues["winddir"] = ("", "From CF", "From LF", "From RF", "LF to RF")
 allValues["winddir"] += ("RF to LF", "To CF", "To LF", "To RF")
 allValues["forfeit"] = ("", "Away", "Home", "No Decision")
 allValues["protest"] = ("", "Unidentified", "Disallow Away", "Disallow Home", "Upheld Away", "Upheld Home")
+allValues["field_pos_desc"] = ("Designated Hitter", "Pitcher", "Catcher", "First Base", "Second Base", "Third Base", "Shortstop", "Left Field", "Center Field", "Right Field")
 
 play_baserun = ("SB", "CS", "PO", "POCS", "DI", "OA")
 

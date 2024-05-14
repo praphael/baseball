@@ -153,7 +153,7 @@ function App() {
           else {
             newFilt.group.delete(field);
           }
-      }
+      }   
       else filter.values.set(field, value);
       setFilter(newFilt);
       // updateData();
@@ -206,9 +206,7 @@ function App() {
              </p>
         </div>
             
-
         <div className="row overflow-x-scroll flex-no-wrap">
-          
           <div className="col-auto border">
             <h4>Options</h4>
             <CommonFilters boxScoreFiltOpts={boxScoreFiltOpts} filter={filter}

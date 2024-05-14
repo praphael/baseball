@@ -8,6 +8,7 @@
 #include <iostream>
 #include <sstream>
 #include <set>
+#include <memory>
 
 #include "json.hpp"
 
@@ -15,7 +16,7 @@ using json = nlohmann::json;
 
 using query_result_t = std::vector<std::vector<std::string>>;
 
-enum valType {NOT_SET, INT, STR, INT_RANGE};
+enum valType {NOT_SET, INT, STR, INT_RANGE, STR_ARRAY, ISNOTNULL};
 enum queryType {ALL, GAMELOG, PLAYERGAME, SITUATION};
 enum playerGameQueryType {BATTING, PITCHING, FIELDING};
 
@@ -30,19 +31,26 @@ private:
     valType vType = NOT_SET;
     union {
         int i;
-        char s[256];
-        range_t rng;
+        char s[1024];
+        range_t rng;        
     } v;
+    int sz = 0; // generic size param (type dependent)
 
 public:
     valType getValType() const;
     int asInt() const;
     range_t asIntRange() const;
     std::string asStr() const;
+    std::vector<std::string> asStrArray() const;
     const char* asCharPtr() const;
+    bool asIsNotNull();
+    int getSize();
+
     void setInt(int val);
     void setStr(std::string val);
     void setIntRange(int low, int high);
+    void setStrArray(std::vector<std::string> arr);    
+    void setIsNotNull(bool val);
 };
 
 struct args_t {
@@ -51,6 +59,13 @@ struct args_t {
     std::string agg;
     std::vector<std::string> grp;
     bool isOldTime;
+
+    // runners in scoring position for situational query
+    // only applies if 'isRISP' is present in JSON args
+    // otherwise qryRISP is set to false 
+    bool qryRISP;
+    bool isRISP; 
+
     std::vector<std::string> stats;
     std::vector<std::string> order;
     playerGameQueryType pgQryType;
@@ -94,6 +109,7 @@ struct q_params_t {
 };
 
 std::unordered_map<std::string, q_params_t>& initQueryParams();
+void initQueryStructs();
 int buildSQLQuery(std::string argstr,
                   std::string &qy, std::vector<field_val_t>& prms,
                   std::string &errMsg, args_t& args);

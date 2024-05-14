@@ -498,7 +498,7 @@ public:
         , doc_root_(doc_root)
     {
         beast::error_code ec;
-        initQueryParams();
+        initQueryStructs();
         pdb = initDB(yearStart, yearEnd);
         string qy;
         string resp, mimeType;

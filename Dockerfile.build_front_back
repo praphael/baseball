@@ -1,0 +1,58 @@
+FROM amazonlinux:2023
+
+RUN yum update -y && \
+    yum upgrade -y && \
+    yum install -y \
+        clang \
+        cmake \
+        libcurl-devel \
+        git \ 
+        bzip2 \
+        npm \
+        tar \
+        less \
+        nginx \
+        sqlite \
+        wget \
+        which && \
+        yum clean all
+
+# download boost 1.84
+# build boost
+RUN wget https://boostorg.jfrog.io/artifactory/main/release/1.84.0/source/boost_1_84_0.tar.bz2 && \
+    tar xjvf boost_1_84_0.tar.bz2 && \
+    cd boost_1_84_0 && \
+    ./bootstrap.sh --with-toolset=clang --prefix=/usr/local && \
+    ./b2 --with-system -j$(nproc) install  && \
+    cd / && \
+    rm -rf boost*
+    
+# make directories, run scripts to extract data from retrosheet files
+# into Sqlite3 DB
+RUN mkdir /baseball && \
+    mkdir /baseball/webapp && \
+    mkdir /baseball/vite-baseball-stats
+# copy files
+# don't use bulk copy to avoid copying over junk/temp files
+# use extraneous ARG to ignore cache after this point (force recopy)
+# change ARG at command line to forcd the rebuild
+ARG UPDATE_BUILD
+COPY ["./webapp/*.c*", "./webapp/*.h*", "/webapp/CMakeLists.txt", "./webapp/build.sh", "/baseball/webapp"]
+COPY ./webapp/vite-baseball-stats /baseball/webapp/vite-baseball-stats
+
+# build backend and front end
+# replace server name in requests.js 
+# bundle front and backend into tar archive
+ARG SERVER_NAME=switchfielder.com
+RUN cd /baseball/webapp && \  
+    sed -i -e 's/server=.*/server="$SERVER_NAME"/' \
+        vite-baseball-stats/src/js/requests.js && \
+    ./build.sh && \
+    tar cf dist.tar httpd && \
+    cd vite-baseball-stats && \
+    tar rf ../dist.tar dist && \
+    cd .. && \
+    bzip2 dist.tar
+    
+
+

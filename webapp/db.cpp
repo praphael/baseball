@@ -217,9 +217,9 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
             err = sqlite3_bind_int(pstmt, c, p.asInt());
             if (err != SQLITE_OK) {
                 errMsg = "doQuery(" + to_string(__LINE__) + "): sqlite3_bind_int failed err="s;
-                errMsg += to_string(err)+ " c=" + to_string(c);
+                errMsg += to_string(err)+ " c=" + to_string(c) + " param=" + to_string(p.asInt());
                 cerr << endl << errMsg;
-                return 2;
+                return 1;
             }
         }
         else if (p.getValType() == valType::STR) {
@@ -230,31 +230,45 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
             err = sqlite3_bind_text(pstmt, c, sp.c_str(), sp.size(), SQLITE_TRANSIENT);
             if (err != SQLITE_OK) {
                 errMsg = "doQuery(" + to_string(__LINE__) + "): sqlite3_bind_text() failed err="s;
-                errMsg += to_string(err) + " c=" + to_string(c);
+                errMsg += to_string(err) + " c=" + to_string(c) + " param='" + sp + "'";
                 cerr << endl << errMsg;
-                return 3;
+                return 1;
             }
         } else if (p.getValType() == valType::INT_RANGE) {
             auto rng = p.asIntRange();
             err = sqlite3_bind_int(pstmt, c, rng.low);
             if (err != SQLITE_OK) {
                 errMsg = "doQuery(" + to_string(__LINE__) + "): sqlite3_bind_int failed err="s;
-                errMsg += to_string(err)+ " c=" + to_string(c);
+                errMsg += to_string(err)+ " c=" + to_string(c) + " param=" + to_string(rng.low);
                 cerr << endl << errMsg;
-                return 4;
+                return 1;
             }
-            c += 1;
+            c++;
             err = sqlite3_bind_int(pstmt, c, rng.high);
             if (err != SQLITE_OK) {
                 errMsg = "doQuery(" + to_string(__LINE__) + "): sqlite3_bind_int failed err="s;
-                errMsg += to_string(err)+ " c=" + to_string(c);
+                errMsg += to_string(err)+ " c=" + to_string(c) + " param=" + to_string(rng.high);
                 cerr << endl << errMsg;
-                return 5;
+                return 1;
             }
+        } else if (p.getValType() == valType::STR_ARRAY) {
+            auto strArr = p.asStrArray();
+            for (auto sp : strArr) {
+                // TODO: investigate potential memory leak here
+                err = sqlite3_bind_text(pstmt, c, sp.c_str(), sp.size(), SQLITE_TRANSIENT);
+                c++;
+                if (err != SQLITE_OK) {
+                    errMsg = "doQuery(" + to_string(__LINE__) + "): sqlite3_bind_text() failed err="s;
+                    errMsg += to_string(err) + " c=" + to_string(c) + " param='" + sp + "'";
+                    cerr << endl << errMsg;
+                    return 1;
+                }
+            }
+            c--;
         } else {
             errMsg = "doQuery(" + to_string(__LINE__) + "): unknown type "s + to_string(p.getValType());
             cerr << endl << errMsg;
-            return 6;  // unknown type
+            return 1;  // unknown type
         }
         c++;
     }
@@ -305,7 +319,7 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
                 } else {
                     errMsg = "doQuery: unknown column type " + to_string(colType) + " at c=" + to_string(c);
                     cerr << endl << errMsg;
-                    return 5;
+                    return 1;
                 }
             }
             result.push_back(r);

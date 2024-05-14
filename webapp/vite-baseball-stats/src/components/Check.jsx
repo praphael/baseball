@@ -9,16 +9,19 @@ const Check = ({fieldName, val, onChange,
   }
   //console.log("Check ", fieldName, " initValue=", initValue)
 
-  const id = `filter_${fieldName}` + isGroup? "_group":"";
+  const id = `filter_${fieldName}` + isGroup? "_group" : "";
+  const lblID = id + '_lbl';
+  const divID = id + '_div';
+
   return (
-    <div className={checkClasses.divClass}>
+    <div className={checkClasses.divClass} id={divID} name={divID}>
         
-        <label className={checkClasses.labelClass} htmlFor={id}>
-        <input className={checkClasses.checkClass} type="checkbox" id={id} checked={val} onChange={
+        <input className={checkClasses.checkClass} type="checkbox" id={id} name={id} checked={val} onChange={
             (e)=>(onNewVal(e.target.checked))} />
-        
-            {checkClasses.label}
+        <label className={checkClasses.labelClass} id={lblID}  name={lblID} htmlFor={id}>
+        {checkClasses.label}
         </label>
+
     </div>
   )
 }

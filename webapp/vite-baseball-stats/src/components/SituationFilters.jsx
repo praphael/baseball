@@ -12,12 +12,30 @@ import React from 'react'
 import OptionWithCheck from './OptionWithCheck.jsx'
 import OptionRangeWithCheck from './OptionRangeWithCheck.jsx'
 import PlayerInput from './PlayerInput.jsx'
+import TriStateButtonGroup from './TriStateButtonGroup.jsx'
 
-const SituationFilters = ({filter, boxScoreFiltOpts, onFiltChange, optionClasses, checkClasses}) => {
+// const sit_bases = [["sit_base_1", 0], ["sit_base_2", 0], ["tsit_base_3", 0]];
+
+const SituationFilters = ({divClass="container mt-1", filter, boxScoreFiltOpts, onFiltChange, optionClasses, checkClasses}) => {
+  const onBasesChange = (v, st) =>  {
+    //const msg= "onBasesChange v=" + v + " st=" + st;
+    //alert(msg);
+    onFiltChange(v, st, false);    
+  }
+
+  const sit_bases = [];
+  for (let b=1; b<4; b++) {
+    const k = "sit_base_" + b;
+    let v = filter.values.get(k);
+    if( v == undefined || v == NaN) 
+      v = "?";
+    sit_bases.push([k, v, b]);
+  }
+   
   return (
-    <div class="container">  
-      <div class="row">
-        <div class="col-auto">
+    <div classNane={divClass}>  
+      <div className="row">
+        <div className="col-auto">
         <OptionWithCheck fieldName="sit_innhalf" label="Inning Half" 
           options={boxScoreFiltOpts.inning_halves} 
           val={filter.values.get("sit_innhalf")} 
@@ -43,13 +61,10 @@ const SituationFilters = ({filter, boxScoreFiltOpts, onFiltChange, optionClasses
           checkClasses={checkClasses} />  
         </div>
         <div class="col-auto">
-          <OptionWithCheck fieldName="sit_bases" label="Bases" 
-            options={boxScoreFiltOpts.sit_bases} 
-            val={filter.values.get("sit_bases")} 
-            checkVal={filter.group.has("sit_bases")}
-            onChange={onFiltChange}
-            optionClasses={optionClasses}
-            checkClasses={checkClasses} />  
+          <TriStateButtonGroup fieldName="sit_bases" label="Bases:" 
+            val={sit_bases} 
+            onButtonChange={onBasesChange}
+            buttonClasses={{divClass:"", labelClass:"me-2"}}/>
           <OptionRangeWithCheck fieldName="sit_outs" label="Outs" 
             options={boxScoreFiltOpts.outs} 
             valLow={filter.values.get("sit_outs_low")}

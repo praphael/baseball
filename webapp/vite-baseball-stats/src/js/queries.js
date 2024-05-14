@@ -14,6 +14,8 @@ function makeQueryJSONBase(filter, agg, statTypes, order, minGP, limit) {
             else if (filter.query == "gamelog" && (k == "batter" || k == "pitcher")) 
                 skip = true;
         }
+        else if (k.startsWith("sit_base") && v == "?")
+            skip = true;
 
         if (!skip) {
             // extract id (number between parentheses)
@@ -28,7 +30,7 @@ function makeQueryJSONBase(filter, agg, statTypes, order, minGP, limit) {
                     else
                         qy[k] = v;
                 }
-            }
+            }            
             // range 
             else if (k.endsWith("_low") || k.endsWith("_high")) {
                 if (v != "(all)" && v != "") {
@@ -51,6 +53,9 @@ function makeQueryJSONBase(filter, agg, statTypes, order, minGP, limit) {
                         }
                     }
                 }
+            }
+            else if (k.startsWith("sit_base")) {
+                qy[k] = (v == "x");
             }
             else if(typeof(v) == typeof(true) || v.length > 0) {            
                 qy[k] = v;

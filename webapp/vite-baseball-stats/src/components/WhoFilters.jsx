@@ -2,9 +2,9 @@ import React from 'react'
 
 import OptionWithCheck from './OptionWithCheck'
 
-const WhoFilters = ({filter, boxScoreFiltOpts, onFiltChange, optionClasses, checkClasses}) => {
+const WhoFilters = ({divClass="mt-1", filter, boxScoreFiltOpts, onFiltChange, optionClasses, checkClasses}) => {
   return (
-    <div>
+    <div classNane={divClass}>
         <OptionWithCheck fieldName="_team" 
             label="Opposing/Pitching Team" 
             options={boxScoreFiltOpts.teams} 
