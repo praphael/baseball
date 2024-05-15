@@ -180,33 +180,37 @@ int doQuery(sqlite3 *pdb, std::string qy, const vector<field_val_t>& prms,
 
     auto err = sqlite3_prepare_v2(pdb, qy.c_str(), qy.size(), &pstmt, &pzTail); 
     if (err != SQLITE_OK) {
-        errMsg = "doQuery(" + to_string(__LINE__) + "): could not prepare query statement "s;
+        errMsg = "doQuery(" + to_string(__LINE__) + "): could not prepare query statement sqlite errMsg="s;
         // create more meaningful error message
         // back up 30 characters, and advance forward same amount
-        int nch=0;
-        char *e = const_cast<char*>(pzTail);
-        char *b = e;
-        while (nch < 30 && b != qy.c_str()) {
-            nch++;
-            b--;
-            if(*e != 0) e++;
-        }
-        // null terminate 
-        *e = 0;
-        errMsg.push_back('\n');
-        errMsg += string(b); errMsg.push_back('\n');
-        for(int i=nch; i>0; i--) errMsg.push_back(' ');
-        errMsg.push_back('^'); errMsg.push_back('\n'); 
-        for(int i=nch; i>0; i--) errMsg.push_back(' ');
-        errMsg.push_back('|'); errMsg.push_back('\n'); 
-        for(int i=nch; i>0; i--) errMsg.push_back(' ');
-        errMsg += "\nerror here";
-        for(int i=nch-10; i>0; i--) errMsg.push_back('-');
-        errMsg.push_back('+');
-
+        errMsg += sqlite3_errmsg(pdb);
         cerr << std::endl << errMsg << err;
         cerr << std::endl << "qy=\"" << qy << "\"";
-        return(1);
+        return 1;
+        // int nch=0;
+        // char *e = const_cast<char*>(pzTail);
+        // char *b = e;
+        // while (nch < 30 && b != qy.c_str()) {
+        //     nch++;
+        //     b--;
+        //     if(*e != 0) e++;
+        // }
+        // // null terminate 
+        // *e = 0;
+        // errMsg.push_back('\n');
+        // errMsg += string(b); errMsg.push_back('\n');
+        // for(int i=nch; i>0; i--) errMsg.push_back(' ');
+        // errMsg.push_back('^'); errMsg.push_back('\n'); 
+        // for(int i=nch; i>0; i--) errMsg.push_back(' ');
+        // errMsg.push_back('|'); errMsg.push_back('\n'); 
+        // for(int i=nch; i>0; i--) errMsg.push_back(' ');
+        // errMsg += "\nerror here";
+        // for(int i=nch-10; i>0; i--) errMsg.push_back('-');
+        // errMsg.push_back('+');
+
+        // cerr << std::endl << errMsg << err;
+        // cerr << std::endl << "qy=\"" << qy << "\"";
+        // return(1);
     }
 
     /* bind parametes */

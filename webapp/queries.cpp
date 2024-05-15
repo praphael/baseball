@@ -189,18 +189,18 @@ unordered_map<string, q_params_t>& initQueryParams() {
     QUERY_PARAMS["sit_base_2"] = q_params_t{"second", valType::ISNOTNULL, false, {queryType::SITUATION}};
     QUERY_PARAMS["sit_base_3"] = q_params_t{"third", valType::ISNOTNULL, false, {queryType::SITUATION}};
 
-    QUERY_PARAMS["sit_play_res"] = q_params_t{"result", valType::STR, false, {queryType::SITUATION}};
-    QUERY_PARAMS["sit_play_res2"] = q_params_t{"result2", valType::STR, false, {queryType::SITUATION}};
-    QUERY_PARAMS["sit_play_res3"] = q_params_t{"result3", valType::STR, false, {queryType::SITUATION}};
-    QUERY_PARAMS["sit_play_base"] = q_params_t{"base1", valType::STR, false, {queryType::SITUATION}};
-    QUERY_PARAMS["sit_play_base2"] = q_params_t{"base2", valType::STR, false, {queryType::SITUATION}};
-    QUERY_PARAMS["sit_play_base3"] = q_params_t{"base3", valType::STR, false, {queryType::SITUATION}};
-    QUERY_PARAMS["sit_hit_loc"] = q_params_t{"hit_loc", valType::STR, false, {queryType::SITUATION}};
-    QUERY_PARAMS["sit_hit_type"] = q_params_t{"hit_type", valType::STR, false, {queryType::SITUATION}};
+    QUERY_PARAMS["out_play_res"] = q_params_t{"result1", valType::STR, false, {queryType::SITUATION}};
+    QUERY_PARAMS["out_play_res2"] = q_params_t{"result2", valType::STR, false, {queryType::SITUATION}};
+    QUERY_PARAMS["out_play_res3"] = q_params_t{"result3", valType::STR, false, {queryType::SITUATION}};
+    QUERY_PARAMS["out_play_base"] = q_params_t{"base1", valType::STR, false, {queryType::SITUATION}};
+    QUERY_PARAMS["out_play_base2"] = q_params_t{"base2", valType::STR, false, {queryType::SITUATION}};
+    QUERY_PARAMS["out_play_base3"] = q_params_t{"base3", valType::STR, false, {queryType::SITUATION}};
+    QUERY_PARAMS["out_hit_loc"] = q_params_t{"hit_loc", valType::STR, false, {queryType::SITUATION}};
+    QUERY_PARAMS["out_hit_type"] = q_params_t{"hit_type", valType::STR, false, {queryType::SITUATION}};
     // 0-3
-    QUERY_PARAMS["sit_outs_made"] = q_params_t{"outs_made", valType::INT_RANGE, false, {queryType::SITUATION}};
+    QUERY_PARAMS["out_outs_made"] = q_params_t{"outs_made", valType::INT_RANGE, false, {queryType::SITUATION}};
     // 0-4
-    QUERY_PARAMS["sit_runs_sco"] = q_params_t{"runs_scored", valType::INT_RANGE, false, {queryType::SITUATION}};
+    QUERY_PARAMS["out_runs_sco"] = q_params_t{"runs_scored", valType::INT_RANGE, false, {queryType::SITUATION}};
     
     /*
                {"inn1", {"score_by_inning_1", "inn1", 0, true},
@@ -243,11 +243,11 @@ vector<pair<string, bool>> SELECT_PARAMS_ORDER = {
     {"sit_sco_diff", true},
     {"sit_base_1", false}, {"sit_base_2", false},
     {"sit_base_3", false}, {"sit_bat_cnt", true},
-    {"sit_play_res", true}, {"sit_play_base", true},
-    {"sit_play_res2", true}, {"sit_play_base2", true},
-    {"sit_play_res3", true}, {"sit_play_base3", true},
-    {"sit_hit_loc", true}, {"sit_hit_type", true},
-    {"sit_outs_made", true}, {"sit_runs_sco", true} };
+    {"out_play_res", true}, {"out_play_base", true},
+    {"out_play_res2", true}, {"out_play_base2", true},
+    {"out_play_res3", true}, {"out_play_base3", true},
+    {"out_hit_loc", true}, {"out_hit_type", true},
+    {"out_outs_made", true}, {"out_runs_sco", true} };
 
 vector<pair<string, bool>> COND_PARAMS_ORDER = { 
     {"park", true}, 
@@ -262,17 +262,25 @@ vector<string> SIT_PARAMS_ORDER = {
     "pitcher", "pitcher_team", "pitcher_side", "pitcher_seq", 
     "sit_inn", "sit_innhalf", "sit_outs", "sit_bat_tm_sco", "sit_pit_tm_sco", "sit_sco_diff", 
     "sit_bat_cnt", "sit_base_1", "sit_base_2", "sit_base_3",
-    "out_play_res", "out_play_res2", "out_play_res3", "out_play_base", "out_play_base2", "out_play_base3",
+    "out_play_res", "out_play_base", // "res1_mod", 
     "out_hit_loc", "out_hit_type", "out_outs_made", "out_runs_sco",
-    "ass1", "ass2", "ass3", "ass4", "ass5", "ass6",
-    "po1", "po2", "po3", "err1", "err2", "err3", 
-    "r1m1", "r1m1prm", "r1m2", "r1m2prm", "r1m3", "r1m3prm", 
-    "br0_dst", "br0_out", "br1_dst", "br1_out", "br2_dst", "br2_out", "br3_dst", "br3_out", 
-    "br0_mod1", "br0_mod1_prm", "br0_mod2", "br0_mod2_prm", "br0_mod3", "br0_mod3_prm",  
-    "br1_mod1", "br1_mod1_prm", "br1_mod2", "br1_mod2_prm", "br1_mod3","br1_mod3_prm",
-    "br2_mod1", "br2_mod1_prm", "br2_mod2", "br2_mod2_prm", "br2_mod3", "br2_mod3_prm", 
-    "br3_mod1", "br3_mod1_prm", "br3_mod2", "br3_mod2_prm", "br3_mod3", "br3_mod3_prm" };
+    "out_play_res2", "out_play_base2", // "res2_mod",
+    "out_play_res3", "out_play_base3", //"res3_mod",
+     "putouts", "assists", "errors" };
+    // "runner_first_mods", "runner_second_mods", "runner_third_mods", "runner_home_mods",};
 
+const auto assQ = "COALESCE(ass1,'')||COALESCE(', '||ass2, '')||COALESCE(', '||ass3, '')||COALESCE(', '||ass4, '')||COALESCE(', '||ass5, '')||COALESCE(', '||ass6, '') AS assists"s;
+const auto poQ = "COALESCE(po1,'')||COALESCE(', '||po2, '')||COALESCE(', '||po3, '') AS putouts"s;
+const auto errQ = "COALESCE(err1,'')||COALESCE(', '||err2, '')||COALESCE(', '||err3, '') AS errors"s;
+const auto res1ModQ = "COALESCE(r1m1,'')||COALESCE(' '||r1m1prm, '')||COALESCE('/'||r1m2,'')||COALESCE' '||r1m2prm, '')||COALESCE('/'||r1m3,'')||COALESCE(' '||r1m3prm, '') AS res1_mod"s;
+const auto res2ModQ = "COALESCE(r2m1,'')||COALESCE(' '||r2m1prm, '')||COALESCE('/'||r2m2,'')||COALESCE(' '||r2m2prm, '')||COALESCE('/'||r2m3,'')||COALESCE(' '||r2m3prm, '') AS res2_mod"s;
+const auto res3ModQ = "COALESCE(r3m1,'')||COALESCE(' '||r231prm, '')||COALESCE('/'||r3m2,'')||COALESCE(' '||r3m2prm, '')||COALESCE('/'||r3m3,'')||COALESCE(' '||r3m3prm, '') AS res3_mod"s;
+const auto brun0Q = "COALESCE(br0_dst, '')||COALESCE(br0_out, '')||COALESCE(br0_mod1, '')||COALESCE(br0_mod1_prm, '')||COALESCE(br0_mod2, '')||COALESCE(br0_mod2_prm, '')||COALESCE(br0_mod3, '')||COALESCE(br0_mod3_prm, '') AS runner_home_mods"s;
+const auto brun1Q = "COALESCE(br1_dst, '')||COALESCE(br1_out, '')||COALESCE(br1_mod1, '')||COALESCE(br1_mod1_prm, '')||COALESCE(br1_mod2, '')||COALESCE(br1_mod2_prm, '')||COALESCE(br1_mod3, '')||COALESCE(br1_mod3_prm, '') AS runner_first_mods"s;
+const auto brun2Q = "COALESCE(br2_dst, '')||COALESCE(br2_out, '')||COALESCE(br2_mod1, '')||COALESCE(br2_mod1_prm, '')||COALESCE(br2_mod2, '')||COALESCE(br2_mod2_prm, '')||COALESCE(br2_mod3, '')||COALESCE(br2_mod3_prm, '') AS runner_second_mods"s;
+const auto brun3Q = "COALESCE(br3_dst, '')||COALESCE(br3_out, '')||COALESCE(br3_mod1, '')||COALESCE(br3_mod1_prm, '')||COALESCE(br3_mod2, '')||COALESCE(br3_mod2_prm, '')||COALESCE(br3_mod3, '')||COALESCE(br3_mod3_prm, '') AS runner_third_mods"s;
+
+unordered_map<string, string> SIT_COALESCE_FIELDS;
 // composite stats
 unordered_map<string, string> COMP_STATS;
 
@@ -289,6 +297,17 @@ void initQueryStructs() {
     for(int i=0; i<SEASONS.size(); i++) {
         SEASONS_MAP[SEASONS[i]] = i;
     }
+
+    SIT_COALESCE_FIELDS["putouts"] = poQ;
+    SIT_COALESCE_FIELDS["assists"] = assQ;
+    SIT_COALESCE_FIELDS["errors"] = errQ;
+    SIT_COALESCE_FIELDS["res1_mod"] = res1ModQ;
+    SIT_COALESCE_FIELDS["res2_mod"] = res2ModQ;
+    SIT_COALESCE_FIELDS["res3_mod"] = res3ModQ;
+    SIT_COALESCE_FIELDS["runner_first_mods"] = brun1Q;
+    SIT_COALESCE_FIELDS["runner_second_mods"] = brun2Q;
+    SIT_COALESCE_FIELDS["runner_third_mods"] = brun3Q;
+    SIT_COALESCE_FIELDS["runner_home_mods"] = brun0Q;
 }
 
 bool isNumberChar(char c) {
@@ -565,7 +584,7 @@ string makeCTE(bool isHome,
     selectFieldsSet.emplace("homeaway"s);
     for (auto f : fieldNames) {
         // since this is handled in home/away split
-        if(f == "team" || f == "_team" || f == "league" || f == "_league") continue;
+        if(args.agg == "no" && (f == "team" || f == "_team" || f == "league" || f == "_league")) continue;
         selectFields.push_back(f);
         selectFieldsSet.emplace(f);
         
@@ -582,7 +601,7 @@ string makeCTE(bool isHome,
     for (auto g : group) {
         if(selectFieldsSet.count(g) == 0) {
             // since this is handled in home/away split
-            if(g == "team" || g == "_team" || g == "league" || g == "_league") continue;
+            if(args.agg == "no" && (g == "team" || g == "_team" || g == "league" || g == "_league")) continue;
             selectFields.push_back(g);
             selectFieldsSet.emplace(g);
             
@@ -1216,7 +1235,7 @@ string makeCTEPG(playerGameQueryType pgQryT,
     selectFieldsSet.emplace("homeaway"s);
     for (auto f : fieldNames) {
         // since this is handled in home/away split
-        if(f == "team" || f == "_team" || f == "league" || f == "_league") continue;
+        if(args.agg == "no" && (f == "team" || f == "_team" || f == "league" || f == "_league")) continue;
         selectFields.push_back(f);
         selectFieldsSet.emplace(f);
         if (f == "batter") {
@@ -1245,7 +1264,7 @@ string makeCTEPG(playerGameQueryType pgQryT,
     for (auto g : group) {
         if(selectFieldsSet.count(g) == 0) {
             // since this is handled in home/away split
-            if(g == "team" || g == "_team" || g == "league" || g == "_league") continue;
+            if(args.agg == "no" && (g == "team" || g == "_team" || g == "league" || g == "_league")) continue;
             selectFields.push_back(g);
             selectFieldsSet.emplace(g);
             
@@ -1315,7 +1334,7 @@ string makeCTEPG(playerGameQueryType pgQryT,
         selectFields.insert(selectFields.end(), {"year", "month", "day", "dow", "num", "team", "_team"});
         selectFieldsSet.insert({"year", "month", "day", "dow", "num", "team", "_team"});
         if(isHome) {
-           query += ", home_team AS team, away_team as _team";
+            query += ", home_team AS team, away_team as _team";
         } else {
             query += ", away_team AS team, home_team as _team";
         }
@@ -1447,9 +1466,9 @@ string makeFinalSelectPG(bool isSplitYear,
         //selectFieldsSet.insert({ "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
     // in the case where team is not selected or grouped
     // then only join from home table
-    if(fieldValueMap.count("team") + groupSet.count("team") == 0)
-        query += " FROM home_t";
-    else
+    // if(fieldValueMap.count("team") + groupSet.count("team") == 0)
+    //     query += " FROM home_t";
+    // else
         query += " FROM both_t";
 
     return query;
@@ -1721,6 +1740,14 @@ string makeCTESit(bool isHome,
             // if(g == "team" || g == "_team" || g == "league" || g == "_league") continue;
             selectFields.push_back(g);
             selectFieldsSet.emplace(g);
+            if (g == "batter") {
+                query += "batter_name AS batter, ";
+                continue;
+            } 
+            else if (g == "pitcher") {
+                query += "pitcher_name AS pitcher, ";
+                continue;
+            }
             
             auto qp = QUERY_PARAMS[g];
 
@@ -1744,6 +1771,9 @@ string makeCTESit(bool isHome,
             selectFields.push_back(sit_p);
             selectFieldsSet.emplace(sit_p);
 
+            if (sit_p == "batter") {
+                query += ", batter_name AS batter";
+            }
             if (sit_p == "pitcher") {
                 query += ", pitcher_name AS pitcher";
             }
@@ -1752,6 +1782,9 @@ string makeCTESit(bool isHome,
                 query += ", " + qp.fieldSelector;
                 if(sit_p != qp.fieldSelector)
                     query += " AS " + sit_p;
+            }
+            else if (SIT_COALESCE_FIELDS.count(sit_p) > 0) {
+                query += ", " + SIT_COALESCE_FIELDS[sit_p];
             }
             else {
                 query += ", " + sit_p;
@@ -1818,18 +1851,9 @@ string makeSitFinalSelect(bool isSplitYear,
             }
         }
     }
-    // add on games played/records
     if(args.agg != "no") {
         query += ", COUNT(*) AS plays";
         selectFieldsSetOut.insert({"plays"});
-        // if(agg == "avg") {
-        //     for (auto s : statList)
-        //         query += ", ROUND(1000*AVG(" + s + "))/1000.00 AS " + s;
-        // }
-        // else {
-        //     for (auto s : statList)
-        //         query += ", " + agg + "(" + s + ") AS " + s;
-        // }
     }
     // else
     //     query += ", " + joinStr(statList, ", ");
@@ -1845,20 +1869,6 @@ string makeSitFinalSelect(bool isSplitYear,
     if (args.addWinLossSave && args.agg == "no") {
          query += ", win, loss, save, gw_rbi";
          selectFieldsSetOut.insert({"win", "loss", "save", "gw_rbi"});
-    }
-    //selectFieldsSet.insert({ "park", "daynight", "start_time", "precip", "sky", "temp", "windspeed", "winddir", "field_cond", "attendance", "duration"});
-    // in the case where team is not selected or grouped
-    // then only join from home table
-    if(fieldValueMap.count("team") + groupSet.count("team") == 0)
-        query += " FROM home_t";
-    else
-        query += " FROM both_t";
-
-    // add on # of plays
-    if(args.agg != "no") {
-        query += ", COUNT(*) AS plays";
-        
-        selectFieldsSetOut.insert({"plays"});
     }
 
     query += " FROM both_t s";

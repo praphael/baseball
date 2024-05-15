@@ -26,8 +26,9 @@ function makeQueryJSONBase(filter, agg, statTypes, order, minGP, limit) {
                     v = parseInt(v.substr(idx1+1, idx2-idx1-1));
                     // for playergame fielding queries, interpret batter as fielder
                     if(k == "batter" && filter.subType == "fld")
-                        qy["fielder"] = v;  
-                    else
+                        qy["fielder"] = v;
+                    else if(k == "pitcher" && filter.subType == "pit" ||
+                            k == "batter" && filter.subType == "bat")
                         qy[k] = v;
                 }
             }            
